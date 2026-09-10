@@ -1,14 +1,22 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from 'vue'
+
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
-import ParticleField from '@/components/ui/ParticleField.vue'
+
+// The particle canvas is pure decoration — load it after the app mounts
+// so it never blocks the initial render.
+const ParticleField = defineAsyncComponent(
+  () => import('@/components/ui/ParticleField.vue'),
+)
 </script>
 
 <template>
   <div class="layout">
+    <a href="#main-content" class="skip-link">Перейти к содержимому</a>
     <ParticleField :count="25" />
     <AppHeader />
-    <main class="content">
+    <main id="main-content" class="content">
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">
           <component :is="Component" />
@@ -20,6 +28,23 @@ import ParticleField from '@/components/ui/ParticleField.vue'
 </template>
 
 <style scoped>
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10000;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent);
+  color: oklch(0.1 0.01 260);
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-md) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
 .layout {
   min-height: 100vh;
   display: flex;

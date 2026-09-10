@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ReportReason } from '@/types'
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const emit = defineEmits<{
   close: []
@@ -17,16 +17,61 @@ const reasons: { value: ReportReason; label: string }[] = [
 
 const reason = ref<ReportReason>('spam')
 const comment = ref('')
+const dialogRef = ref<HTMLElement | null>(null)
 
 function submit() {
   emit('submit', { reason: reason.value, comment: comment.value })
 }
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (event.key === 'Tab' && dialogRef.value) {
+    // Simple focus trap inside the dialog.
+    const focusables = dialogRef.value.querySelectorAll<HTMLElement>(
+      'button, select, textarea, input, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement as HTMLElement | null
+    if (event.shiftKey && active === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+  // Move focus into the dialog on open.
+  requestAnimationFrame(() => {
+    dialogRef.value?.querySelector<HTMLElement>('select')?.focus()
+  })
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="report-overlay" data-testid="report-dialog" @click.self="emit('close')">
-      <form class="report-dialog" @submit.prevent="submit">
+    <div class="report-overlay" @click.self="emit('close')">
+      <form
+        ref="dialogRef"
+        class="report-dialog"
+        data-testid="report-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Пожаловаться на пост"
+        @submit.prevent="submit"
+      >
         <h3>Пожаловаться на пост</h3>
         <label class="field">
           <span>Причина</span>
