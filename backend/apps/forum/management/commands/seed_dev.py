@@ -1,11 +1,11 @@
 """seed_dev — idempotent development data loader."""
+
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.forum.models import Board, Post, Thread
-from apps.moderation.models import Report
 from apps.platinum.models import PlatinumStory
 
 BOARDS = [
@@ -99,7 +99,7 @@ class Command(BaseCommand):
             )
             if created:
                 thread_count += 1
-                for i, post_data in enumerate(thread_data["posts"]):
+                for _i, post_data in enumerate(thread_data["posts"]):
                     Post.objects.create(
                         thread=thread,
                         body=post_data["body"],
