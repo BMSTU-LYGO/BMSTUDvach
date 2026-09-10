@@ -9,17 +9,15 @@ import ThreadCard from '@/components/ThreadCard.vue'
 import ThreadList from '@/components/ThreadList.vue'
 import type { Board, ThreadSummary } from '@/types'
 
-function withRouter(component: unknown, routes: unknown[] = []) {
-  const router = createRouter({
+function createTestRouter() {
+  return createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/', component: { template: '<div />' } },
       { path: '/boards/:boardSlug', component: { template: '<div />' } },
       { path: '/threads/:threadId', component: { template: '<div />' } },
-      ...routes,
     ],
   })
-  return { router }
 }
 
 const stubBoard: Board = {
@@ -48,7 +46,7 @@ const stubThread: ThreadSummary = {
 describe('BoardList', () => {
   it('renders board links', () => {
     setActivePinia(createPinia())
-    const { router } = withRouter([])
+    const router = createTestRouter()
     const wrapper = mount(BoardList, {
       props: { boards: [stubBoard] },
       global: { plugins: [router] },
@@ -63,7 +61,7 @@ describe('BoardList', () => {
 describe('ThreadCard', () => {
   it('renders thread title and reply count', () => {
     setActivePinia(createPinia())
-    const { router } = withRouter([])
+    const router = createTestRouter()
     const wrapper = mount(ThreadCard, {
       props: { thread: stubThread },
       global: { plugins: [router] },
@@ -75,7 +73,7 @@ describe('ThreadCard', () => {
 
   it('shows pin icon for pinned threads', () => {
     setActivePinia(createPinia())
-    const { router } = withRouter([])
+    const router = createTestRouter()
     const wrapper = mount(ThreadCard, {
       props: { thread: { ...stubThread, is_pinned: true } },
       global: { plugins: [router] },
@@ -87,7 +85,7 @@ describe('ThreadCard', () => {
 describe('ThreadList', () => {
   it('renders empty state when no threads', () => {
     setActivePinia(createPinia())
-    const { router } = withRouter([])
+    const router = createTestRouter()
     const wrapper = mount(ThreadList, {
       props: { threads: [] },
       global: { plugins: [router] },
@@ -97,7 +95,7 @@ describe('ThreadList', () => {
 
   it('renders thread cards', () => {
     setActivePinia(createPinia())
-    const { router } = withRouter([])
+    const router = createTestRouter()
     const wrapper = mount(ThreadList, {
       props: { threads: [stubThread] },
       global: { plugins: [router] },
