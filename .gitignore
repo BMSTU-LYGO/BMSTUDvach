@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.sqlite3
+*.log
+
+# Django
+media/
+staticfiles/
+backend/media/
+backend/staticfiles/
+local_settings.py
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+*.tsbuildinfo
+
+# Docker
+postgres_data/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
