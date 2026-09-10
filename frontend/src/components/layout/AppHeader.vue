@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useForumStore } from '@/stores/forum'
+import { useCRT } from '@/composables/useCRT'
+import { useSound } from '@/composables/useSound'
 
 const store = useForumStore()
 const mobileOpen = ref(false)
+
+const { crtEnabled, toggleCRT } = useCRT()
+const { soundEnabled, toggleSound } = useSound()
 
 onMounted(() => {
   void store.fetchBoards()
@@ -22,36 +27,59 @@ function closeMobile() {
         <span class="brand-dot"></span>
       </RouterLink>
 
-      <button
-        class="mobile-toggle"
-        :aria-expanded="mobileOpen"
-        aria-label="Навигация"
-        @click="mobileOpen = !mobileOpen"
-      >
-        <span class="hamburger" :class="{ open: mobileOpen }">
-          <span></span>
-          <span></span>
-          <span></span>
-        </span>
-      </button>
+      <div class="header-right">
+        <nav class="nav" :class="{ open: mobileOpen }" aria-label="Разделы">
+          <RouterLink
+            v-for="board in store.boards.boards"
+            :key="board.slug"
+            :to="`/boards/${board.slug}`"
+            class="nav-link"
+            @click="closeMobile"
+          >
+            /{{ board.slug }}/
+          </RouterLink>
+          <RouterLink to="/platinum" class="nav-link nav-accent" @click="closeMobile">
+            /platinum/
+          </RouterLink>
+          <RouterLink to="/about" class="nav-link" @click="closeMobile">
+            /about/
+          </RouterLink>
+        </nav>
 
-      <nav class="nav" :class="{ open: mobileOpen }" aria-label="Разделы">
-        <RouterLink
-          v-for="board in store.boards.boards"
-          :key="board.slug"
-          :to="`/boards/${board.slug}`"
-          class="nav-link"
-          @click="closeMobile"
+        <div class="fx-toggles">
+          <button
+            class="fx-toggle"
+            :class="{ active: crtEnabled }"
+            :aria-pressed="crtEnabled"
+            title="CRT-эффекты (сканлайны, виньетка)"
+            @click="toggleCRT"
+          >
+            CRT
+          </button>
+          <button
+            class="fx-toggle"
+            :class="{ active: soundEnabled }"
+            :aria-pressed="soundEnabled"
+            :title="soundEnabled ? 'Звук включён' : 'Звук выключен'"
+            @click="toggleSound"
+          >
+            {{ soundEnabled ? '♪' : '∅' }}
+          </button>
+        </div>
+
+        <button
+          class="mobile-toggle"
+          :aria-expanded="mobileOpen"
+          aria-label="Навигация"
+          @click="mobileOpen = !mobileOpen"
         >
-          /{{ board.slug }}/
-        </RouterLink>
-        <RouterLink to="/platinum" class="nav-link nav-accent" @click="closeMobile">
-          /platinum/
-        </RouterLink>
-        <RouterLink to="/about" class="nav-link" @click="closeMobile">
-          /about/
-        </RouterLink>
-      </nav>
+          <span class="hamburger" :class="{ open: mobileOpen }">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -99,12 +127,63 @@ function closeMobile() {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.fx-toggle {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart),
+    background var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
+}
+
+.fx-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.fx-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.fx-toggle.active {
+  color: var(--accent);
+  border-color: var(--border-accent);
+  background: var(--accent-glow);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
 .nav {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   flex-wrap: wrap;
   flex: 1;
+  min-width: 0;
 }
 
 .nav-link {
@@ -140,7 +219,6 @@ function closeMobile() {
   border: none;
   padding: var(--space-2);
   cursor: pointer;
-  margin-left: auto;
 }
 
 .hamburger {
@@ -173,6 +251,10 @@ function closeMobile() {
 @media (max-width: 767px) {
   .mobile-toggle {
     display: block;
+  }
+
+  .fx-toggles {
+    margin-left: auto;
   }
 
   .nav {
