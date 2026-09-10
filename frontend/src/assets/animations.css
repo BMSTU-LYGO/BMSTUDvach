@@ -1,0 +1,119 @@
+/* animations.css — Keyframes and animation utility classes */
+
+/* === Keyframes === */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) translateZ(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px var(--accent-glow), 0 0 24px oklch(0.72 0.16 65 / 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--accent-glow-strong), 0 0 40px var(--accent-glow);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+/* === Animation utility classes (opt-in, require reduced-motion check) === */
+@media (prefers-reduced-motion: no-preference) {
+  .anim-fade-in-up {
+    animation: fadeInUp 0.6s var(--ease-out-expo) both;
+  }
+
+  .anim-fade-in {
+    animation: fadeIn 0.4s var(--ease-out-quart) both;
+  }
+
+  .anim-slide-in-right {
+    animation: slideInRight 0.5s var(--ease-out-expo) both;
+  }
+
+  .anim-glow-pulse {
+    animation: glowPulse 3s ease-in-out infinite;
+  }
+
+  .anim-float {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .anim-shake {
+    animation: shake 0.4s ease-in-out;
+  }
+
+  /* Stagger delays for list items */
+  .anim-delay-1 { animation-delay: 0.05s; }
+  .anim-delay-2 { animation-delay: 0.1s; }
+  .anim-delay-3 { animation-delay: 0.15s; }
+  .anim-delay-4 { animation-delay: 0.2s; }
+  .anim-delay-5 { animation-delay: 0.25s; }
+  .anim-delay-6 { animation-delay: 0.3s; }
+  .anim-delay-7 { animation-delay: 0.35s; }
+  .anim-delay-8 { animation-delay: 0.4s; }
+}
+
+/* === Skeleton loading shimmer === */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 25%,
+    var(--bg-raised) 50%,
+    var(--bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}

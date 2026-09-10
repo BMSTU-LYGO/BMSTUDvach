@@ -1,51 +1,329 @@
+/* main.css — BMSTUDvach design system foundation */
+
+/* === Fonts === */
+@import './fonts.css';
+
+/* === Design Tokens (OKLCH) === */
 :root {
-  color-scheme: light;
+  /* Backgrounds */
+  --bg-deep: oklch(0.10 0.01 260);
+  --bg-surface: oklch(0.14 0.012 260);
+  --bg-raised: oklch(0.18 0.015 260);
+  --bg-overlay: oklch(0.10 0.01 260 / 0.85);
+
+  /* Borders */
+  --border-subtle: oklch(0.25 0.02 260);
+  --border-medium: oklch(0.32 0.025 260);
+  --border-accent: oklch(0.72 0.16 65 / 0.4);
+
+  /* Text */
+  --text-primary: oklch(0.90 0.01 80);
+  --text-secondary: oklch(0.75 0.015 260);
+  --text-muted: oklch(0.55 0.02 260);
+
+  /* Accent — amber */
+  --accent: oklch(0.72 0.16 65);
+  --accent-dim: oklch(0.55 0.12 65);
+  --accent-glow: oklch(0.72 0.16 65 / 0.25);
+  --accent-glow-strong: oklch(0.72 0.16 65 / 0.5);
+
+  /* Semantic */
+  --danger: oklch(0.55 0.20 25);
+  --danger-dim: oklch(0.45 0.15 25);
+  --success: oklch(0.65 0.18 155);
+
+  /* Typography */
+  --font-display: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing scale (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.4);
+  --shadow-lg: 0 8px 32px oklch(0 0 0 / 0.5);
+  --shadow-glow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* Transitions */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
 }
 
-* {
+/* === Reset === */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  margin: 0;
-  font-family:
-    -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #222;
-  background: #f4f4f0;
-  line-height: 1.4;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-h1,
-h2,
-h3 {
+/* === Typography === */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
   font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--text-primary);
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.02em;
 }
 
 h2 {
-  margin: 0 0 1rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.01em;
 }
 
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+p {
+  max-width: 65ch;
+  text-wrap: pretty;
+}
+
+small,
+.caption {
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* === Links === */
 a {
-  color: #0b5cab;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out-quart);
 }
 
+a:hover {
+  color: var(--text-primary);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* === Buttons === */
 .btn {
-  padding: 0.45rem 0.9rem;
-  border: 1px solid #bbb;
-  border-radius: 4px;
-  background: #eee;
-  color: #222;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text-primary);
   cursor: pointer;
-  font: inherit;
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
 }
+
 .btn:hover {
-  background: #ddd;
+  background: oklch(0.22 0.015 260);
+  border-color: var(--border-accent);
 }
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
 .btn-primary {
-  background: #b00;
-  border-color: #b00;
-  color: #fff;
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: oklch(0.10 0.01 260);
 }
+
 .btn-primary:hover {
-  background: #900;
+  background: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8rem;
+}
+
+.btn-danger {
+  border-color: var(--danger-dim);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: oklch(0.55 0.20 25 / 0.15);
+  border-color: var(--danger);
+}
+
+/* === Form fields === */
+input[type="text"],
+input[type="email"],
+input[type="url"],
+textarea,
+select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* === Utility classes === */
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.text-mono {
+  font-family: var(--font-display);
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* === Selection === */
+::selection {
+  background: var(--accent-glow-strong);
+  color: var(--text-primary);
+}
+
+/* === Reduced motion === */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
