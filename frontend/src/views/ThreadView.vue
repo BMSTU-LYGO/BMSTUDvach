@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+
 import GlowBorder from '@/components/ui/GlowBorder.vue'
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import CreatePostForm from '@/components/CreatePostForm.vue'
@@ -9,20 +10,39 @@ import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
+import { playMorph } from '@/composables/usePageMorph'
+import { usePostReveal } from '@/composables/usePostReveal'
+import { useSound } from '@/composables/useSound'
 import type { NewPostInput, ReportReason } from '@/types'
 
 const props = defineProps<{ threadId: number }>()
 const store = useForumStore()
+const { sounds } = useSound()
 
 const posting = ref(false)
 const postError = ref('')
 const reportNotice = ref('')
 const formKey = ref(0)
 const activeReportPostId = ref<number | null>(null)
+const titleRef = ref<HTMLElement | null>(null)
+const postsRef = ref<HTMLElement | null>(null)
 
-onMounted(() => {
+const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
+usePostReveal(postsRef, postsCount)
+
+onMounted(async () => {
   void store.fetchThread(props.threadId)
 })
+
+// Play the shared-element morph once the title actually renders.
+watch(
+  () => store.thread.thread,
+  async (thread) => {
+    if (!thread) return
+    await nextTick()
+    playMorph(titleRef.value, `thread:${props.threadId}`)
+  },
+)
 
 async function handlePost(input: NewPostInput) {
   posting.value = true
@@ -31,8 +51,10 @@ async function handlePost(input: NewPostInput) {
     await store.createPost(props.threadId, input)
     formKey.value += 1
     await store.fetchThread(props.threadId)
+    sounds.submit()
   } catch (err) {
     postError.value = err instanceof Error ? err.message : 'Не удалось отправить ответ.'
+    sounds.error()
   } finally {
     posting.value = false
   }
@@ -51,9 +73,11 @@ async function handleReport(payload: {
       comment: payload.comment,
     })
     reportNotice.value = 'Жалоба отправлена.'
+    sounds.submit()
   } catch (err) {
     reportNotice.value =
       err instanceof Error ? err.message : 'Не удалось отправить жалобу.'
+    sounds.error()
   }
 }
 
@@ -85,13 +109,13 @@ function formatTime(value: string): string {
       :on-retry="() => store.fetchThread(props.threadId)"
     />
     <template v-else-if="store.thread.thread">
-      <h1 class="thread-title">{{ store.thread.thread.title }}</h1>
+      <h1 ref="titleRef" class="thread-title">{{ store.thread.thread.title }}</h1>
 
       <p v-if="store.thread.thread.is_locked" class="thread-locked">
         ● Тред закрыт
       </p>
 
-      <div class="posts">
+      <div ref="postsRef" class="posts">
         <article
           v-for="post in store.thread.thread.posts"
           :key="post.id"
@@ -107,7 +131,8 @@ function formatTime(value: string): string {
               <span class="post-time">{{ formatTime(post.created_at) }}</span>
               <button
                 class="btn-report"
-                title="Пожаловаться"
+                :title="`Пожаловаться на пост #${post.id}`"
+                :aria-label="`Пожаловаться на пост #${post.id}`"
                 @click="activeReportPostId = post.id"
               >
                 !

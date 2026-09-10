@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 
 import GlowBorder from '@/components/ui/GlowBorder.vue'
+import MagneticButton from '@/components/ui/MagneticButton.vue'
 import CreateThreadForm from '@/components/CreateThreadForm.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+import { playMorph, captureMorph } from '@/composables/usePageMorph'
+import { useSound } from '@/composables/useSound'
 import type { NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
 
 const store = useForumStore()
 const sectionRef = ref<HTMLElement | null>(null)
+const titleRef = ref<HTMLElement | null>(null)
 
 useScrollReveal(sectionRef, '.thread-row')
+
+const { sounds } = useSound()
 
 const creating = ref(false)
 const createdError = ref('')
@@ -24,7 +30,9 @@ const showForm = ref(false)
 
 const threads = computed(() => store.threadList.threads)
 
-onMounted(() => {
+onMounted(async () => {
+  await nextTick()
+  playMorph(titleRef.value, `board:${props.boardSlug}`)
   void store.fetchThreads(props.boardSlug)
 })
 
@@ -36,11 +44,18 @@ async function handleCreate(input: NewThreadInput) {
     formKey.value += 1
     showForm.value = false
     await store.fetchThreads(props.boardSlug)
+    sounds.submit()
   } catch (err) {
     createdError.value = err instanceof Error ? err.message : 'Не удалось создать тред.'
+    sounds.error()
   } finally {
     creating.value = false
   }
+}
+
+function captureRow(event: MouseEvent, threadId: number) {
+  captureMorph(event.currentTarget as HTMLElement, `thread:${threadId}`)
+  sounds.click()
 }
 
 function formatDate(value: string): string {
@@ -60,10 +75,10 @@ function formatDate(value: string): string {
 <template>
   <section class="board-page">
     <div class="board-header">
-      <h1 class="board-title text-mono">/{{ boardSlug }}/</h1>
-      <button class="btn btn-primary" @click="showForm = !showForm">
+      <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
+      <MagneticButton variant="primary" @click="showForm = !showForm">
         {{ showForm ? '✕ Закрыть' : '+ Новый тред' }}
-      </button>
+      </MagneticButton>
     </div>
 
     <Transition name="form-slide">
@@ -94,6 +109,7 @@ function formatDate(value: string): string {
         :key="thread.id"
         :to="`/threads/${thread.id}`"
         class="thread-row"
+        @click="captureRow($event, thread.id)"
       >
         <div class="thread-main">
           <div class="thread-title-row">

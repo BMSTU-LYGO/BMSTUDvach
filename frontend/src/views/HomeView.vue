@@ -4,19 +4,24 @@ import { onMounted, ref } from 'vue'
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import ScanlineOverlay from '@/components/ui/ScanlineOverlay.vue'
+import GridPattern from '@/components/ui/GridPattern.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+import { useParallax } from '@/composables/useParallax'
 import { gsap, prefersReducedMotion } from '@/composables/useGsap'
 
 const store = useForumStore()
 const sectionRef = ref<HTMLElement | null>(null)
 const heroRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
+const gridLinesRef = ref<HTMLElement | null>(null)
 
-useScrollReveal(sectionRef, '.board-card')
+const { mousePercentX, mousePercentY } = useParallax()
+
+useScrollReveal(sectionRef, '.board-card-3d')
 
 onMounted(() => {
   void store.fetchBoards()
@@ -71,8 +76,18 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Decorative grid lines -->
-      <div class="hero-grid-lines" aria-hidden="true">
+      <!-- Engineering grid backdrop -->
+      <GridPattern :cell-size="48" :opacity="0.06" />
+
+      <!-- Decorative grid lines (mouse parallax layer) -->
+      <div
+        ref="gridLinesRef"
+        class="hero-grid-lines"
+        aria-hidden="true"
+        :style="{
+          transform: `translate(${(mousePercentX - 0.5) * 24}px, ${(mousePercentY - 0.5) * 16}px)`,
+        }"
+      >
         <div class="grid-line h1"></div>
         <div class="grid-line h2"></div>
         <div class="grid-line v1"></div>
@@ -170,6 +185,8 @@ onMounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 1;
+  transition: transform 0.6s var(--ease-out-quart);
+  will-change: transform;
 }
 
 .grid-line {

@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useTilt } from '@/composables/useTilt'
+import { captureMorph } from '@/composables/usePageMorph'
+import { useSound } from '@/composables/useSound'
+import GenerativeIcon from '@/components/ui/GenerativeIcon.vue'
 import type { Board } from '@/types'
 
-defineProps<{ board: Board; index: number }>()
+const props = defineProps<{ board: Board; index: number }>()
 
 const cardRef = ref<HTMLElement | null>(null)
 const { isHovered } = useTilt(cardRef, { maxTilt: 10, scale: 1.04 })
+const { sounds } = useSound()
+
+function handleNavigate() {
+  // Capture card state for the shared-element morph into the board page.
+  captureMorph(cardRef.value, `board:${props.board.slug}`)
+  sounds.click()
+}
 </script>
 
 <template>
@@ -15,12 +25,13 @@ const { isHovered } = useTilt(cardRef, { maxTilt: 10, scale: 1.04 })
     class="board-card-3d"
     :class="{ hovered: isHovered }"
     :style="{ '--delay': index * 0.08 + 's' }"
+    @click="handleNavigate"
   >
     <div ref="cardRef" class="card-inner">
       <div class="card-glow"></div>
       <div class="card-content">
         <div class="card-icon">
-          {{ board.slug.charAt(0).toUpperCase() }}
+          <GenerativeIcon :seed="board.slug" :size="52" />
         </div>
         <div class="card-text">
           <span class="card-slug">/{{ board.slug }}/</span>
