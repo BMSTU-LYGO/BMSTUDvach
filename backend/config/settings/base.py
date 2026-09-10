@@ -155,6 +155,11 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 CORS_ALLOW_CREDENTIALS = True
 
+# --- CSRF -------------------------------------------------------------------
+CSRF_TRUSTED_ORIGINS = env_list(
+    "CSRF_TRUSTED_ORIGINS", "http://localhost:5173"
+)
+
 # --- OpenAPI ----------------------------------------------------------------
 SPECTACULAR_SETTINGS = {
     "TITLE": "BMSTUDvach API",
