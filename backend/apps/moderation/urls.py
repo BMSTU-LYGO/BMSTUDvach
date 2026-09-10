@@ -1,3 +1,11 @@
 from django.urls import path
 
-urlpatterns: list[path] = []
+from apps.moderation import views
+
+urlpatterns = [
+    path(
+        "posts/<int:pk>/reports/",
+        views.ReportCreateView.as_view(),
+        name="post-reports",
+    ),
+]
