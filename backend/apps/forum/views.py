@@ -76,12 +76,8 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         thread = serializer.save()
-        output = ThreadDetailSerializer(
-            thread, context=self.get_serializer_context()
-        )
-        return Response(
-            output.data, status=status.HTTP_201_CREATED
-        )
+        output = ThreadDetailSerializer(thread, context=self.get_serializer_context())
+        return Response(output.data, status=status.HTTP_201_CREATED)
 
 
 class ThreadDetailView(generics.RetrieveAPIView):

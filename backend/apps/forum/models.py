@@ -7,10 +7,14 @@ from django.db import models
 from django.utils import timezone
 
 from apps.common.models import TimeStampedModel
-from apps.forum.validators import slug_validator, validate_attachment, validate_post_body
+from apps.forum.validators import (
+    slug_validator,
+    validate_attachment,
+    validate_post_body,
+)
 
 
-def attachment_upload_path(instance: "Attachment", filename: str) -> str:
+def attachment_upload_path(instance: Attachment, filename: str) -> str:
     suffix = Path(filename).suffix.lower()[:10]
     stamp = timezone.now().strftime("%Y/%m")
     return f"attachments/{stamp}/{uuid.uuid4().hex}{suffix}"
@@ -34,19 +38,17 @@ class Board(TimeStampedModel):
 
 
 class ThreadQuerySet(models.QuerySet):
-    def visible(self) -> "ThreadQuerySet":
+    def visible(self) -> ThreadQuerySet:
         return self.filter(is_hidden=False)
 
-    def for_listing(self) -> "ThreadQuerySet":
+    def for_listing(self) -> ThreadQuerySet:
         return self.visible().select_related("board")
 
 
 class Thread(TimeStampedModel):
     """A discussion thread; always has at least one (OP) post."""
 
-    board = models.ForeignKey(
-        Board, on_delete=models.PROTECT, related_name="threads"
-    )
+    board = models.ForeignKey(Board, on_delete=models.PROTECT, related_name="threads")
     title = models.CharField(max_length=200)
     bumped_at = models.DateTimeField(default=timezone.now, db_index=True)
     is_locked = models.BooleanField(default=False)
@@ -71,16 +73,14 @@ class Thread(TimeStampedModel):
 
 
 class PostQuerySet(models.QuerySet):
-    def visible(self) -> "PostQuerySet":
+    def visible(self) -> PostQuerySet:
         return self.filter(is_hidden=False)
 
 
 class Post(TimeStampedModel):
     """A single message inside a thread."""
 
-    thread = models.ForeignKey(
-        Thread, on_delete=models.CASCADE, related_name="posts"
-    )
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="posts")
     body = models.TextField(validators=[validate_post_body])
     is_op = models.BooleanField(default=False)
     is_hidden = models.BooleanField(default=False)
@@ -104,9 +104,7 @@ class Post(TimeStampedModel):
 class Attachment(TimeStampedModel):
     """A file attached to a post."""
 
-    post = models.ForeignKey(
-        Post, on_delete=models.CASCADE, related_name="attachments"
-    )
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(
         upload_to=attachment_upload_path, validators=[validate_attachment]
     )

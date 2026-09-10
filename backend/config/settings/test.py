@@ -4,6 +4,7 @@ By default tests run on an in-memory SQLite database so they are fast and
 need no external services. Set ``TEST_USE_SQLITE=false`` (and provide the
 POSTGRES_* variables) to run the suite against PostgreSQL, as Docker/CI do.
 """
+
 from .base import *  # noqa: F401,F403
 from .base import DATABASES, env_bool
 

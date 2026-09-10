@@ -1,6 +1,10 @@
 import pytest
 
-from apps.platinum.generators import FakePlatinumGenerator, get_generator, GeneratedStory
+from apps.platinum.generators import (
+    FakePlatinumGenerator,
+    GeneratedStory,
+    get_generator,
+)
 
 
 class TestFakePlatinumGenerator:

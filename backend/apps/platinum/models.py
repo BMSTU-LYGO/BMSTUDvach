@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -28,7 +27,10 @@ class SourceStory(TimeStampedModel):
         max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True
     )
     content_hash = models.CharField(
-        max_length=64, blank=True, default="", db_index=True,
+        max_length=64,
+        blank=True,
+        default="",
+        db_index=True,
         help_text="SHA-256 of title+body for deduplication.",
     )
     added_at = models.DateTimeField(default=timezone.now)
@@ -64,7 +66,9 @@ class PlatinumStory(TimeStampedModel):
     title = models.CharField(max_length=200)
     body = models.TextField()
     source_type = models.CharField(
-        max_length=32, blank=True, default="",
+        max_length=32,
+        blank=True,
+        default="",
         help_text="Free-form origin tag, e.g. 'dvach', 'custom'.",
     )
     status = models.CharField(

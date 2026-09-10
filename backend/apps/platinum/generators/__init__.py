@@ -5,6 +5,7 @@ Provides an abstract ``PlatinumGenerator`` interface and a concrete
 provider names (from settings) to generator classes so that the concrete
 LLM adapter can be swapped without touching domain logic.
 """
+
 from __future__ import annotations
 
 import abc
@@ -25,14 +26,17 @@ class PlatinumGenerator(abc.ABC):
     """Interface that all LLM adapters must implement."""
 
     @abc.abstractmethod
-    def generate(self, source_title: str, source_body: str, context: dict[str, Any]) -> GeneratedStory:
-        ...
+    def generate(
+        self, source_title: str, source_body: str, context: dict[str, Any]
+    ) -> GeneratedStory: ...
 
 
 class FakePlatinumGenerator(PlatinumGenerator):
     """Deterministic generator for local dev and tests."""
 
-    def generate(self, source_title: str, source_body: str, context: dict[str, Any]) -> GeneratedStory:
+    def generate(
+        self, source_title: str, source_body: str, context: dict[str, Any]
+    ) -> GeneratedStory:
         title = f"[fake] {source_title}" if source_title else "[fake] Платина"
         body = (
             f"Это фейковая сгенерированная история для разработки.\n\n"

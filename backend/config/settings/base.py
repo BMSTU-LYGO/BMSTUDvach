@@ -2,6 +2,7 @@
 
 Environment-driven settings shared by all environments.
 """
+
 from __future__ import annotations
 
 import os
@@ -106,7 +107,9 @@ DATABASES = {
 
 # --- Auth -------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -150,15 +153,11 @@ REST_FRAMEWORK = {
 }
 
 # --- CORS -------------------------------------------------------------------
-CORS_ALLOWED_ORIGINS = env_list(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:5173"
-)
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 CORS_ALLOW_CREDENTIALS = True
 
 # --- CSRF -------------------------------------------------------------------
-CSRF_TRUSTED_ORIGINS = env_list(
-    "CSRF_TRUSTED_ORIGINS", "http://localhost:5173"
-)
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "http://localhost:5173")
 
 # --- OpenAPI ----------------------------------------------------------------
 SPECTACULAR_SETTINGS = {

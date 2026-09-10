@@ -24,7 +24,14 @@ class SourceStoryAdmin(admin.ModelAdmin):
 
 @admin.register(PlatinumStory)
 class PlatinumStoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "status", "source_type", "created_at", "published_at")
+    list_display = (
+        "id",
+        "title",
+        "status",
+        "source_type",
+        "created_at",
+        "published_at",
+    )
     list_filter = ("status", "source_type")
     search_fields = ("title", "body")
     date_hierarchy = "created_at"
