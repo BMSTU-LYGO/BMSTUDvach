@@ -33,10 +33,10 @@ defineExpose({ reset })
 
 <template>
   <form class="create-form" data-testid="create-post-form" @submit.prevent="submit">
-    <h3>Ответить</h3>
+    <h3 class="form-title">Ответить</h3>
     <label class="field">
       <span>Текст</span>
-      <textarea v-model="body" rows="4" maxlength="20000"></textarea>
+      <textarea v-model="body" rows="4" maxlength="20000" placeholder="Ваш ответ..."></textarea>
     </label>
     <label class="field">
       <span>Вложения</span>
@@ -53,32 +53,39 @@ defineExpose({ reset })
 .create-form {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  padding: 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  background: #fff;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
-.create-form h3 {
+
+.form-title {
   margin: 0;
+  font-size: 1rem;
+  color: var(--accent);
 }
+
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--space-2);
 }
+
 .field span {
   font-size: 0.85rem;
-  color: #666;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
-.field textarea {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font: inherit;
-}
+
 .form-error {
-  color: #b00;
+  color: var(--danger);
   margin: 0;
+  font-size: 0.9rem;
+}
+
+input[type="file"] {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 </style>
