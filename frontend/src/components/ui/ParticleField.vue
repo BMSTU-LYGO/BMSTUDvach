@@ -18,12 +18,15 @@ const props = withDefaults(
 )
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+
 let animationId: number | null = null
+let ctx: CanvasRenderingContext2D | null = null
 let particles: Particle[] = []
 let mouseX = -1000
 let mouseY = -1000
 let canvasW = 0
 let canvasH = 0
+let started = false
 
 function createParticle(w: number, h: number): Particle {
   return {
@@ -37,113 +40,112 @@ function createParticle(w: number, h: number): Particle {
   }
 }
 
+function resize() {
+  const canvas = canvasRef.value
+  if (!canvas || !ctx) return
+  canvasW = canvas.offsetWidth
+  canvasH = canvas.offsetHeight
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = canvasW * dpr
+  canvas.height = canvasH * dpr
+  // Reset (not multiply) the transform on every resize.
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+
+function handleWindowMouseMove(e: MouseEvent) {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  mouseX = e.clientX - rect.left
+  mouseY = e.clientY - rect.top
+}
+
+function animate() {
+  const canvas = canvasRef.value
+  if (!ctx || !canvas) return
+  ctx.clearRect(0, 0, canvasW, canvasH)
+
+  const mouseRadius = 150
+
+  for (const p of particles) {
+    const dx = mouseX - p.x
+    const dy = mouseY - p.y
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    if (dist < mouseRadius && dist > 0) {
+      const force = (1 - dist / mouseRadius) * 0.02
+      p.speedX += dx * force
+      p.speedY += dy * force
+    }
+
+    p.speedX *= 0.99
+    p.speedY *= 0.99
+
+    p.x += p.speedX
+    p.y += p.speedY
+
+    if (p.x < -10) p.x = canvasW + 10
+    if (p.x > canvasW + 10) p.x = -10
+    if (p.y < -10) p.y = canvasH + 10
+    if (p.y > canvasH + 10) p.y = -10
+
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+    ctx.fillStyle = `hsla(${p.hue}, 60%, 55%, ${p.opacity})`
+    ctx.fill()
+  }
+
+  // Proximity connections.
+  const maxDist = props.connectDistance
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const a = particles[i]
+      const b = particles[j]
+      const dx = a.x - b.x
+      const dy = a.y - b.y
+      if (Math.abs(dx) > maxDist || Math.abs(dy) > maxDist) continue
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < maxDist) {
+        const alpha = (1 - dist / maxDist) * 0.15
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.lineTo(b.x, b.y)
+        ctx.strokeStyle = `hsla(35, 70%, 50%, ${alpha})`
+        ctx.lineWidth = 0.5
+        ctx.stroke()
+      }
+    }
+  }
+
+  animationId = requestAnimationFrame(animate)
+}
+
 onMounted(() => {
   const canvas = canvasRef.value
   if (!canvas || prefersReducedMotion()) return
 
-  const ctx = canvas.getContext('2d')
+  ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  function resize() {
-    canvasW = canvas!.offsetWidth
-    canvasH = canvas!.offsetHeight
-    canvas!.width = canvasW * devicePixelRatio
-    canvas!.height = canvasH * devicePixelRatio
-    ctx!.scale(devicePixelRatio, devicePixelRatio)
-  }
   resize()
   window.addEventListener('resize', resize)
+  window.addEventListener('mousemove', handleWindowMouseMove, { passive: true })
 
-  function handleMouseMove(e: MouseEvent) {
-    const rect = canvas!.getBoundingClientRect()
-    mouseX = e.clientX - rect.left
-    mouseY = e.clientY - rect.top
-  }
-  canvas.addEventListener('mousemove', handleMouseMove, { passive: true })
-
-  function handleMouseLeave() {
-    mouseX = -1000
-    mouseY = -1000
-  }
-  canvas.addEventListener('mouseleave', handleMouseLeave)
-
-  const effectiveCount = window.innerWidth < 768 ? Math.floor(props.count * 0.5) : props.count
+  const effectiveCount =
+    window.innerWidth < 768 ? Math.floor(props.count * 0.5) : props.count
   particles = Array.from({ length: effectiveCount }, () =>
     createParticle(canvasW, canvasH),
   )
 
-  function animate() {
-    if (!ctx || !canvas) return
-    ctx.clearRect(0, 0, canvasW, canvasH)
-
-    // Mouse influence radius
-    const mouseRadius = 150
-
-    for (const p of particles) {
-      // Mouse interaction
-      const dx = mouseX - p.x
-      const dy = mouseY - p.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist < mouseRadius && dist > 0) {
-        const force = (1 - dist / mouseRadius) * 0.02
-        p.speedX += dx * force
-        p.speedY += dy * force
-        // Hue shift near cursor
-        p.hue = 30 + (dx / mouseRadius) * 30
-      }
-
-      // Damping
-      p.speedX *= 0.99
-      p.speedY *= 0.99
-
-      p.x += p.speedX
-      p.y += p.speedY
-
-      // Wrap around
-      if (p.x < -10) p.x = canvasW + 10
-      if (p.x > canvasW + 10) p.x = -10
-      if (p.y < -10) p.y = canvasH + 10
-      if (p.y > canvasH + 10) p.y = -10
-
-      // Draw particle
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `hsla(${p.hue}, 60%, 55%, ${p.opacity})`
-      ctx.fill()
-    }
-
-    // Draw connections
-    const maxDist = props.connectDistance
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const a = particles[i]
-        const b = particles[j]
-        const dx = a.x - b.x
-        const dy = a.y - b.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < maxDist) {
-          const alpha = (1 - dist / maxDist) * 0.15
-          ctx.beginPath()
-          ctx.moveTo(a.x, a.y)
-          ctx.lineTo(b.x, b.y)
-          ctx.strokeStyle = `hsla(35, 70%, 50%, ${alpha})`
-          ctx.lineWidth = 0.5
-          ctx.stroke()
-        }
-      }
-    }
-
-    animationId = requestAnimationFrame(animate)
-  }
-
+  started = true
   animate()
+})
 
-  onUnmounted(() => {
-    if (animationId) cancelAnimationFrame(animationId)
-    window.removeEventListener('resize', resize)
-    canvas!.removeEventListener('mousemove', handleMouseMove)
-    canvas!.removeEventListener('mouseleave', handleMouseLeave)
-  })
+onUnmounted(() => {
+  if (animationId) cancelAnimationFrame(animationId)
+  animationId = null
+  if (!started) return
+  window.removeEventListener('resize', resize)
+  window.removeEventListener('mousemove', handleWindowMouseMove)
 })
 </script>
 
@@ -157,9 +159,8 @@ onMounted(() => {
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 0;
-  cursor: crosshair;
 }
 
 @media (prefers-reduced-motion: reduce) {

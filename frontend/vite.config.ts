@@ -12,6 +12,15 @@ export default defineConfig({
   },
   // Read env (VITE_API_BASE_URL) from the repo-root .env file.
   envDir: '..',
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          gsap: ['gsap'],
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
