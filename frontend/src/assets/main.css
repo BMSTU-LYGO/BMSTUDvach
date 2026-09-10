@@ -327,3 +327,27 @@ label {
     scroll-behavior: auto !important;
   }
 }
+
+/* === CRT Effects (applied via useCRT composable) === */
+.crt-vignette::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    oklch(0.05 0.01 260 / 0.4) 100%
+  );
+}
+
+.crt-flicker {
+  animation: crt-flicker 0.15s infinite;
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.98; }
+  100% { opacity: 1; }
+}

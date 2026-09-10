@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import GlowBorder from '@/components/ui/GlowBorder.vue'
+import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import CreatePostForm from '@/components/CreatePostForm.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import ReportDialog from '@/components/ReportDialog.vue'
@@ -67,11 +68,6 @@ function formatTime(value: string): string {
   if (hours < 24) return `${hours} ч назад`
   return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
-
-function generateAvatar(seed: number): string {
-  const hue = (seed * 137.508) % 360
-  return `hsl(${hue}, 45%, 45%)`
-}
 </script>
 
 <template>
@@ -103,9 +99,7 @@ function generateAvatar(seed: number): string {
           :class="{ op: post.is_op }"
           data-testid="post"
         >
-          <div class="post-avatar" :style="{ background: generateAvatar(post.id) }">
-            {{ post.is_op ? 'OP' : post.id.toString().slice(-2) }}
-          </div>
+          <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
           <div class="post-content">
             <div class="post-header">
               <span class="post-author">{{ post.author }}</span>
@@ -227,21 +221,6 @@ function generateAvatar(seed: number): string {
 .post-item.op {
   background: oklch(0.72 0.16 65 / 0.06);
   border-left: 2px solid var(--accent-dim);
-}
-
-.post-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: oklch(0.95 0 0);
-  flex-shrink: 0;
-  opacity: 0.8;
 }
 
 .post-content {

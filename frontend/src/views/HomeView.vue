@@ -2,8 +2,7 @@
 import { onMounted, ref } from 'vue'
 
 import GlitchText from '@/components/ui/GlitchText.vue'
-import GlowBorder from '@/components/ui/GlowBorder.vue'
-import DepthCard from '@/components/ui/DepthCard.vue'
+import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import ScanlineOverlay from '@/components/ui/ScanlineOverlay.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -101,31 +100,12 @@ onMounted(() => {
     />
     <div v-else ref="sectionRef" class="boards-perspective">
       <div ref="gridRef" class="boards-grid">
-        <RouterLink
+        <BoardCard3D
           v-for="(board, index) in store.boards.boards"
           :key="board.slug"
-          :to="`/boards/${board.slug}`"
-          class="board-card"
-          :style="{ '--card-index': index }"
-        >
-          <GlowBorder>
-            <DepthCard :depth="1">
-              <div class="board-card-inner">
-                <div class="board-icon">
-                  {{ board.slug.charAt(0).toUpperCase() }}
-                </div>
-                <div class="board-info">
-                  <span class="board-slug">/{{ board.slug }}/</span>
-                  <span class="board-name">{{ board.name }}</span>
-                  <span v-if="board.description" class="board-desc">
-                    {{ board.description }}
-                  </span>
-                </div>
-                <div class="board-arrow">→</div>
-              </div>
-            </DepthCard>
-          </GlowBorder>
-        </RouterLink>
+          :board="board"
+          :index="index"
+        />
       </div>
     </div>
   </section>
@@ -254,93 +234,6 @@ onMounted(() => {
   transition: transform 0.6s var(--ease-out-expo);
 }
 
-.board-card {
-  text-decoration: none;
-  color: inherit;
-  display: block;
-  outline: none;
-  transform-style: preserve-3d;
-  transition: transform 0.4s var(--ease-out-expo);
-}
-
-.board-card:hover {
-  transform: translateZ(20px) scale(1.02);
-}
-
-.board-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: var(--radius-lg);
-}
-
-.board-card-inner {
-  padding: var(--space-5);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.board-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-glow);
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-md);
-  flex-shrink: 0;
-}
-
-.board-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  flex: 1;
-}
-
-.board-slug {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: -0.02em;
-}
-
-.board-name {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.board-desc {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.board-arrow {
-  font-size: 1.2rem;
-  color: var(--text-muted);
-  transition:
-    transform 0.3s var(--ease-out-expo),
-    color 0.3s;
-  flex-shrink: 0;
-}
-
-.board-card:hover .board-arrow {
-  transform: translateX(4px);
-  color: var(--accent);
-}
-
 @media (max-width: 640px) {
   .boards-grid {
     grid-template-columns: 1fr;
@@ -350,22 +243,10 @@ onMounted(() => {
   .hero-title {
     font-size: 2.5rem;
   }
-
-  .board-card:hover {
-    transform: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .boards-grid {
-    transform: none;
-  }
-
-  .board-card:hover {
-    transform: none;
-  }
-
-  .board-card:hover .board-arrow {
     transform: none;
   }
 }
