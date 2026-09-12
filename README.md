@@ -144,6 +144,22 @@ make frontend-test
 make frontend-lint
 ```
 
+## 3D-настройки
+
+Интерфейс использует настоящий WebGL-3D (three.js, загружается лениво):
+
+- **Главная** — wireframe-шестерни в hero (эмблема Бауманки)
+- **Фон** — GPU-частицы с реакцией на курсор
+- **Треды** — плавающие геометрические тела
+
+Управление — кнопка `3D` в шапке: `auto → high → low → off` (сохраняется).
+
+- `auto` — определяет устройство: touch/слабые CPU → `low`, иначе `high`;
+  при `prefers-reduced-motion` — `off` (2D-частицы).
+- FPS-мониторинг автоматически снижает качество: high → low → off.
+- При `off` или отсутствии WebGL — чистый CSS-фолбэк, весь контент доступен.
+- Бюджет: не более 2 WebGL-контекстов, полный dispose при уходе со страницы.
+
 ## Platinum Architecture
 
 The `platinum` app provides a framework for LLM-generated stories in BMSTU

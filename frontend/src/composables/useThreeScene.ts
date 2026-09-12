@@ -7,11 +7,7 @@ import {
   watch,
   type Ref,
 } from 'vue'
-import type {
-  PerspectiveCamera,
-  Scene,
-  WebGLRenderer,
-} from 'three'
+import type { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { useQuality3D, type QualityResolved } from './useQuality3D'
 
 type ThreeModule = typeof import('three')
@@ -31,14 +27,18 @@ export interface ThreeBuildResult {
   dispose?: () => void
 }
 
+/** Hard budget: never keep more than this many live WebGL contexts. */
+const MAX_ACTIVE_CONTEXTS = 2
+let activeContexts = 0
+
 /**
  * Owns the full lifecycle of one WebGL scene bound to a canvas element.
  *
  * - three.js is imported lazily; nothing renders until the module arrives.
  * - The loop pauses when the tab is hidden or the canvas is off-screen.
  * - Sustained < 30 fps triggers quality degradation (high→low→off).
- * - Everything (scene graph, renderer, observers) is disposed on unmount
- *   or when the resolved quality changes.
+ * - Everything (scene graph, renderer, observers, context budget slot) is
+ *   released on unmount or when the resolved quality changes.
  */
 export function useThreeScene(
   canvasRef: Ref<HTMLCanvasElement | null>,
@@ -51,6 +51,10 @@ export function useThreeScene(
   let sessionToken = 0
   let stopSession: (() => void) | null = null
 
+  function releaseSlot() {
+    activeContexts = Math.max(0, activeContexts - 1)
+  }
+
   async function start() {
     stopSession?.()
     stopSession = null
@@ -62,6 +66,11 @@ export function useThreeScene(
     const canvas = canvasRef.value
     const quality = resolved.value
     if (!canvas || quality === 'off') return
+
+    if (activeContexts >= MAX_ACTIVE_CONTEXTS) {
+      supported.value = false
+      return
+    }
 
     const token = ++sessionToken
 
@@ -86,13 +95,39 @@ export function useThreeScene(
       supported.value = false
       return
     }
+    activeContexts++
+
+    const scene = new three.Scene()
+    const camera = new three.PerspectiveCamera(55, 1, 0.1, 200)
+
+    let built: ThreeBuildResult | void
+    let resizeObserver: ResizeObserver | null = null
+    let io: IntersectionObserver | null = null
+    let rafId = 0
+
+    function stop() {
+      stopSession = null
+      if (rafId) cancelAnimationFrame(rafId)
+      io?.disconnect()
+      resizeObserver?.disconnect()
+      document.removeEventListener('visibilitychange', onVisibility)
+      built?.dispose?.()
+      scene.traverse((obj) => {
+        const mesh = obj as unknown as {
+          geometry?: { dispose: () => void }
+          material?: { dispose: () => void }
+        }
+        mesh.geometry?.dispose()
+        mesh.material?.dispose()
+      })
+      renderer.dispose()
+      releaseSlot()
+    }
+    stopSession = stop
 
     renderer.setPixelRatio(
       quality === 'high' ? Math.min(window.devicePixelRatio, 2) : 1,
     )
-
-    const scene = new three.Scene()
-    const camera = new three.PerspectiveCamera(55, 1, 0.1, 200)
 
     function resize() {
       const w = canvas!.offsetWidth
@@ -104,14 +139,19 @@ export function useThreeScene(
     }
     resize()
 
-    const built = build({ three, scene, camera, renderer, quality })
+    try {
+      built = build({ three, scene, camera, renderer, quality })
+    } catch {
+      stop()
+      supported.value = false
+      return
+    }
 
-    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(canvas)
 
     let inView = true
     let pageVisible = !document.hidden
-    let rafId = 0
     let last = performance.now()
     const frameSamples: number[] = []
     let degraded = false
@@ -156,7 +196,7 @@ export function useThreeScene(
       }
     }
 
-    const io = new IntersectionObserver(
+    io = new IntersectionObserver(
       ([entry]) => {
         inView = entry.isIntersecting
         syncLoop()
@@ -165,30 +205,13 @@ export function useThreeScene(
     )
     io.observe(canvas)
 
-    const onVisibility = () => {
+    function onVisibility() {
       pageVisible = !document.hidden
       syncLoop()
     }
     document.addEventListener('visibilitychange', onVisibility)
 
     syncLoop()
-
-    stopSession = () => {
-      if (rafId) cancelAnimationFrame(rafId)
-      io.disconnect()
-      resizeObserver.disconnect()
-      document.removeEventListener('visibilitychange', onVisibility)
-      built?.dispose?.()
-      scene.traverse((obj) => {
-        const mesh = obj as unknown as {
-          geometry?: { dispose: () => void }
-          material?: { dispose: () => void }
-        }
-        mesh.geometry?.dispose()
-        mesh.material?.dispose()
-      })
-      renderer!.dispose()
-    }
   }
 
   onMounted(() => {
