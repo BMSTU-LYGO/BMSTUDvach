@@ -34,6 +34,7 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   offEvents = onSceneEvent((ev) => {
     if (ev.type === 'pulse') net.pulseAt(ev.target)
     else if (ev.type === 'reply') net.sendReply()
+    else if (ev.type === 'rescue') net.rescue()
   })
   stopBoardWatch = watch(
     () => sceneState.boards.join('|'),

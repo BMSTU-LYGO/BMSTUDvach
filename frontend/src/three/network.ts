@@ -27,6 +27,8 @@ export interface NetworkController {
   setStoryCount(count: number): void
   pulseAt(slug: string): void
   sendReply(): void
+  /** 404 'rescue' ping: ring at the lost node + amber flash. */
+  rescue(): void
   setPointer(ndcX: number, ndcY: number): void
   update(dt: number, snap: NetworkSnapshot): void
   dispose(): void
@@ -281,6 +283,20 @@ export function buildNetwork(
     })
   }
 
+  let lostFlash = 0
+  function rescue() {
+    const p = pulsePool.find((x) => !x.active)
+    if (p) {
+      p.ring.position.set(0, 0, 0)
+      p.ring.rotation.set(0, 0, 0)
+      p.ring.visible = true
+      p.life = 0.0001
+      p.active = true
+    }
+    lostFlash = 0.45
+    cameraKick = Math.min(0.6, cameraKick + 0.3)
+  }
+
   function sendReply() {
     const p = packetPool.find((x) => !x.active)
     if (!p) return
@@ -520,8 +536,10 @@ export function buildNetwork(
     if (lostGroup.visible) {
       lostNode.rotation.y += dt * (0.5 + Math.sin(elapsed * 2.1) * 0.3)
       lostNode.rotation.x += dt * 0.18
+      lostFlash = Math.max(0, lostFlash - dt * 0.8)
       lostMat.opacity =
-        (0.5 + (Math.sin(elapsed * 7) > 0.85 ? 0.4 : 0)) * presence.lost
+        Math.min(1, 0.5 + (Math.sin(elapsed * 7) > 0.85 ? 0.4 : 0) + lostFlash) *
+        presence.lost
       lostGroup.position.x +=
         (smoothPointer.x * 1.1 - lostGroup.position.x) * Math.min(1, dt * 2)
       lostGroup.position.y +=
@@ -572,6 +590,7 @@ export function buildNetwork(
     setStoryCount,
     pulseAt,
     sendReply,
+    rescue,
     setPointer: (x, y) => pointer.set(x, y),
     update,
     dispose: () => {

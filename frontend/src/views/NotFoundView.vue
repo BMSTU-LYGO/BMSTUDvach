@@ -1,81 +1,108 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+import { emitSceneEvent } from '@/three/sceneState'
+import { useSound } from '@/composables/useSound'
+
+/**
+ * 404 — an interactive WebGL 'LOST NODE'. The route meta switches the
+ * persistent network scene into 'error' mode: the node tumbles, chases the
+ * pointer, and the "return" action fires a rescue ping through the graph.
+ */
+
+const router = useRouter()
+const { sounds } = useSound()
+const searching = ref(false)
+
+function returnHome() {
+  if (searching.value) return
+  searching.value = true
+  emitSceneEvent({ type: 'rescue' })
+  sounds.submit()
+  // let the ping read for a beat before the warp covers the route change
+  window.setTimeout(() => {
+    void router.push('/')
+    searching.value = false
+  }, 320)
+}
+</script>
 
 <template>
-  <section class="not-found">
-    <h1 class="glitch" data-text="404">404</h1>
-    <p class="not-found-text">Страница не найдена</p>
-    <RouterLink to="/" class="btn btn-primary">На главную</RouterLink>
+  <section class="lost-node" data-testid="not-found">
+    <p class="lost-kicker">// signal lost</p>
+    <h1 class="lost-title">LOST NODE</h1>
+    <p class="lost-text">
+      Этот узел отключён от графа. Он крутится в пустоте и тянется к
+      курсору — но маршрута сюда не существует.
+    </p>
+    <button
+      class="btn btn-primary lost-btn"
+      :disabled="searching"
+      @click="returnHome"
+    >
+      {{ searching ? 'поиск маршрута…' : 'вернуться в сеть' }}
+    </button>
   </section>
 </template>
 
 <style scoped>
-.not-found {
+.lost-node {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-6);
-  min-height: 50vh;
+  gap: var(--space-5);
+  min-height: 55vh;
   text-align: center;
 }
 
-.glitch {
+.lost-kicker {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(5rem, 15vw, 10rem);
-  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.lost-title {
+  margin: 0;
+  font-size: clamp(3rem, 10vw, 6.5rem);
+  letter-spacing: 0.06em;
   color: var(--text-primary);
-  position: relative;
+  text-shadow: 0 0 40px var(--accent-glow);
+  animation: nodeDrift 6s ease-in-out infinite;
 }
 
-.glitch::before,
-.glitch::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+@keyframes nodeDrift {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0.001deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-0.4deg);
+  }
 }
 
-.glitch::before {
-  color: var(--accent);
-  animation: glitch-1 0.8s infinite linear alternate-reverse;
-  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
-}
-
-.glitch::after {
-  color: var(--danger);
-  animation: glitch-2 0.8s infinite linear alternate-reverse;
-  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
-}
-
-@keyframes glitch-1 {
-  0%, 90% { transform: translate(0); }
-  92% { transform: translate(-3px, 1px); }
-  94% { transform: translate(3px, -1px); }
-  96% { transform: translate(-2px, 2px); }
-  98% { transform: translate(2px, -2px); }
-  100% { transform: translate(0); }
-}
-
-@keyframes glitch-2 {
-  0%, 90% { transform: translate(0); }
-  91% { transform: translate(2px, -1px); }
-  93% { transform: translate(-2px, 1px); }
-  95% { transform: translate(3px, 2px); }
-  97% { transform: translate(-3px, -2px); }
-  100% { transform: translate(0); }
-}
-
-.not-found-text {
-  font-size: 1.1rem;
+.lost-text {
+  max-width: 44ch;
   color: var(--text-secondary);
+  line-height: 1.6;
   margin: 0;
 }
 
+.lost-btn {
+  margin-top: var(--space-2);
+}
+
+.lost-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .glitch::before,
-  .glitch::after {
+  .lost-title {
     animation: none;
   }
 }

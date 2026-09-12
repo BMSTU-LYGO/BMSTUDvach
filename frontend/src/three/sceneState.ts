@@ -15,6 +15,8 @@ export type SceneEvent =
   | { type: 'pulse'; target: string }
   /** A new reply arrived in the open thread: packet flies to the core. */
   | { type: 'reply' }
+  /** 404 screen: signal the lost node and try to find the way back. */
+  | { type: 'rescue' }
 
 interface SceneState {
   mode: SceneMode
