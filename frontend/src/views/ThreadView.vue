@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import GlowBorder from '@/components/ui/GlowBorder.vue'
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
+import FloatingShapes3D from '@/components/three/FloatingShapes3D.vue'
 import CreatePostForm from '@/components/CreatePostForm.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import ReportDialog from '@/components/ReportDialog.vue'
@@ -96,6 +97,10 @@ function formatTime(value: string): string {
 
 <template>
   <section class="thread-page">
+    <div class="thread-bg" aria-hidden="true">
+      <FloatingShapes3D />
+    </div>
+
     <div class="thread-breadcrumb">
       <RouterLink to="/" class="breadcrumb-link">Главная</RouterLink>
       <span class="breadcrumb-sep">/</span>
@@ -184,6 +189,19 @@ function formatTime(value: string): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  position: relative;
+}
+
+.thread-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.thread-page > :not(.thread-bg) {
+  position: relative;
+  z-index: 1;
 }
 
 /* Breadcrumb */
