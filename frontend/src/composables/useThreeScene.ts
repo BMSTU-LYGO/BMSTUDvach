@@ -27,8 +27,8 @@ export interface ThreeBuildResult {
   dispose?: () => void
 }
 
-/** Hard budget: never keep more than this many live WebGL contexts. */
-const MAX_ACTIVE_CONTEXTS = 2
+/** Hard budget: network + gears (home) + warp overlay. */
+const MAX_ACTIVE_CONTEXTS = 3
 let activeContexts = 0
 
 /**
