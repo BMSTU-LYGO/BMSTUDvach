@@ -5,14 +5,20 @@ import { useRouter } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
+import { playWarp, warpKindFor } from '@/three/warps'
 
 // The ambient particle layer (WebGL or Canvas2D) is pure decoration —
 // load it after the app mounts so it never blocks the initial render.
 const AmbientField = defineAsyncComponent(
   () => import('@/components/three/AmbientField.vue'),
 )
+const WarpCanvas = defineAsyncComponent(
+  () => import('@/components/three/WarpCanvas.vue'),
+)
 
-useRouteScene(useRouter())
+useRouteScene(useRouter(), (from, to) => {
+  if (from !== to) playWarp(warpKindFor(from, to))
+})
 </script>
 
 <template>
@@ -28,6 +34,7 @@ useRouteScene(useRouter())
       </RouterView>
     </main>
     <AppFooter />
+    <WarpCanvas />
   </div>
 </template>
 
@@ -66,27 +73,16 @@ useRouteScene(useRouter())
   z-index: 1;
 }
 
-/* Page transition */
-.page-enter-active {
-  transition:
-    opacity 0.3s var(--ease-out-quart),
-    transform 0.3s var(--ease-out-quart);
-}
-
+/* Minimal veil: the WebGL route warp (WarpCanvas) carries the transition,
+   the DOM only crossfades underneath it. */
+.page-enter-active,
 .page-leave-active {
-  transition:
-    opacity 0.15s ease-in,
-    transform 0.15s ease-in;
+  transition: opacity 0.2s linear;
 }
 
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(12px);
-}
-
+.page-enter-from,
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
 }
 
 @media (prefers-reduced-motion: reduce) {
