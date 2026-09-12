@@ -3,7 +3,6 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import GlowBorder from '@/components/ui/GlowBorder.vue'
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
-import FloatingShapes3D from '@/components/three/FloatingShapes3D.vue'
 import CreatePostForm from '@/components/CreatePostForm.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import ReportDialog from '@/components/ReportDialog.vue'
@@ -14,6 +13,7 @@ import { useForumStore } from '@/stores/forum'
 import { playMorph } from '@/composables/usePageMorph'
 import { usePostReveal } from '@/composables/usePostReveal'
 import { useSound } from '@/composables/useSound'
+import { emitSceneEvent } from '@/three/sceneState'
 import type { NewPostInput, ReportReason } from '@/types'
 
 const props = defineProps<{ threadId: number }>()
@@ -53,6 +53,8 @@ async function handlePost(input: NewPostInput) {
     formKey.value += 1
     await store.fetchThread(props.threadId)
     sounds.submit()
+    // Spatial feedback: a signal packet flies through the network core.
+    emitSceneEvent({ type: 'reply' })
   } catch (err) {
     postError.value = err instanceof Error ? err.message : 'Не удалось отправить ответ.'
     sounds.error()
@@ -97,10 +99,6 @@ function formatTime(value: string): string {
 
 <template>
   <section class="thread-page">
-    <div class="thread-bg" aria-hidden="true">
-      <FloatingShapes3D />
-    </div>
-
     <div class="thread-breadcrumb">
       <RouterLink to="/" class="breadcrumb-link">Главная</RouterLink>
       <span class="breadcrumb-sep">/</span>
@@ -190,18 +188,6 @@ function formatTime(value: string): string {
   flex-direction: column;
   gap: var(--space-6);
   position: relative;
-}
-
-.thread-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.thread-page > :not(.thread-bg) {
-  position: relative;
-  z-index: 1;
 }
 
 /* Breadcrumb */
