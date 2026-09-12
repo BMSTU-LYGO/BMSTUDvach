@@ -1,5 +1,6 @@
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -53,6 +54,10 @@ export function useThreeScene(
   async function start() {
     stopSession?.()
     stopSession = null
+
+    // Let the DOM catch up (components key their canvas by quality so a
+    // fresh WebGL context is always bound to a fresh element).
+    await nextTick()
 
     const canvas = canvasRef.value
     const quality = resolved.value

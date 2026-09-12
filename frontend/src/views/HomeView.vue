@@ -5,6 +5,7 @@ import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import ScanlineOverlay from '@/components/ui/ScanlineOverlay.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
+import GearHero from '@/components/three/GearHero.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -62,6 +63,7 @@ onMounted(() => {
 
     <!-- Hero Section -->
     <div ref="heroRef" class="hero">
+      <GearHero />
       <div class="hero-content">
         <h1 class="hero-title">
           <GlitchText text="BMSTUDvach" tag="span" />
