@@ -4,10 +4,10 @@ import { defineAsyncComponent } from 'vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 
-// The particle canvas is pure decoration — load it after the app mounts
-// so it never blocks the initial render.
+// The ambient particle layer (WebGL or Canvas2D) is pure decoration —
+// load it after the app mounts so it never blocks the initial render.
 const ParticleField = defineAsyncComponent(
-  () => import('@/components/ui/ParticleField.vue'),
+  () => import('@/components/three/AmbientField.vue'),
 )
 </script>
 
