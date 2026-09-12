@@ -3,12 +3,27 @@ import { ref, onMounted } from 'vue'
 import { useForumStore } from '@/stores/forum'
 import { useCRT } from '@/composables/useCRT'
 import { useSound } from '@/composables/useSound'
+import { useQuality3D } from '@/composables/useQuality3D'
 
 const store = useForumStore()
 const mobileOpen = ref(false)
 
 const { crtEnabled, toggleCRT } = useCRT()
 const { soundEnabled, toggleSound } = useSound()
+const { setting: quality3D, cycleSetting: cycle3D } = useQuality3D()
+
+const QUALITY_LABELS: Record<string, string> = {
+  auto: 'AUTO',
+  high: 'HI',
+  low: 'LO',
+  off: 'OFF',
+}
+const QUALITY_HINTS: Record<string, string> = {
+  auto: '3D: авто — по возможностям устройства. Клик: сменить режим.',
+  high: '3D: высокое качество (полная детализация, до 2×DPR).',
+  low: '3D: экономичный режим (меньше частиц и объектов).',
+  off: '3D: выключено — работает 2D-версия частиц.',
+}
 
 onMounted(() => {
   void store.fetchBoards()
@@ -47,6 +62,15 @@ function closeMobile() {
         </nav>
 
         <div class="fx-toggles">
+          <button
+            class="fx-toggle"
+            :class="{ active: quality3D !== 'off' }"
+            :aria-label="QUALITY_HINTS[quality3D]"
+            :title="QUALITY_HINTS[quality3D]"
+            @click="cycle3D"
+          >
+            3D<span class="q-suffix">·{{ QUALITY_LABELS[quality3D] }}</span>
+          </button>
           <button
             class="fx-toggle"
             :class="{ active: crtEnabled }"
@@ -255,6 +279,10 @@ function closeMobile() {
 
   .fx-toggles {
     margin-left: auto;
+  }
+
+  .fx-toggle .q-suffix {
+    display: none;
   }
 
   .nav {
