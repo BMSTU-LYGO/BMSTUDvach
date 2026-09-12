@@ -30,12 +30,12 @@ onMounted(() => {
     isGlitching.value = true
     setTimeout(() => {
       isGlitching.value = false
-    }, 200 + Math.random() * 300)
+    }, 110 + Math.random() * 120)
   }
 
   // Random glitch every 3-8 seconds
   function scheduleGlitch() {
-    const delay = 3000 + Math.random() * 5000
+    const delay = 9000 + Math.random() * 9000
     setTimeout(() => {
       triggerGlitch()
       scheduleGlitch()
@@ -82,6 +82,7 @@ onMounted(() => {
 
 .glitch-text::before {
   color: oklch(0.65 0.25 30);
+  opacity: 0;
   z-index: -1;
 }
 
@@ -92,25 +93,25 @@ onMounted(() => {
 
 /* Glitch animation */
 .glitch-text.glitching::before {
-  animation: glitch-before 0.3s linear;
-  opacity: 0.8;
+  animation: glitch-before 0.18s linear;
+  opacity: 0.3;
 }
 
 .glitch-text.glitching::after {
-  animation: glitch-after 0.3s linear;
-  opacity: 0.8;
+  animation: glitch-after 0.18s linear;
+  opacity: 0.3;
 }
 
 .glitch-text.glitching {
-  animation: glitch-main 0.3s linear;
+  animation: glitch-main 0.18s linear;
 }
 
 @keyframes glitch-main {
   0% { transform: translate(0); }
-  20% { transform: translate(-2px, 1px); }
-  40% { transform: translate(2px, -1px); }
-  60% { transform: translate(-1px, 2px); }
-  80% { transform: translate(1px, -2px); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-1px, 0); }
+  80% { transform: translate(1px, 0); }
   100% { transform: translate(0); }
 }
 

@@ -103,6 +103,13 @@ check(
   existsSync(join(root, 'src/components/ui/ParticleField.vue')),
 )
 
+// 9. committed style: engineering network, not hacker terminal (item 8)
+const crt = file('src/composables/useCRT.ts') ?? ''
+check('CRT is opt-in (off by default)', crt.includes("getItem(STORAGE_KEY) === 'true'"))
+const home = file('src/views/HomeView.vue') ?? ''
+check('hero has no forced scanlines', !home.includes('ScanlineOverlay'))
+check('hero keeps engineering grid', home.includes('GridPattern'))
+
 // report
 const failed = results.filter((r) => !r.ok)
 for (const r of results) {

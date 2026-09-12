@@ -2,15 +2,15 @@ import { ref, watch, onMounted } from 'vue'
 
 const STORAGE_KEY = 'bmstudvach-crt'
 
-// Respect user motion preferences: CRT effects are on by default, but off
-// for users who request reduced motion (unless they toggled it themselves).
+// The committed style is "engineering network", not "hacker terminal":
+// CRT scanlines/vignette are an opt-in extra, off unless the user turned
+// them on themselves.
 function defaultCrt(): boolean {
-  const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-  if (stored !== null) return stored === 'true'
-  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === 'true'
+  } catch {
     return false
   }
-  return true
 }
 
 const crtEnabled = ref(defaultCrt())
@@ -23,7 +23,11 @@ export function useCRT() {
   })
 
   watch(crtEnabled, (val) => {
-    localStorage.setItem(STORAGE_KEY, String(val))
+    try {
+      localStorage.setItem(STORAGE_KEY, String(val))
+    } catch {
+      /* private mode */
+    }
     applyCRT()
   })
 

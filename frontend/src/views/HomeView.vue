@@ -3,7 +3,6 @@ import { onMounted, ref } from 'vue'
 
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
-import ScanlineOverlay from '@/components/ui/ScanlineOverlay.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
 import GearHero from '@/components/three/GearHero.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -59,7 +58,6 @@ onMounted(() => {
 
 <template>
   <section class="home">
-    <ScanlineOverlay :intensity="0.03" />
 
     <!-- Hero Section -->
     <div ref="heroRef" class="hero">
