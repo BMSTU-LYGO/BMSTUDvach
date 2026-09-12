@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useForumStore } from '@/stores/forum'
 import { useCRT } from '@/composables/useCRT'
 import { useSound } from '@/composables/useSound'
 import { useQuality3D } from '@/composables/useQuality3D'
+import { syncBoards } from '@/three/sceneState'
 
 const store = useForumStore()
 const mobileOpen = ref(false)
@@ -11,6 +12,13 @@ const mobileOpen = ref(false)
 const { crtEnabled, toggleCRT } = useCRT()
 const { soundEnabled, toggleSound } = useSound()
 const { setting: quality3D, cycleSetting: cycle3D } = useQuality3D()
+
+// Keep the 3D network graph in step with the board registry regardless of
+// which page the boards list was first loaded on.
+watch(
+  () => store.boards.boards.map((b) => b.slug),
+  (slugs) => syncBoards(slugs),
+)
 
 const QUALITY_LABELS: Record<string, string> = {
   auto: 'AUTO',

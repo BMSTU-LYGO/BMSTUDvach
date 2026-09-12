@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useTilt } from '@/composables/useTilt'
 import { captureMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
+import { emitSceneEvent, highlightBoard } from '@/three/sceneState'
 import GenerativeIcon from '@/components/ui/GenerativeIcon.vue'
 import type { Board } from '@/types'
 
@@ -12,8 +13,16 @@ const cardRef = ref<HTMLElement | null>(null)
 const { isHovered } = useTilt(cardRef, { maxTilt: 10, scale: 1.04 })
 const { sounds } = useSound()
 
+// DOM card ↔ WebGL node link: hovering the card highlights its node in
+// the persistent network scene; navigating fires a signal pulse at it.
+function setHighlight(on: boolean) {
+  highlightBoard(on ? props.board.slug : null)
+  if (on) sounds.hover()
+}
+
 function handleNavigate() {
-  // Capture card state for the shared-element morph into the board page.
+  highlightBoard(props.board.slug)
+  emitSceneEvent({ type: 'pulse', target: props.board.slug })
   captureMorph(cardRef.value, `board:${props.board.slug}`)
   sounds.click()
 }
@@ -25,6 +34,10 @@ function handleNavigate() {
     class="board-card-3d"
     :class="{ hovered: isHovered }"
     :style="{ '--delay': index * 0.08 + 's' }"
+    @pointerenter="setHighlight(true)"
+    @pointerleave="setHighlight(false)"
+    @focusin="setHighlight(true)"
+    @focusout="setHighlight(false)"
     @click="handleNavigate"
   >
     <div ref="cardRef" class="card-inner">
