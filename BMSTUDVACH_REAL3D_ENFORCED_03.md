@@ -205,3 +205,25 @@ Canvas2D ParticleField (который уже уважает reduced-motion).
 - 3D на каждой странице — только hero, ambient-частицы, фон тредов
 - Серверный рендер сцены, SSR
 - Платные ассеты / внешние CDN-модели
+
+
+---
+
+## 6. Дополнение: R3D-FIX (справедливое замечание — план был не закончен)
+
+8 пунктов доводки, статус по факту кода и структурных проверок
+(browser-level визуальную проверку делает человек):
+
+| # | Пункт | Статус | Коммит |
+|---|---|---|---|
+| 1 | Единый route-aware scene state (5 режимов) | ✅ реализовано, verify-чеки modes+meta | FIX-01, FIX-03 |
+| 2 | BoardCard ↔ WebGL node (hover/click/pulse/camera) | ✅ реализовано (highlight, ring pulse, camera kick/focus) | FIX-04 |
+| 3 | Шейдерные route warp вместо фейда (signal/tunnel/fracture) | ✅ GLSL-оверлей + bus, reduced-motion skip | FIX-05 |
+| 4 | /platinum/ = lazy 3D Archive Space (rings/fragments/hover/empty) | ✅ режим архива + raycast-фокус + живой storyCount из API | FIX-06 |
+| 5 | 404 = интерактивный LOST NODE | ✅ error-режим: дрейф, chase курсора, rescue-пинг | FIX-07 |
+| 6 | Thread spatial mode + сигнал reply | ✅ calm-режим + packet к backbone | FIX-08 |
+| 7 | npm run verify:3d | ✅ 46 проверок, доказано FAIL=1 при удалении компонента | FIX-09 |
+| 8 | Ослабить CRT/glitch (engineering network) | ✅ CRT default off, glitch реже/тише, сканлайны из hero убраны | FIX-10 |
+
+Побочное: удалены ParticleField3D/FloatingShapes3D (сцены слиты в один
+NetworkCanvas), бюджет WebGL-контекстов поднят до 3 (network + gears + warp).
