@@ -254,11 +254,18 @@ function formatTime(value: string): string {
   gap: var(--space-4);
   padding: var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
 }
 
 .post-item:hover {
   background: oklch(0.16 0.012 260 / 0.5);
+  transform: perspective(900px) rotateX(1.5deg) translateY(-2px);
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.35);
+  position: relative;
+  z-index: 2;
 }
 
 .post-item.op {
@@ -365,10 +372,15 @@ function formatTime(value: string): string {
     gap: var(--space-3);
   }
 
-  .post-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.6rem;
+  .post-item:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-item:hover {
+    transform: none;
+    box-shadow: none;
   }
 }
 </style>

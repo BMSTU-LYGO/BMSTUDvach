@@ -19,12 +19,12 @@ export function usePostReveal(
 
     gsap.fromTo(
       newEls,
-      { opacity: 0, y: 24, scale: 0.98 },
+      { opacity: 0, y: 28, transformPerspective: 900, rotateX: -12, transformOrigin: 'top center' },
       {
         opacity: 1,
         y: 0,
-        scale: 1,
-        duration: 0.5,
+        rotateX: 0,
+        duration: 0.55,
         stagger: 0.08,
         ease: 'expo.out',
         clearProps: 'all',
