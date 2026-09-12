@@ -12,6 +12,25 @@
 
 ---
 
+## Статус выполнения
+
+| Блок | Статус | Коммит |
+|---|---|---|
+| 3D-01 Quality-менеджер + useThreeScene | ✅ done | ea9e5f4 |
+| 3D-02 GearHero (шестерни в hero) | ✅ done | 0954eab |
+| 3D-03 ParticleField3D + AmbientField | ✅ done | a299d65 |
+| 3D-04 FloatingShapes3D (фон тредов) | ✅ done | 7e139f8 |
+| 3D-05 Post reveals с глубиной | ✅ done | 7bbacf2 |
+| 3D-06 Переключатель 3D в шапке | ✅ done | 062aed9 |
+| 3D-07 Guardrails + бюджет контекстов + README | ✅ done | 6d65e1e |
+| 3D-08 Аудит | ✅ done (см. ниже) | — |
+
+Примечание 3D-08: three требует `@types/three` (dev-зависимость) — типы не
+встроены. Для smoke-проверок порт frontend вынесен в `FRONTEND_PORT`
+(по умолчанию 5173), т.к. 5173 может быть занят другими проектами.
+
+---
+
 ## 1. Принципы
 
 1. **three.js грузится лениво** (`await import('three')`) — форум работает,
@@ -168,17 +187,17 @@ Canvas2D ParticleField (который уже уважает reduced-motion).
 
 ## 4. Definition of Done
 
-- [ ] Шестерня в hero: wireframe, вращение, мышь-параллакс
-- [ ] Частицы: GPU-версия при 3D, Canvas2D при off, без просадок
-- [ ] Фон тредов: плавающие тела, не мешают чтению
-- [ ] Раскрытие постов с 3D-глубиной
-- [ ] Переключатель 3D в шапке (auto/high/low/off), persisted
-- [ ] FPS-деградация high→low→off
-- [ ] Без WebGL / с off — чистый CSS-фолбэк, контент полностью доступен
-- [ ] reduced-motion (auto) → 3D off
-- [ ] После unmount сцены: renderer/геометрии/текстуры disposed
-- [ ] three — отдельный ленивый чанк, главный бандл не раздут
-- [ ] build/lint/tests зелёные, API-смоук зелёный
+- [x] Шестерня в hero: wireframe, вращение, мышь-параллакс
+- [x] Частицы: GPU-версия при 3D, Canvas2D при off, без просадок
+- [x] Фон тредов: плавающие тела, не мешают чтению
+- [x] Раскрытие постов с 3D-глубиной
+- [x] Переключатель 3D в шапке (auto/high/low/off), persisted
+- [x] FPS-деградация high→low→off
+- [x] Без WebGL / с off — чистый CSS-фолбэк, контент полностью доступен
+- [x] reduced-motion (auto) → 3D off
+- [x] После unmount сцены: renderer/геометрии/текстуры disposed
+- [x] three — отдельный ленивый чанк, главный бандл не раздут (190KB gzip, только при 3D)
+- [x] build/lint/tests зелёные, API-смоук зелёный
 
 ## 5. Что НЕ делать
 
