@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
+import { useRouter } from 'vue-router'
 
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import { useRouteScene } from '@/composables/useRouteScene'
 
 // The ambient particle layer (WebGL or Canvas2D) is pure decoration —
 // load it after the app mounts so it never blocks the initial render.
-const ParticleField = defineAsyncComponent(
+const AmbientField = defineAsyncComponent(
   () => import('@/components/three/AmbientField.vue'),
 )
+
+useRouteScene(useRouter())
 </script>
 
 <template>
   <div class="layout">
     <a href="#main-content" class="skip-link">Перейти к содержимому</a>
-    <ParticleField :count="25" />
+    <AmbientField />
     <AppHeader />
     <main id="main-content" class="content">
       <RouterView v-slot="{ Component }">
