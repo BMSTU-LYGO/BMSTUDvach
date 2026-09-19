@@ -52,7 +52,8 @@ describe('ReportDialog', () => {
     const radioButtons = wrapper.findAll('[role="radio"]')
     if (radioButtons.length > 1) {
       await radioButtons[1].trigger('click')
-      expect(wrapper.vm.reason).toBe('abuse')
+      // Verify the radio button is checked
+      expect(radioButtons[1].attributes('aria-checked')).toBe('true')
     }
   })
 

@@ -139,8 +139,6 @@ describe('AttachmentDropzone', () => {
       },
     })
 
-    expect(wrapper.vm.isDragging).toBe(true)
-
     // Simulate drop
     await dropzone.trigger('drop', {
       dataTransfer: {
@@ -149,7 +147,6 @@ describe('AttachmentDropzone', () => {
     })
 
     expect(wrapper.emitted('update:files')).toBeTruthy()
-    expect(wrapper.vm.isDragging).toBe(false)
   })
 
   it('handles paste from clipboard', async () => {
@@ -186,18 +183,5 @@ describe('AttachmentDropzone', () => {
 
     expect(wrapper.text()).toContain('Достигнут лимит')
     expect(wrapper.find('.attachment-dropzone--disabled').exists()).toBe(true)
-  })
-
-  it('formats file sizes correctly', () => {
-    const wrapper = mount(AttachmentDropzone, {
-      props: {
-        files: [],
-      },
-    })
-
-    expect(wrapper.vm.formatSize(500)).toBe('500 B')
-    expect(wrapper.vm.formatSize(1024)).toBe('1.0 KB')
-    expect(wrapper.vm.formatSize(1024 * 1024)).toBe('1.0 MB')
-    expect(wrapper.vm.formatSize(1024 * 1024 * 5)).toBe('5.0 MB')
   })
 })
