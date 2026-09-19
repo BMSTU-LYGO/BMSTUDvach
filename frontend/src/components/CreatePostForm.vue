@@ -1,28 +1,111 @@
 <script setup lang="ts">
 import type { NewPostInput } from '@/types'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import {
+  ComposerShell,
+  FormTextarea,
+  FormField,
+  CharacterCounter,
+  AttachmentDropzone,
+  ComposerToolbar,
+  FormButton,
+  FormNotice,
+} from '@/components/form'
 
 const emit = defineEmits<{ submit: [input: NewPostInput] }>()
 
 const body = ref('')
 const files = ref<File[]>([])
 const error = ref('')
+const isExpanded = ref(false)
+const isSubmitting = ref(false)
+const isSuccess = ref(false)
 
-function pickFiles(event: Event) {
-  const target = event.target as HTMLInputElement
-  files.value = Array.from(target.files ?? [])
+const MAX_LENGTH = 20000
+const WARNING_THRESHOLD = 0.9
+
+const bodyError = computed(() => {
+  if (!isExpanded.value) return ''
+  if (body.value.length === 0) return ''
+  if (body.value.length > MAX_LENGTH) {
+    return `Превышен лимит символов (${MAX_LENGTH})`
+  }
+  return ''
+})
+
+const canSubmit = computed(() => {
+  return body.value.trim().length > 0 && 
+         body.value.length <= MAX_LENGTH && 
+         !isSubmitting.value
+})
+
+function handleCollapse() {
+  if (body.value.trim() === '' && files.value.length === 0) {
+    isExpanded.value = false
+    error.value = ''
+  }
 }
 
-function submit() {
-  if (!body.value.trim()) {
+function handleKeydown(event: KeyboardEvent) {
+  // Ctrl+Enter or Cmd+Enter to submit
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault()
+    if (canSubmit.value) {
+      submit()
+    }
+  }
+  
+  // Escape to collapse if empty
+  if (event.key === 'Escape' && isExpanded.value) {
+    if (body.value.trim() === '' && files.value.length === 0) {
+      handleCollapse()
+    }
+  }
+}
+
+async function submit() {
+  if (!canSubmit.value) return
+
+  if (body.value.trim().length === 0) {
     error.value = 'Текст сообщения не может быть пустым.'
     return
   }
+
   error.value = ''
-  emit('submit', { body: body.value, attachments: files.value })
+  isSubmitting.value = true
+
+  try {
+    emit('submit', { body: body.value, attachments: files.value })
+    
+    // Show success state
+    isSuccess.value = true
+    setTimeout(() => {
+      reset()
+      isSuccess.value = false
+    }, 1500)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Произошла ошибка при отправке'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 function reset() {
+  body.value = ''
+  files.value = []
+  error.value = ''
+  isExpanded.value = false
+  isSubmitting.value = false
+  isSuccess.value = false
+}
+
+function handleAttach() {
+  // Trigger file input click
+  const input = document.querySelector('.attachment-dropzone__input') as HTMLInputElement
+  input?.click()
+}
+
+function handleClear() {
   body.value = ''
   files.value = []
   error.value = ''
@@ -32,60 +115,126 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <form class="create-form" data-testid="create-post-form" @submit.prevent="submit">
-    <h3 class="form-title">Ответить</h3>
-    <label class="field">
-      <span>Текст</span>
-      <textarea v-model="body" rows="4" maxlength="20000" placeholder="Ваш ответ..."></textarea>
-    </label>
-    <label class="field">
-      <span>Вложения</span>
-      <input type="file" multiple @change="pickFiles" />
-    </label>
-    <p v-if="error" class="form-error">{{ error }}</p>
-    <div class="actions">
-      <button type="submit" class="btn btn-primary">Отправить</button>
-    </div>
-  </form>
+  <div 
+    class="create-post-form"
+    @keydown="handleKeydown"
+  >
+    <ComposerShell
+      v-model:expanded="isExpanded"
+      :submitting="isSubmitting"
+      :success="isSuccess"
+      @submit="submit"
+      @cancel="handleCollapse"
+    >
+      <template #title>
+        <span v-if="!isExpanded">Ответить в тред...</span>
+        <span v-else>Новый ответ</span>
+      </template>
+
+      <div class="create-post-form__content">
+        <!-- Error notice -->
+        <FormNotice v-if="error" type="error" dismissible @dismiss="error = ''">
+          {{ error }}
+        </FormNotice>
+
+        <!-- Body field -->
+        <FormField
+          label="Сообщение"
+          :error="bodyError"
+          required
+        >
+          <template #default="{ id }">
+            <div class="create-post-form__textarea-wrapper">
+              <FormTextarea
+                :id="id"
+                v-model="body"
+                placeholder="Введите ваше сообщение..."
+                :maxlength="MAX_LENGTH"
+                :min-rows="3"
+                :max-rows="10"
+                aria-describedby="body-counter"
+              />
+              <div class="create-post-form__counter" id="body-counter">
+                <CharacterCounter
+                  :current="body.length"
+                  :max="MAX_LENGTH"
+                  :warning-threshold="WARNING_THRESHOLD"
+                />
+              </div>
+            </div>
+          </template>
+        </FormField>
+
+        <!-- Attachments -->
+        <FormField label="Вложения">
+          <template #default>
+            <AttachmentDropzone
+              v-model:files="files"
+              :max-files="4"
+              :max-size="10 * 1024 * 1024"
+              accept="image/*,application/pdf,text/plain"
+              @error="(msg) => error = msg"
+            />
+          </template>
+        </FormField>
+
+        <!-- Toolbar -->
+        <ComposerToolbar
+          :can-attach="true"
+          :can-clear="body.length > 0 || files.length > 0"
+          @attach="handleAttach"
+          @clear="handleClear"
+        />
+      </div>
+
+      <template #footer>
+        <div class="create-post-form__actions">
+          <FormButton
+            variant="ghost"
+            @click="handleCollapse"
+          >
+            Отмена
+          </FormButton>
+          <FormButton
+            variant="primary"
+            :disabled="!canSubmit"
+            :loading="isSubmitting"
+            :success="isSuccess"
+            @click="submit"
+          >
+            {{ isSubmitting ? 'Отправка...' : isSuccess ? 'Отправлено!' : 'Отправить' }}
+          </FormButton>
+        </div>
+      </template>
+    </ComposerShell>
+  </div>
 </template>
 
 <style scoped>
-.create-form {
+.create-post-form {
+  width: 100%;
+}
+
+.create-post-form__content {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-6);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
 }
 
-.form-title {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--accent);
+.create-post-form__textarea-wrapper {
+  position: relative;
 }
 
-.field {
+.create-post-form__counter {
+  position: absolute;
+  bottom: var(--space-2);
+  right: var(--space-3);
+  pointer-events: none;
+}
+
+.create-post-form__actions {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.field span {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.form-error {
-  color: var(--danger);
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-input[type="file"] {
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 </style>
