@@ -1,6 +1,7 @@
 import { ref, onMounted } from 'vue'
 
 export interface Draft {
+  title?: string
   body: string
   files?: File[]
   timestamp: number
@@ -18,6 +19,7 @@ export function useDraft(key: string) {
         const parsed = JSON.parse(stored)
         // Don't restore files (they can't be serialized)
         draft.value = {
+          title: parsed.title || '',
           body: parsed.body || '',
           files: [],
           timestamp: parsed.timestamp || Date.now()
@@ -31,18 +33,17 @@ export function useDraft(key: string) {
 
   // Save draft to localStorage with debounce
   let saveTimeout: number | null = null
-  function saveDraft(body: string) {
+  function saveDraft(data: string | { title?: string; body: string }) {
     if (saveTimeout) {
       clearTimeout(saveTimeout)
     }
     
     saveTimeout = window.setTimeout(() => {
       try {
-        const draftData: Draft = {
-          body,
-          files: [],
-          timestamp: Date.now()
-        }
+        const draftData: Draft = typeof data === 'string' 
+          ? { body: data, files: [], timestamp: Date.now() }
+          : { title: data.title || '', body: data.body, files: [], timestamp: Date.now() }
+        
         localStorage.setItem(`draft:${key}`, JSON.stringify(draftData))
         hasDraft.value = true
       } catch (error) {

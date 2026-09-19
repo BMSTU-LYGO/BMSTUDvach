@@ -84,7 +84,7 @@ function formatDate(value: string): string {
     <Transition name="form-slide">
       <div v-if="showForm" class="form-wrapper">
         <GlowBorder>
-          <CreateThreadForm :key="formKey" @submit="handleCreate" />
+          <CreateThreadForm :key="formKey" :board-slug="props.boardSlug" @submit="handleCreate" />
         </GlowBorder>
       </div>
     </Transition>
