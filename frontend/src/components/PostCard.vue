@@ -8,12 +8,17 @@ const props = defineProps<{ post: Post }>()
 
 const emit = defineEmits<{
   report: [payload: { postId: number; reason: string; comment: string }]
+  reply: [postId: number]
 }>()
 
 const showReport = ref(false)
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('ru-RU')
+}
+
+function handleReply() {
+  emit('reply', props.post.id)
 }
 </script>
 
@@ -22,6 +27,14 @@ function formatDate(value: string): string {
     <header class="post-header">
       <span class="post-author">{{ props.post.author }}</span>
       <span class="post-date">{{ formatDate(props.post.created_at) }}</span>
+      <button
+        type="button"
+        class="btn-reply"
+        title="Ответить"
+        @click="handleReply"
+      >
+        Ответить
+      </button>
       <button
         type="button"
         class="btn-report"
@@ -70,8 +83,19 @@ function formatDate(value: string): string {
   color: #999;
   font-size: 0.8rem;
 }
-.btn-report {
+.btn-reply {
   margin-left: auto;
+  border: none;
+  background: none;
+  color: #0b5cab;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn-reply:hover {
+  color: #083d7a;
+  text-decoration: underline;
+}
+.btn-report {
   border: none;
   background: none;
   color: #999;

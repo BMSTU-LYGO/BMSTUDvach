@@ -25,6 +25,7 @@ const postError = ref('')
 const reportNotice = ref('')
 const formKey = ref(0)
 const activeReportPostId = ref<number | null>(null)
+const replyContext = ref<{ postId: number } | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
 const postsRef = ref<HTMLElement | null>(null)
 
@@ -95,6 +96,13 @@ function formatTime(value: string): string {
   if (hours < 24) return `${hours} ч назад`
   return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
+function handleReply(postId: number) {
+  replyContext.value = { postId }
+  // Scroll to composer
+  const composer = document.querySelector('.create-post-form')
+  composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 </script>
 
 <template>
@@ -133,6 +141,14 @@ function formatTime(value: string): string {
               <span class="post-id">#{{ post.id }}</span>
               <span class="post-time">{{ formatTime(post.created_at) }}</span>
               <button
+                class="btn-reply"
+                :title="`Ответить на пост #${post.id}`"
+                :aria-label="`Ответить на пост #${post.id}`"
+                @click="handleReply(post.id)"
+              >
+                Ответить
+              </button>
+              <button
                 class="btn-report"
                 :title="`Пожаловаться на пост #${post.id}`"
                 :aria-label="`Пожаловаться на пост #${post.id}`"
@@ -166,7 +182,11 @@ function formatTime(value: string): string {
 
       <div v-if="!store.thread.thread.is_locked" class="reply-section">
         <GlowBorder>
-          <CreatePostForm :key="formKey" @submit="handlePost" />
+          <CreatePostForm 
+            :key="formKey" 
+            :reply-context="replyContext"
+            @submit="handlePost" 
+          />
         </GlowBorder>
       </div>
 
@@ -289,8 +309,29 @@ function formatTime(value: string): string {
   color: var(--text-muted);
 }
 
-.btn-report {
+.btn-reply {
   margin-left: auto;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--accent);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background var(--duration-fast);
+}
+
+.btn-reply:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.btn-report {
   background: none;
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NewPostInput } from '@/types'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   ComposerShell,
   FormTextarea,
@@ -14,6 +14,10 @@ import {
 
 const emit = defineEmits<{ submit: [input: NewPostInput] }>()
 
+const props = defineProps<{
+  replyContext?: { postId: number; postPreview?: string } | null
+}>()
+
 const body = ref('')
 const files = ref<File[]>([])
 const error = ref('')
@@ -23,6 +27,14 @@ const isSuccess = ref(false)
 
 const MAX_LENGTH = 20000
 const WARNING_THRESHOLD = 0.9
+
+// Initialize body with reply context if provided
+watch(() => props.replyContext, (newContext) => {
+  if (newContext && !body.value.includes(`>>${newContext.postId}`)) {
+    body.value = `>>${newContext.postId}\n${body.value}`
+    isExpanded.value = true
+  }
+}, { immediate: true })
 
 const bodyError = computed(() => {
   if (!isExpanded.value) return ''
@@ -111,6 +123,13 @@ function handleClear() {
   error.value = ''
 }
 
+function removeReplyContext() {
+  if (props.replyContext) {
+    const pattern = `>>${props.replyContext.postId}\n`
+    body.value = body.value.replace(pattern, '')
+  }
+}
+
 defineExpose({ reset })
 </script>
 
@@ -132,6 +151,19 @@ defineExpose({ reset })
       </template>
 
       <div class="create-post-form__content">
+        <!-- Reply context chip -->
+        <div v-if="replyContext" class="create-post-form__context">
+          <span class="create-post-form__context-label">↳ Ответ на #{{ replyContext.postId }}</span>
+          <button
+            type="button"
+            class="create-post-form__context-remove"
+            aria-label="Убрать контекст ответа"
+            @click="removeReplyContext"
+          >
+            ✕
+          </button>
+        </div>
+
         <!-- Error notice -->
         <FormNotice v-if="error" type="error" dismissible @dismiss="error = ''">
           {{ error }}
@@ -219,6 +251,37 @@ defineExpose({ reset })
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.create-post-form__context {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-surface));
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.create-post-form__context-label {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.create-post-form__context-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.create-post-form__context-remove:hover {
+  color: var(--text-primary);
 }
 
 .create-post-form__textarea-wrapper {
