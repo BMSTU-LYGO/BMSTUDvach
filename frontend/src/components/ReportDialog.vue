@@ -117,7 +117,7 @@ onUnmounted(() => {
 
         <!-- Comment field -->
         <FormField label="Комментарий" :error="commentError">
-          <template #default="{ id }">
+          <template #default="{ id, ariaDescribedby, ariaInvalid }">
             <div class="report-dialog__textarea-wrapper">
               <FormTextarea
                 :id="id"
@@ -126,7 +126,8 @@ onUnmounted(() => {
                 :maxlength="MAX_COMMENT_LENGTH"
                 :min-rows="3"
                 :max-rows="6"
-                aria-describedby="comment-counter"
+                :aria-describedby="ariaDescribedby || 'comment-counter'"
+                :aria-invalid="ariaInvalid"
               />
               <div class="report-dialog__counter" id="comment-counter">
                 <CharacterCounter

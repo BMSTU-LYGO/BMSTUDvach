@@ -10,6 +10,12 @@ const props = defineProps<{
 }>()
 
 const fieldId = computed(() => props.id || `field-${Math.random().toString(36).slice(2, 9)}`)
+const errorId = computed(() => `${fieldId.value}-error`)
+const describedBy = computed(() => {
+  const ids = []
+  if (props.error) ids.push(errorId.value)
+  return ids.length > 0 ? ids.join(' ') : undefined
+})
 </script>
 
 <template>
@@ -19,10 +25,10 @@ const fieldId = computed(() => props.id || `field-${Math.random().toString(36).s
       <span v-if="required" class="form-field__required">*</span>
     </label>
     <div class="form-field__input">
-      <slot :id="fieldId" />
+      <slot :id="fieldId" :aria-describedby="describedBy" :aria-invalid="!!error" />
     </div>
     <p v-if="hint && !error" class="form-field__hint">{{ hint }}</p>
-    <p v-if="error" class="form-field__error" :id="`${fieldId}-error`" role="alert">
+    <p v-if="error" :id="errorId" class="form-field__error" role="alert">
       {{ error }}
     </p>
   </div>

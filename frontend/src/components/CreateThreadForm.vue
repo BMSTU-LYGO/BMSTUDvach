@@ -202,14 +202,15 @@ defineExpose({ reset })
           :error="titleError"
           required
         >
-          <template #default="{ id }">
+          <template #default="{ id, ariaDescribedby, ariaInvalid }">
             <div class="create-thread-form__input-wrapper">
               <FormInput
                 :id="id"
                 v-model="title"
                 placeholder="О чём этот тред?"
                 :maxlength="MAX_TITLE_LENGTH"
-                aria-describedby="title-counter"
+                :aria-describedby="ariaDescribedby || 'title-counter'"
+                :aria-invalid="ariaInvalid"
               />
               <div class="create-thread-form__counter" id="title-counter">
                 <CharacterCounter
@@ -228,7 +229,7 @@ defineExpose({ reset })
           :error="bodyError"
           required
         >
-          <template #default="{ id }">
+          <template #default="{ id, ariaDescribedby, ariaInvalid }">
             <div class="create-thread-form__textarea-wrapper">
               <FormTextarea
                 :id="id"
@@ -237,7 +238,8 @@ defineExpose({ reset })
                 :maxlength="MAX_BODY_LENGTH"
                 :min-rows="5"
                 :max-rows="15"
-                aria-describedby="body-counter"
+                :aria-describedby="ariaDescribedby || 'body-counter'"
+                :aria-invalid="ariaInvalid"
               />
               <div class="create-thread-form__counter" id="body-counter">
                 <CharacterCounter

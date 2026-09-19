@@ -205,7 +205,7 @@ defineExpose({ reset })
           :error="bodyError"
           required
         >
-          <template #default="{ id }">
+          <template #default="{ id, ariaDescribedby, ariaInvalid }">
             <div class="create-post-form__textarea-wrapper">
               <FormTextarea
                 :id="id"
@@ -214,7 +214,8 @@ defineExpose({ reset })
                 :maxlength="MAX_LENGTH"
                 :min-rows="3"
                 :max-rows="10"
-                aria-describedby="body-counter"
+                :aria-describedby="ariaDescribedby || 'body-counter'"
+                :aria-invalid="ariaInvalid"
               />
               <div class="create-post-form__counter" id="body-counter">
                 <CharacterCounter
