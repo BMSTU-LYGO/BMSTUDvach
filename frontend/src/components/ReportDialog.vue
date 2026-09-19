@@ -24,6 +24,13 @@ const error = ref('')
 const MAX_COMMENT_LENGTH = 1000
 const WARNING_THRESHOLD = 0.9
 
+const commentError = computed(() => {
+  if (comment.value.length > MAX_COMMENT_LENGTH) {
+    return `Превышен лимит символов (${MAX_COMMENT_LENGTH})`
+  }
+  return ''
+})
+
 const canSubmit = computed(() => {
   return reason.value && comment.value.length <= MAX_COMMENT_LENGTH && !isSubmitting.value
 })
@@ -109,7 +116,7 @@ onUnmounted(() => {
         </FormField>
 
         <!-- Comment field -->
-        <FormField label="Комментарий">
+        <FormField label="Комментарий" :error="commentError">
           <template #default="{ id }">
             <div class="report-dialog__textarea-wrapper">
               <FormTextarea
