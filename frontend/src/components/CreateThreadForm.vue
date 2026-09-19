@@ -323,4 +323,14 @@ defineExpose({ reset })
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+@media (max-width: 640px) {
+  .create-thread-form__actions {
+    flex-direction: column-reverse;
+  }
+  
+  .create-thread-form__actions .form-button {
+    width: 100%;
+  }
+}
 </style>

@@ -209,6 +209,22 @@ onUnmounted(() => {
   gap: var(--space-3);
 }
 
+@media (max-width: 640px) {
+  .report-dialog {
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .report-dialog__actions {
+    flex-direction: column-reverse;
+  }
+  
+  .report-dialog__actions .form-button {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .report-overlay,
   .report-dialog {
