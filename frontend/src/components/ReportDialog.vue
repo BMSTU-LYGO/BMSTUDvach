@@ -1,26 +1,48 @@
 <script setup lang="ts">
 import type { ReportReason } from '@/types'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import {
+  FormField,
+  FormTextarea,
+  FormButton,
+  FormNotice,
+  ReasonPicker,
+  CharacterCounter,
+} from '@/components/form'
 
 const emit = defineEmits<{
   close: []
   submit: [payload: { reason: ReportReason; comment: string }]
 }>()
 
-const reasons: { value: ReportReason; label: string }[] = [
-  { value: 'spam', label: 'Спам' },
-  { value: 'abuse', label: 'Оскорбление' },
-  { value: 'illegal', label: 'Незаконный контент' },
-  { value: 'offtopic', label: 'Оффтоп' },
-  { value: 'other', label: 'Другое' },
-]
-
 const reason = ref<ReportReason>('spam')
 const comment = ref('')
 const dialogRef = ref<HTMLElement | null>(null)
+const isSubmitting = ref(false)
+const error = ref('')
+
+const MAX_COMMENT_LENGTH = 1000
+const WARNING_THRESHOLD = 0.9
+
+const canSubmit = computed(() => {
+  return reason.value && comment.value.length <= MAX_COMMENT_LENGTH && !isSubmitting.value
+})
 
 function submit() {
-  emit('submit', { reason: reason.value, comment: comment.value })
+  if (!canSubmit.value) return
+
+  error.value = ''
+  isSubmitting.value = true
+
+  try {
+    emit('submit', { reason: reason.value, comment: comment.value })
+    // Close immediately after submit
+    emit('close')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Произошла ошибка при отправке жалобы'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -31,7 +53,7 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Tab' && dialogRef.value) {
     // Simple focus trap inside the dialog.
     const focusables = dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, select, textarea, input, [tabindex]:not([tabindex="-1"])',
+      'button, [role="radio"], textarea, input, [tabindex]:not([tabindex="-1"])',
     )
     if (focusables.length === 0) return
     const first = focusables[0]
@@ -51,7 +73,7 @@ onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   // Move focus into the dialog on open.
   requestAnimationFrame(() => {
-    dialogRef.value?.querySelector<HTMLElement>('select')?.focus()
+    dialogRef.value?.querySelector<HTMLElement>('[role="radio"]')?.focus()
   })
 })
 
@@ -73,21 +95,59 @@ onUnmounted(() => {
         @submit.prevent="submit"
       >
         <h3>Пожаловаться на пост</h3>
-        <label class="field">
-          <span>Причина</span>
-          <select v-model="reason">
-            <option v-for="r in reasons" :key="r.value" :value="r.value">
-              {{ r.label }}
-            </option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Комментарий</span>
-          <textarea v-model="comment" rows="3" maxlength="1000" placeholder="Опционально"></textarea>
-        </label>
-        <div class="actions">
-          <button type="button" class="btn btn-ghost" @click="emit('close')">Отмена</button>
-          <button type="submit" class="btn btn-danger">Отправить жалобу</button>
+
+        <!-- Error notice -->
+        <FormNotice v-if="error" type="error" dismissible @dismiss="error = ''">
+          {{ error }}
+        </FormNotice>
+
+        <!-- Reason picker -->
+        <FormField label="Причина жалобы" required>
+          <template #default>
+            <ReasonPicker v-model="reason" />
+          </template>
+        </FormField>
+
+        <!-- Comment field -->
+        <FormField label="Комментарий">
+          <template #default="{ id }">
+            <div class="report-dialog__textarea-wrapper">
+              <FormTextarea
+                :id="id"
+                v-model="comment"
+                placeholder="Опционально: опишите проблему подробнее..."
+                :maxlength="MAX_COMMENT_LENGTH"
+                :min-rows="3"
+                :max-rows="6"
+                aria-describedby="comment-counter"
+              />
+              <div class="report-dialog__counter" id="comment-counter">
+                <CharacterCounter
+                  :current="comment.length"
+                  :max="MAX_COMMENT_LENGTH"
+                  :warning-threshold="WARNING_THRESHOLD"
+                />
+              </div>
+            </div>
+          </template>
+        </FormField>
+
+        <!-- Actions -->
+        <div class="report-dialog__actions">
+          <FormButton
+            variant="ghost"
+            @click="emit('close')"
+          >
+            Отмена
+          </FormButton>
+          <FormButton
+            variant="danger"
+            :disabled="!canSubmit"
+            :loading="isSubmitting"
+            @click="submit"
+          >
+            {{ isSubmitting ? 'Отправка...' : 'Отправить жалобу' }}
+          </FormButton>
         </div>
       </form>
     </div>
@@ -112,7 +172,7 @@ onUnmounted(() => {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-6);
-  width: min(420px, 90vw);
+  width: min(480px, 90vw);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -125,13 +185,18 @@ onUnmounted(() => {
   font-size: 1.1rem;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.report-dialog__textarea-wrapper {
+  position: relative;
 }
 
-.actions {
+.report-dialog__counter {
+  position: absolute;
+  bottom: var(--space-2);
+  right: var(--space-3);
+  pointer-events: none;
+}
+
+.report-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
