@@ -12,6 +12,7 @@ import {
   FormNotice,
 } from '@/components/form'
 import { useDraft } from '@/composables/useDraft'
+import { emitSceneEvent } from '@/three/sceneState'
 
 const emit = defineEmits<{ submit: [input: NewPostInput] }>()
 
@@ -110,6 +111,9 @@ async function submit() {
 
   try {
     emit('submit', { body: body.value, attachments: files.value })
+    
+    // Emit scene event for 3D feedback
+    emitSceneEvent({ type: 'reply' })
     
     // Clear draft on successful submit
     clearDraft()
