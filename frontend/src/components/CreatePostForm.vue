@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NewPostInput } from '@/types'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   ComposerShell,
   FormTextarea,
@@ -11,10 +11,12 @@ import {
   FormButton,
   FormNotice,
 } from '@/components/form'
+import { useDraft } from '@/composables/useDraft'
 
 const emit = defineEmits<{ submit: [input: NewPostInput] }>()
 
 const props = defineProps<{
+  threadId: number
   replyContext?: { postId: number; postPreview?: string } | null
 }>()
 
@@ -28,6 +30,17 @@ const isSuccess = ref(false)
 const MAX_LENGTH = 20000
 const WARNING_THRESHOLD = 0.9
 
+// Draft management
+const { draft, hasDraft, saveDraft, clearDraft } = useDraft(`post-${props.threadId}`)
+
+// Load draft on mount
+onMounted(() => {
+  if (hasDraft.value && draft.value) {
+    body.value = draft.value.body
+    isExpanded.value = true
+  }
+})
+
 // Initialize body with reply context if provided
 watch(() => props.replyContext, (newContext) => {
   if (newContext && !body.value.includes(`>>${newContext.postId}`)) {
@@ -35,6 +48,15 @@ watch(() => props.replyContext, (newContext) => {
     isExpanded.value = true
   }
 }, { immediate: true })
+
+// Save draft when body changes
+watch(body, (newBody) => {
+  if (newBody.trim().length > 0) {
+    saveDraft(newBody)
+  } else if (hasDraft.value) {
+    clearDraft()
+  }
+})
 
 const bodyError = computed(() => {
   if (!isExpanded.value) return ''
@@ -89,6 +111,9 @@ async function submit() {
   try {
     emit('submit', { body: body.value, attachments: files.value })
     
+    // Clear draft on successful submit
+    clearDraft()
+    
     // Show success state
     isSuccess.value = true
     setTimeout(() => {
@@ -109,6 +134,7 @@ function reset() {
   isExpanded.value = false
   isSubmitting.value = false
   isSuccess.value = false
+  clearDraft()
 }
 
 function handleAttach() {

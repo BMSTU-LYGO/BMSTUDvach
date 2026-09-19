@@ -184,6 +184,7 @@ function handleReply(postId: number) {
         <GlowBorder>
           <CreatePostForm 
             :key="formKey" 
+            :thread-id="props.threadId"
             :reply-context="replyContext"
             @submit="handlePost" 
           />
