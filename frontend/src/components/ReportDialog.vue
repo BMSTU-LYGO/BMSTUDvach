@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ReportReason } from '@/types'
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import {
   FormField,
   FormTextarea,
@@ -15,10 +15,15 @@ const emit = defineEmits<{
   submit: [payload: { reason: ReportReason; comment: string }]
 }>()
 
+const props = defineProps<{
+  submitting?: boolean
+  submitError?: string | null
+  successToken?: number
+}>()
+
 const reason = ref<ReportReason>('spam')
 const comment = ref('')
 const dialogRef = ref<HTMLElement | null>(null)
-const isSubmitting = ref(false)
 const error = ref('')
 
 const MAX_COMMENT_LENGTH = 1000
@@ -32,24 +37,31 @@ const commentError = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  return reason.value && comment.value.length <= MAX_COMMENT_LENGTH && !isSubmitting.value
+  return reason.value && comment.value.length <= MAX_COMMENT_LENGTH && !props.submitting
+})
+
+// Watch for parent-controlled success
+watch(() => props.successToken, (newToken, oldToken) => {
+  if (newToken !== undefined && newToken !== oldToken) {
+    // Parent confirmed success, close dialog
+    emit('close')
+  }
+})
+
+// Watch for parent-controlled error
+watch(() => props.submitError, (newError) => {
+  if (newError) {
+    error.value = newError
+  }
 })
 
 function submit() {
   if (!canSubmit.value) return
 
   error.value = ''
-  isSubmitting.value = true
-
-  try {
-    emit('submit', { reason: reason.value, comment: comment.value })
-    // Close immediately after submit
-    emit('close')
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Произошла ошибка при отправке жалобы'
-  } finally {
-    isSubmitting.value = false
-  }
+  
+  // Just emit the data - parent handles API call and signals back
+  emit('submit', { reason: reason.value, comment: comment.value })
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -151,10 +163,10 @@ onUnmounted(() => {
           <FormButton
             variant="danger"
             :disabled="!canSubmit"
-            :loading="isSubmitting"
+            :loading="submitting"
             @click="submit"
           >
-            {{ isSubmitting ? 'Отправка...' : 'Отправить жалобу' }}
+            {{ submitting ? 'Отправка...' : 'Отправить жалобу' }}
           </FormButton>
         </div>
       </form>

@@ -12,21 +12,21 @@ import {
   FormNotice,
 } from '@/components/form'
 import { useDraft } from '@/composables/useDraft'
-import { emitSceneEvent } from '@/three/sceneState'
 
 const emit = defineEmits<{ submit: [input: NewPostInput] }>()
 
 const props = defineProps<{
   threadId: number
   replyContext?: { postId: number; postPreview?: string } | null
+  submitting?: boolean
+  submitError?: string | null
+  successToken?: number
 }>()
 
 const body = ref('')
 const files = ref<File[]>([])
 const error = ref('')
 const isExpanded = ref(false)
-const isSubmitting = ref(false)
-const isSuccess = ref(false)
 
 const MAX_LENGTH = 20000
 const WARNING_THRESHOLD = 0.9
@@ -71,7 +71,22 @@ const bodyError = computed(() => {
 const canSubmit = computed(() => {
   return body.value.trim().length > 0 && 
          body.value.length <= MAX_LENGTH && 
-         !isSubmitting.value
+         !props.submitting
+})
+
+// Watch for parent-controlled success
+watch(() => props.successToken, (newToken, oldToken) => {
+  if (newToken !== undefined && newToken !== oldToken) {
+    // Parent confirmed success, reset form
+    reset()
+  }
+})
+
+// Watch for parent-controlled error
+watch(() => props.submitError, (newError) => {
+  if (newError) {
+    error.value = newError
+  }
 })
 
 function handleCollapse() {
@@ -98,7 +113,7 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-async function submit() {
+function submit() {
   if (!canSubmit.value) return
 
   if (body.value.trim().length === 0) {
@@ -107,28 +122,9 @@ async function submit() {
   }
 
   error.value = ''
-  isSubmitting.value = true
-
-  try {
-    emit('submit', { body: body.value, attachments: files.value })
-    
-    // Emit scene event for 3D feedback
-    emitSceneEvent({ type: 'reply' })
-    
-    // Clear draft on successful submit
-    clearDraft()
-    
-    // Show success state
-    isSuccess.value = true
-    setTimeout(() => {
-      reset()
-      isSuccess.value = false
-    }, 1500)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Произошла ошибка при отправке'
-  } finally {
-    isSubmitting.value = false
-  }
+  
+  // Just emit the data - parent handles API call and signals back
+  emit('submit', { body: body.value, attachments: files.value })
 }
 
 function reset() {
@@ -136,8 +132,6 @@ function reset() {
   files.value = []
   error.value = ''
   isExpanded.value = false
-  isSubmitting.value = false
-  isSuccess.value = false
   clearDraft()
 }
 
@@ -170,8 +164,8 @@ defineExpose({ reset })
   >
     <ComposerShell
       v-model:expanded="isExpanded"
-      :submitting="isSubmitting"
-      :success="isSuccess"
+      :submitting="submitting"
+      :success="false"
       @submit="submit"
       @cancel="handleCollapse"
     >
@@ -261,11 +255,11 @@ defineExpose({ reset })
           <FormButton
             variant="primary"
             :disabled="!canSubmit"
-            :loading="isSubmitting"
-            :success="isSuccess"
+            :loading="submitting"
+            :success="false"
             @click="submit"
           >
-            {{ isSubmitting ? 'Отправка...' : isSuccess ? 'Отправлено!' : 'Отправить' }}
+            {{ submitting ? 'Отправка...' : 'Отправить' }}
           </FormButton>
         </div>
       </template>

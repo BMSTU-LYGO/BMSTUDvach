@@ -25,6 +25,7 @@ const { sounds } = useSound()
 
 const creating = ref(false)
 const createdError = ref('')
+const createSuccessToken = ref(0)
 const formKey = ref(0)
 const showForm = ref(false)
 
@@ -45,6 +46,8 @@ async function handleCreate(input: NewThreadInput) {
     showForm.value = false
     await store.fetchThreads(props.boardSlug)
     sounds.submit()
+    // Signal success to form
+    createSuccessToken.value++
   } catch (err) {
     createdError.value = err instanceof Error ? err.message : 'Не удалось создать тред.'
     sounds.error()
@@ -84,7 +87,14 @@ function formatDate(value: string): string {
     <Transition name="form-slide">
       <div v-if="showForm" class="form-wrapper">
         <GlowBorder>
-          <CreateThreadForm :key="formKey" :board-slug="props.boardSlug" @submit="handleCreate" />
+          <CreateThreadForm 
+            :key="formKey" 
+            :board-slug="props.boardSlug"
+            :submitting="creating"
+            :submit-error="createdError"
+            :success-token="createSuccessToken"
+            @submit="handleCreate" 
+          />
         </GlowBorder>
       </div>
     </Transition>

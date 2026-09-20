@@ -22,7 +22,11 @@ const { sounds } = useSound()
 
 const posting = ref(false)
 const postError = ref('')
+const postSuccessToken = ref(0)
 const reportNotice = ref('')
+const reportSubmitting = ref(false)
+const reportError = ref('')
+const reportSuccessToken = ref(0)
 const formKey = ref(0)
 const activeReportPostId = ref<number | null>(null)
 const replyContext = ref<{ postId: number } | null>(null)
@@ -56,6 +60,8 @@ async function handlePost(input: NewPostInput) {
     sounds.submit()
     // Spatial feedback: a signal packet flies through the network core.
     emitSceneEvent({ type: 'reply' })
+    // Signal success to form
+    postSuccessToken.value++
   } catch (err) {
     postError.value = err instanceof Error ? err.message : 'Не удалось отправить ответ.'
     sounds.error()
@@ -69,8 +75,9 @@ async function handleReport(payload: {
   reason: ReportReason
   comment: string
 }) {
+  reportSubmitting.value = true
+  reportError.value = ''
   reportNotice.value = ''
-  activeReportPostId.value = null
   try {
     await store.createReport(payload.postId, {
       reason: payload.reason,
@@ -78,10 +85,14 @@ async function handleReport(payload: {
     })
     reportNotice.value = 'Жалоба отправлена.'
     sounds.submit()
+    // Signal success to dialog
+    reportSuccessToken.value++
+    activeReportPostId.value = null
   } catch (err) {
-    reportNotice.value =
-      err instanceof Error ? err.message : 'Не удалось отправить жалобу.'
+    reportError.value = err instanceof Error ? err.message : 'Не удалось отправить жалобу.'
     sounds.error()
+  } finally {
+    reportSubmitting.value = false
   }
 }
 
@@ -169,6 +180,9 @@ function handleReply(postId: number) {
 
           <ReportDialog
             v-if="activeReportPostId === post.id"
+            :submitting="reportSubmitting"
+            :submit-error="reportError"
+            :success-token="reportSuccessToken"
             @close="activeReportPostId = null"
             @submit="(payload) => handleReport({ postId: post.id, ...payload })"
           />
@@ -186,6 +200,9 @@ function handleReply(postId: number) {
             :key="formKey" 
             :thread-id="props.threadId"
             :reply-context="replyContext"
+            :submitting="posting"
+            :submit-error="postError"
+            :success-token="postSuccessToken"
             @submit="handlePost" 
           />
         </GlowBorder>

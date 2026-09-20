@@ -13,12 +13,14 @@ import {
   FormNotice,
 } from '@/components/form'
 import { useDraft } from '@/composables/useDraft'
-import { emitSceneEvent } from '@/three/sceneState'
 
 const emit = defineEmits<{ submit: [input: NewThreadInput] }>()
 
 const props = defineProps<{
   boardSlug: string
+  submitting?: boolean
+  submitError?: string | null
+  successToken?: number
 }>()
 
 const title = ref('')
@@ -26,8 +28,6 @@ const body = ref('')
 const files = ref<File[]>([])
 const error = ref('')
 const isExpanded = ref(false)
-const isSubmitting = ref(false)
-const isSuccess = ref(false)
 
 const MAX_TITLE_LENGTH = 200
 const MAX_BODY_LENGTH = 20000
@@ -77,7 +77,22 @@ const canSubmit = computed(() => {
          body.value.trim().length > 0 &&
          title.value.length <= MAX_TITLE_LENGTH &&
          body.value.length <= MAX_BODY_LENGTH &&
-         !isSubmitting.value
+         !props.submitting
+})
+
+// Watch for parent-controlled success
+watch(() => props.successToken, (newToken, oldToken) => {
+  if (newToken !== undefined && newToken !== oldToken) {
+    // Parent confirmed success, reset form
+    reset()
+  }
+})
+
+// Watch for parent-controlled error
+watch(() => props.submitError, (newError) => {
+  if (newError) {
+    error.value = newError
+  }
 })
 
 function handleCollapse() {
@@ -104,7 +119,7 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-async function submit() {
+function submit() {
   if (!canSubmit.value) return
 
   if (title.value.trim().length === 0) {
@@ -118,32 +133,13 @@ async function submit() {
   }
 
   error.value = ''
-  isSubmitting.value = true
-
-  try {
-    emit('submit', { 
-      title: title.value, 
-      body: body.value, 
-      attachments: files.value 
-    })
-    
-    // Emit scene event for 3D feedback
-    emitSceneEvent({ type: 'pulse', target: props.boardSlug })
-    
-    // Clear draft on successful submit
-    clearDraft()
-    
-    // Show success state
-    isSuccess.value = true
-    setTimeout(() => {
-      reset()
-      isSuccess.value = false
-    }, 1500)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Произошла ошибка при создании треда'
-  } finally {
-    isSubmitting.value = false
-  }
+  
+  // Just emit the data - parent handles API call and signals back
+  emit('submit', { 
+    title: title.value, 
+    body: body.value, 
+    attachments: files.value 
+  })
 }
 
 function reset() {
@@ -152,8 +148,6 @@ function reset() {
   files.value = []
   error.value = ''
   isExpanded.value = false
-  isSubmitting.value = false
-  isSuccess.value = false
   clearDraft()
 }
 
@@ -180,8 +174,8 @@ defineExpose({ reset })
   >
     <ComposerShell
       v-model:expanded="isExpanded"
-      :submitting="isSubmitting"
-      :success="isSuccess"
+      :submitting="submitting"
+      :success="false"
       @submit="submit"
       @cancel="handleCollapse"
     >
@@ -285,11 +279,11 @@ defineExpose({ reset })
           <FormButton
             variant="primary"
             :disabled="!canSubmit"
-            :loading="isSubmitting"
-            :success="isSuccess"
+            :loading="submitting"
+            :success="false"
             @click="submit"
           >
-            {{ isSubmitting ? 'Создание...' : isSuccess ? 'Создано!' : 'Создать тред' }}
+            {{ submitting ? 'Создание...' : 'Создать тред' }}
           </FormButton>
         </div>
       </template>
