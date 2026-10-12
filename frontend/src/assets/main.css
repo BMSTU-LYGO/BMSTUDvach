@@ -160,6 +160,18 @@ a:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+/* Keyboard focus must survive on borderless custom controls too —
+   many signal-ui buttons are `background: none; border: none`. */
+button:focus-visible,
+[role='button']:focus-visible,
+[role='radio']:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* === Buttons === */
 .btn {
   display: inline-flex;
