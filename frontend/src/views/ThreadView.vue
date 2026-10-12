@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import SignalDock from '@/components/composer/SignalDock.vue'
 import ContextFiber from '@/components/composer/ContextFiber.vue'
 import ReportProbe from '@/components/report/ReportProbe.vue'
+import PostBody from '@/components/thread/PostBody.vue'
+import PostPreview from '@/components/thread/PostPreview.vue'
+import ThreadProgress from '@/components/thread/ThreadProgress.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -13,8 +16,9 @@ import { useForumStore } from '@/stores/forum'
 import { playMorph } from '@/composables/usePageMorph'
 import { usePostReveal } from '@/composables/usePostReveal'
 import { useSound } from '@/composables/useSound'
+import { collectBacklinks } from '@/composables/usePostLinks'
 import { emitSceneEvent } from '@/three/sceneState'
-import type { NewPostInput, ReportReason } from '@/types'
+import type { NewPostInput, Post, ReportReason } from '@/types'
 
 const props = defineProps<{ threadId: number }>()
 const store = useForumStore()
@@ -34,11 +38,31 @@ const postsRef = ref<HTMLElement | null>(null)
 const dockRef = ref<InstanceType<typeof SignalDock> | null>(null)
 const dockEl = ref<HTMLElement | null>(null)
 
+// reader state
+const previewPost = ref<Post | null>(null)
+const previewPos = ref({ x: 0, y: 0 })
+const previewVisible = ref(false)
+const progress = ref(0)
+
 const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
 usePostReveal(postsRef, postsCount)
 
-onMounted(async () => {
+const knownIds = computed(
+  () => new Set((store.thread.thread?.posts ?? []).map((p) => p.id)),
+)
+const backlinks = computed(() =>
+  store.thread.thread ? collectBacklinks(store.thread.thread.posts) : new Map<number, number[]>(),
+)
+
+onMounted(() => {
   void store.fetchThread(props.threadId)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('keydown', onWindowKeydown)
 })
 
 // Play the shared-element morph once the title actually renders.
@@ -141,10 +165,49 @@ function onDockBlur() {
 function clearReplyContext() {
   replyContext.value = null
 }
+
+// --- thread reader: post links, previews, progress -------------------------
+
+function navigateToPost(id: number) {
+  const el = document.getElementById(`post-${id}`)
+  if (!el) return
+  el.scrollIntoView({
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'center',
+  })
+  el.classList.add('post-item--linked')
+  window.setTimeout(() => el.classList.remove('post-item--linked'), 1600)
+  hidePreview()
+}
+
+function showPreview(id: number, event: MouseEvent) {
+  const post = store.thread.thread?.posts.find((p) => p.id === id)
+  if (!post) return
+  previewPost.value = post
+  previewPos.value = { x: event.clientX, y: event.clientY }
+  previewVisible.value = true
+}
+
+function hidePreview() {
+  previewVisible.value = false
+}
+
+function onWindowKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') hidePreview()
+}
+
+function onScroll() {
+  const doc = document.documentElement
+  const max = doc.scrollHeight - window.innerHeight
+  progress.value = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
+  if (previewVisible.value) hidePreview()
+}
 </script>
 
 <template>
   <section class="thread-page">
+    <ThreadProgress :progress="progress" />
+
     <div class="thread-breadcrumb">
       <RouterLink to="/" class="breadcrumb-link">Главная</RouterLink>
       <span class="breadcrumb-sep">/</span>
@@ -168,6 +231,7 @@ function clearReplyContext() {
         <article
           v-for="post in store.thread.thread.posts"
           :key="post.id"
+          :id="`post-${post.id}`"
           class="post-item"
           :class="{
             op: post.is_op,
@@ -199,13 +263,36 @@ function clearReplyContext() {
                 !
               </button>
             </div>
-            <div class="post-body">{{ post.body }}</div>
+            <PostBody
+              :body="post.body"
+              :known-ids="knownIds"
+              @navigate="navigateToPost"
+              @preview="showPreview"
+              @preview-leave="hidePreview"
+            />
+
             <div v-if="post.attachments.length" class="post-attachments">
               <AttachmentPreview
                 v-for="attachment in post.attachments"
                 :key="attachment.id"
                 :attachment="attachment"
               />
+            </div>
+
+            <div
+              v-if="(backlinks.get(post.id) ?? []).length > 0"
+              class="post-backlinks"
+              data-testid="post-backlinks"
+            >
+              <span class="post-backlinks__label">ответы:</span>
+              <a
+                v-for="id in backlinks.get(post.id)!"
+                :key="id"
+                class="post-link"
+                :href="`#post-${id}`"
+                @click.prevent="navigateToPost(id)"
+                >&gt;&gt;{{ id }}</a
+              >
             </div>
 
             <ReportProbe
@@ -254,6 +341,14 @@ function clearReplyContext() {
       :source="replyContext?.source ?? null"
       :target="dockEl"
       :label="replyContext ? `#${replyContext.postId}` : ''"
+    />
+
+    <PostPreview
+      :post="previewPost"
+      :x="previewPos.x"
+      :y="previewPos.y"
+      :visible="previewVisible"
+      @navigate="navigateToPost"
     />
   </section>
 </template>
@@ -432,10 +527,42 @@ function clearReplyContext() {
   background: oklch(0.55 0.20 25 / 0.1);
 }
 
-.post-body {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.6;
+/* anchor navigation target + temporary link highlight */
+.post-item {
+  scroll-margin-top: 84px;
+}
+
+.post-item--linked {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+  transition:
+    background 220ms var(--ease-out-quart),
+    box-shadow 220ms var(--ease-out-quart);
+}
+
+/* backlinks under a post */
+.post-backlinks {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.post-backlinks__label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.post-backlinks .post-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+
+.post-backlinks .post-link:hover {
   color: var(--text-primary);
 }
 
