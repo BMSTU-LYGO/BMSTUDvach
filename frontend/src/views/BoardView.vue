@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 
-import GlowBorder from '@/components/ui/GlowBorder.vue'
-import MagneticButton from '@/components/ui/MagneticButton.vue'
-import CreateThreadForm from '@/components/CreateThreadForm.vue'
+import LaunchBay from '@/components/launch/LaunchBay.vue'
+import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
-import { playMorph, captureMorph } from '@/composables/usePageMorph'
+import { captureMorph, playMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
+import { emitSceneEvent } from '@/three/sceneState'
 import type { NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
@@ -18,6 +18,8 @@ const props = defineProps<{ boardSlug: string }>()
 const store = useForumStore()
 const sectionRef = ref<HTMLElement | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
+const launchBtnRef = ref<HTMLElement | null>(null)
+const bayRef = ref<InstanceType<typeof LaunchBay> | null>(null)
 
 useScrollReveal(sectionRef, '.thread-row')
 
@@ -26,8 +28,7 @@ const { sounds } = useSound()
 const creating = ref(false)
 const createdError = ref('')
 const createSuccessToken = ref(0)
-const formKey = ref(0)
-const showForm = ref(false)
+const launchOpen = ref(false)
 
 const threads = computed(() => store.threadList.threads)
 
@@ -37,17 +38,34 @@ onMounted(async () => {
   void store.fetchThreads(props.boardSlug)
 })
 
+// "+ Новый тред" morphs into the Launch Bay stage (SIGNAL-13).
+async function openLaunchBay() {
+  if (launchOpen.value) return
+  captureMorph(launchBtnRef.value, 'launch-bay')
+  launchOpen.value = true
+  await nextTick()
+  playMorph(bayRef.value?.$el ?? null, 'launch-bay', { duration: 0.45 })
+}
+
+function closeLaunchBay() {
+  launchOpen.value = false
+}
+
+function onBayDone() {
+  launchOpen.value = false
+}
+
 async function handleCreate(input: NewThreadInput) {
   creating.value = true
   createdError.value = ''
   try {
     await store.createThread(props.boardSlug, input)
-    formKey.value += 1
-    showForm.value = false
+    createSuccessToken.value++
     await store.fetchThreads(props.boardSlug)
     sounds.submit()
-    // Signal success to form
-    createSuccessToken.value++
+    // Spatial feedback: the board cluster answers the launch.
+    emitSceneEvent({ type: 'pulse', target: props.boardSlug })
+    // failure keeps the bay open with title/body/files/draft intact
   } catch (err) {
     createdError.value = err instanceof Error ? err.message : 'Не удалось создать тред.'
     sounds.error()
@@ -79,29 +97,23 @@ function formatDate(value: string): string {
   <section class="board-page">
     <div class="board-header">
       <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
-      <MagneticButton variant="primary" @click="showForm = !showForm">
-        {{ showForm ? '✕ Закрыть' : '+ Новый тред' }}
-      </MagneticButton>
+      <button ref="launchBtnRef" type="button" class="launch-trigger" @click="openLaunchBay">
+        <NetworkIcon name="transmit" :size="16" />
+        <span class="launch-trigger__label">Новый тред</span>
+      </button>
     </div>
 
-    <Transition name="form-slide">
-      <div v-if="showForm" class="form-wrapper">
-        <GlowBorder>
-          <CreateThreadForm 
-            :key="formKey" 
-            :board-slug="props.boardSlug"
-            :submitting="creating"
-            :submit-error="createdError"
-            :success-token="createSuccessToken"
-            @submit="handleCreate" 
-          />
-        </GlowBorder>
-      </div>
-    </Transition>
-
-    <p v-if="createdError" class="text-danger" data-testid="create-error">
-      {{ createdError }}
-    </p>
+    <LaunchBay
+      v-if="launchOpen"
+      ref="bayRef"
+      :board-slug="props.boardSlug"
+      :submitting="creating"
+      :submit-error="createdError"
+      :success-token="createSuccessToken"
+      @submit="handleCreate"
+      @close="closeLaunchBay"
+      @done="onBayDone"
+    />
 
     <LoadingState v-if="store.threadList.loading" />
     <ErrorState
@@ -113,7 +125,12 @@ function formatDate(value: string): string {
       v-else-if="threads.length === 0"
       message="В этом разделе пока нет тредов."
     />
-    <div v-else ref="sectionRef" class="threads-list">
+    <div
+      v-else
+      ref="sectionRef"
+      class="threads-list"
+      :class="{ 'threads-list--staged': launchOpen }"
+    >
       <RouterLink
         v-for="thread in threads"
         :key="thread.id"
@@ -162,37 +179,47 @@ function formatDate(value: string): string {
   text-shadow: 0 0 30px var(--accent-glow);
 }
 
-/* Form transition */
-.form-wrapper {
-  margin-bottom: var(--space-2);
-}
-
-.form-slide-enter-active {
+/* Launch trigger — node, not a generic primary button */
+.launch-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
   transition:
-    opacity 0.3s var(--ease-out-quart),
-    max-height 0.4s var(--ease-out-expo),
-    margin 0.3s;
-  overflow: hidden;
+    border-color var(--duration-fast),
+    background var(--duration-fast),
+    box-shadow var(--duration-normal) var(--ease-out-quart);
 }
 
-.form-slide-leave-active {
+.launch-trigger:hover {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.launch-trigger__label {
+  color: var(--text-primary);
+}
+
+/* while the Launch Bay owns the stage the list recedes */
+.threads-list--staged {
+  transform: scale(0.97);
+  filter: blur(2px);
+  opacity: 0.55;
+  pointer-events: none;
   transition:
-    opacity 0.2s ease-in,
-    max-height 0.2s ease-in,
-    margin 0.2s;
-  overflow: hidden;
-}
-
-.form-slide-enter-from,
-.form-slide-leave-to {
-  opacity: 0;
-  max-height: 0;
-  margin-bottom: 0;
-}
-
-.form-slide-enter-to,
-.form-slide-leave-from {
-  max-height: 500px;
+    transform 350ms var(--ease-out-quart),
+    filter 350ms var(--ease-out-quart),
+    opacity 350ms var(--ease-out-quart);
 }
 
 /* Thread list */
