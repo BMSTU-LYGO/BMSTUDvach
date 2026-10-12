@@ -25,7 +25,7 @@ export type NetworkIconName =
 withDefaults(
   defineProps<{
     name: NetworkIconName
-    size?: 16 | 20 | 24
+    size?: number
     strokeWidth?: number
   }>(),
   { size: 20, strokeWidth: 1.6 },
