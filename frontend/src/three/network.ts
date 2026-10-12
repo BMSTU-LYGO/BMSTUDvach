@@ -29,6 +29,8 @@ export interface NetworkController {
   sendReply(): void
   /** 404 'rescue' ping: ring at the lost node + amber flash. */
   rescue(): void
+  /** Signal Dock focus state — subtle core brighten, nothing more. */
+  setComposerFocus(on: boolean): void
   setPointer(ndcX: number, ndcY: number): void
   update(dt: number, snap: NetworkSnapshot): void
   dispose(): void
@@ -422,6 +424,8 @@ export function buildNetwork(
   const smoothPointer = new three.Vector2(0, 0)
   let cameraKick = 0
   let elapsed = 0
+  let composerGlow = 0
+  let composerFocus = false
   const presence = { network: 1, archive: 0, lost: 0 }
   const raycaster = new three.Raycaster()
 
@@ -440,7 +444,10 @@ export function buildNetwork(
 
     const calm = snap.mode === 'thread'
     const netPresence = calm ? presence.network * 0.5 : presence.network
-    coreMat.opacity = 0.85 * presence.network
+    composerGlow += ((composerFocus ? 1 : 0) - composerGlow) * Math.min(1, dt * 3)
+    coreMat.opacity = (0.85 + 0.3 * composerGlow) * presence.network
+    const coreScale = 1 + 0.12 * composerGlow
+    coreGroup.scale.setScalar(coreScale)
     dustMat.opacity =
       0.28 * Math.max(presence.network, presence.archive * 0.8, presence.lost * 0.6)
 
@@ -591,6 +598,9 @@ export function buildNetwork(
     pulseAt,
     sendReply,
     rescue,
+    setComposerFocus: (on: boolean) => {
+      composerFocus = on
+    },
     setPointer: (x, y) => pointer.set(x, y),
     update,
     dispose: () => {

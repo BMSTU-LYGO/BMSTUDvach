@@ -17,6 +17,10 @@ export type SceneEvent =
   | { type: 'reply' }
   /** 404 screen: signal the lost node and try to find the way back. */
   | { type: 'rescue' }
+  /** Signal Dock took focus: the core brightens slightly. */
+  | { type: 'composer-focus' }
+  /** Signal Dock released focus. */
+  | { type: 'composer-blur' }
 
 interface SceneState {
   mode: SceneMode
