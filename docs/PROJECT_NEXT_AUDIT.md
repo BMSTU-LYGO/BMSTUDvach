@@ -126,3 +126,20 @@ Stories are finally readable: /platinum/:id calm reading stage
 - ThreadView reply context element can go stale after refetch (fiber
   recomputes on scroll; acceptable)
 - Platinum generation remains staff-only dev tooling by design
+
+## QA round (live stack + code walk)
+- QA-01: AboutView promised future Platinum — now describes the shipped
+  product; spectacular schema errors (health/generate) fixed
+- QA-02: dead UI components deleted (MagneticButton, GlowBorder,
+  ScanlineOverlay, TypewriterText)
+- QA-03: global keyboard focus-visible for borderless controls
+- docs: README matches code (new endpoints, 2-context budget, tree)
+- BOARD-01: live thread_count on board nodes (backend annotation + card)
+- live stack verified: health, /threads/recent/, /platinum/?search=,
+  frontend container serves <title>BMSTUDvach</title> (host :5173 was
+  shadowed by a foreign dev server — no project bug)
+- production build smoke: index + all assets 200 via vite preview
+
+## Verified totals
+- frontend: 66 tests, 13 files · verify:3d 46 · lint/build PASS
+- backend: 32 tests · ruff PASS
