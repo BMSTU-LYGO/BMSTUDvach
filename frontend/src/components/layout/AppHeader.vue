@@ -5,6 +5,7 @@ import { useCRT } from '@/composables/useCRT'
 import { useSound } from '@/composables/useSound'
 import { useQuality3D } from '@/composables/useQuality3D'
 import { syncBoards } from '@/three/sceneState'
+import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 
 const store = useForumStore()
 const mobileOpen = ref(false)
@@ -95,7 +96,7 @@ function closeMobile() {
             :title="soundEnabled ? 'Звук включён' : 'Звук выключен'"
             @click="toggleSound"
           >
-            {{ soundEnabled ? '♪' : '∅' }}
+            <NetworkIcon :name="soundEnabled ? 'sound' : 'mute'" :size="14" />
           </button>
         </div>
 
@@ -184,6 +185,9 @@ function closeMobile() {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   transition:
     color var(--duration-fast) var(--ease-out-quart),

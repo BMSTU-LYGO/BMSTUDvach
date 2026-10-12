@@ -140,7 +140,9 @@ function formatDate(value: string): string {
       >
         <div class="thread-main">
           <div class="thread-title-row">
-            <span v-if="thread.is_pinned" class="thread-pin" title="Закреплён">▲</span>
+            <span v-if="thread.is_pinned" class="thread-pin" title="Закреплён">
+              <NetworkIcon name="pin" :size="12" />
+            </span>
             <span class="thread-title">{{ thread.title }}</span>
           </div>
           <div class="thread-meta">
@@ -148,7 +150,10 @@ function formatDate(value: string): string {
               <span class="meta-count">{{ thread.reply_count }}</span>
               ответ{{ thread.reply_count === 1 ? '' : thread.reply_count < 5 ? 'а' : 'ов' }}
             </span>
-            <span v-if="thread.is_locked" class="meta-lock" title="Закрыт">● закрыт</span>
+            <span v-if="thread.is_locked" class="meta-lock" title="Закрыт">
+              <NetworkIcon name="lock" :size="12" />
+              закрыт
+            </span>
           </div>
         </div>
         <span class="thread-time">{{ formatDate(thread.bumped_at) }}</span>
@@ -267,7 +272,8 @@ function formatDate(value: string): string {
 
 .thread-pin {
   color: var(--accent);
-  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -296,6 +302,9 @@ function formatDate(value: string): string {
 .meta-lock {
   color: var(--text-muted);
   font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .thread-time {

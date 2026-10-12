@@ -15,6 +15,10 @@ export type NetworkIconName =
   | 'command'
   | 'check'
   | 'warning'
+  | 'pin'
+  | 'lock'
+  | 'sound'
+  | 'mute'
 </script>
 
 <script setup lang="ts">
@@ -133,6 +137,30 @@ withDefaults(
     <template v-else-if="name === 'warning'">
       <path d="M12 4 3 19h18z" />
       <path d="M12 10v4M12 16.6v.3" />
+    </template>
+
+    <!-- pin: pinned thread node -->
+    <template v-else-if="name === 'pin'">
+      <path d="M12 21s-6-5.4-6-10a6 6 0 1 1 12 0c0 4.6-6 10-6 10z" />
+      <circle cx="12" cy="10.5" r="2.2" />
+    </template>
+
+    <!-- lock: locked thread -->
+    <template v-else-if="name === 'lock'">
+      <rect x="5" y="11" width="14" height="9" rx="1.5" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </template>
+
+    <!-- sound: signal audio on -->
+    <template v-else-if="name === 'sound'">
+      <path d="M4 10v4h3l4 3.5v-11L7 10z" />
+      <path d="M15 9.5a4 4 0 0 1 0 5M17.5 7a7.5 7.5 0 0 1 0 10" />
+    </template>
+
+    <!-- mute: signal audio off -->
+    <template v-else-if="name === 'mute'">
+      <path d="M4 10v4h3l4 3.5v-11L7 10z" />
+      <path d="M15.5 10l5 4M20.5 10l-5 4" />
     </template>
   </svg>
 </template>

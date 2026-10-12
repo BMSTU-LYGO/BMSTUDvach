@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import NetworkIcon from '@/components/composer/NetworkIcon.vue'
+
 defineProps<{ message?: string; onRetry?: () => void }>()
 </script>
 
 <template>
   <div class="error-state" role="alert" data-testid="error">
-    <div class="error-icon">✕</div>
+    <div class="error-icon">
+      <NetworkIcon name="warning" :size="22" />
+    </div>
     <p class="error-title">Ошибка</p>
     <p class="error-message">{{ message ?? 'Что-то пошло не так.' }}</p>
     <button v-if="onRetry" type="button" class="btn btn-ghost" @click="onRetry">
@@ -30,21 +34,7 @@ defineProps<{ message?: string; onRetry?: () => void }>()
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: oklch(0.55 0.20 25 / 0.15);
+  background: oklch(0.55 0.2 25 / 0.15);
   color: var(--danger);
-  font-size: 1.2rem;
-  font-weight: 700;
-}
-
-.error-title {
-  margin: 0;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.error-message {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
 }
 </style>
