@@ -82,3 +82,47 @@ Working tree: untracked `frontend/src/components/composer/` (7 файлов: Net
 ## Выбор первого этапа
 
 NEXT_01. Reply — ядро thread reading/writing loop; компоненты уже готовы и остаются мёртвым кодом; lint сломан; этап разблокирует остальные.
+
+---
+
+# STATUS LOG (filled during implementation)
+
+## NEXT_01 — SIGNAL DOCK — DONE (pushed)
+Reply = persistent transmission station; no accordion anywhere.
+SignalSurface, Command Lens (/ + ⌘K), Cargo Rail (whole-dock intake),
+Buffer Beacon, Signal Meter, TransmitControl, Context Fiber,
+composer-focus/blur scene events. Async contract locked with tests.
+
+## NEXT_02 — LAUNCH BAY + REPORT PROBE — DONE (pushed)
+Thread creation = Flip-morphed stage with editorial title + telemetry
+rail; report = anchored diagnostic constellation (desktop) / vertical
+track (mobile). Whole legacy form system deleted.
+
+## NEXT_03 — SCENE INTEGRATION + GLYPH SET — DONE (pushed)
+report-open/report-submit/thread-launch events with danger flash and
+launch pulse; all emoji icons replaced by one stroke-family SVG set;
+dead light-theme components removed.
+
+## NEXT_04 — THREAD READER — DONE (pushed)
+`>>123` parser (pure), live anchors, dead-link states, backlinks rows,
+desktop hover preview, reading progress bar. Reply loop closed.
+
+## HOME-01/02 — DONE (pushed)
+Home runs ONE WebGL scene (GearHero deleted, context budget 3→2);
+hero explains what/where + CTA; "Последние передачи" feed via new
+backend endpoint GET /threads/recent/; ThreadRow extracted and shared.
+
+## PLATINUM-01/02 — DONE (pushed)
+Stories are finally readable: /platinum/:id calm reading stage
+(deep-linkable, honest 404); archive search (backend SearchFilter)
++ load-more beyond page 1; query-aware empty state.
+
+## Verified
+- frontend: lint PASS, 62 tests PASS, verify:3d 46 PASS, build PASS
+- backend: 30+ API tests PASS, ruff PASS (docker compose run --rm backend)
+
+## Known remaining gaps (honest)
+- browser QA (Chrome/Firefox/mobile viewport) not performed this session
+- ThreadView reply context element can go stale after refetch (fiber
+  recomputes on scroll; acceptable)
+- Platinum generation remains staff-only dev tooling by design
