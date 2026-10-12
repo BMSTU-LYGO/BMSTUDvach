@@ -4,8 +4,8 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import SignalDock from '@/components/composer/SignalDock.vue'
 import ContextFiber from '@/components/composer/ContextFiber.vue'
+import ReportProbe from '@/components/report/ReportProbe.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
-import ReportDialog from '@/components/ReportDialog.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -87,7 +87,7 @@ async function handleReport(payload: {
     })
     reportNotice.value = 'Жалоба отправлена.'
     sounds.submit()
-    // Signal success to dialog
+    // Signal success to the probe — only now may it close.
     reportSuccessToken.value++
     activeReportPostId.value = null
   } catch (err) {
@@ -156,12 +156,15 @@ function clearReplyContext() {
         ● Тред закрыт
       </p>
 
-      <div ref="postsRef" class="posts">
+      <div ref="postsRef" class="posts" :class="{ 'posts--probing': activeReportPostId !== null }">
         <article
           v-for="post in store.thread.thread.posts"
           :key="post.id"
           class="post-item"
-          :class="{ op: post.is_op }"
+          :class="{
+            op: post.is_op,
+            'post-item--probe': activeReportPostId === post.id,
+          }"
           data-testid="post"
         >
           <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
@@ -196,16 +199,17 @@ function clearReplyContext() {
                 :attachment="attachment"
               />
             </div>
-          </div>
 
-          <ReportDialog
-            v-if="activeReportPostId === post.id"
-            :submitting="reportSubmitting"
-            :submit-error="reportError"
-            :success-token="reportSuccessToken"
-            @close="activeReportPostId = null"
-            @submit="(payload) => handleReport({ postId: post.id, ...payload })"
-          />
+            <ReportProbe
+              v-if="activeReportPostId === post.id"
+              :post-id="post.id"
+              :submitting="reportSubmitting"
+              :submit-error="reportError"
+              :success-token="reportSuccessToken"
+              @close="activeReportPostId = null"
+              @submit="(payload) => handleReport({ postId: post.id, ...payload })"
+            />
+          </div>
         </article>
       </div>
 
@@ -297,6 +301,17 @@ function clearReplyContext() {
 .posts {
   display: flex;
   flex-direction: column;
+}
+
+/* while a probe is open, surrounding posts recede */
+.posts--probing .post-item:not(.post-item--probe) {
+  opacity: 0.45;
+  transition: opacity 220ms var(--ease-out-quart);
+}
+
+.post-item--probe {
+  background: color-mix(in oklab, var(--accent) 5%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .post-item {
