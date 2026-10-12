@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.conf import settings
+from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,6 +35,10 @@ class PlatinumStoryDetailView(generics.RetrieveAPIView):
     queryset = PlatinumStory.objects.filter(status=PlatinumStory.Status.PUBLISHED)
 
 
+@extend_schema(
+    request=PlatinumGenerateSerializer,
+    responses=PlatinumStorySerializer,
+)
 class PlatinumGenerateView(APIView):
     """Dev-only endpoint: generate a platinum story using the configured generator.
 

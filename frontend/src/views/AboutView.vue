@@ -11,9 +11,20 @@ import DepthCard from '@/components/ui/DepthCard.vue'
         <div class="about-card-inner">
           <h3>Что это</h3>
           <p>
-            BMSTUDvach — учебный форум в духе классических имиджборд для МГТУ
-            им. Н. Э. Баумана. Разделы, треды, посты, вложения и жалобы —
-            всё работает анонимно.
+            BMSTUDvach — анонимный форум МГТУ им. Н. Э. Баумана, собранный как
+            инженерная сеть: доски — узлы, треды — каналы, ответы — сигналы.
+            Быстрые треды, вложения, жалобы и модерация — без аккаунтов.
+          </p>
+        </div>
+      </DepthCard>
+
+      <DepthCard :depth="1">
+        <div class="about-card-inner">
+          <h3>Анонимность</h3>
+          <p>
+            Каждый автор — «Аноним». Личности не хранятся; технический отпечаток
+            используется только для защиты от спама и троттлинга. Анонимность —
+            не бесконтрольность: жалобы ведут в модерацию.
           </p>
         </div>
       </DepthCard>
@@ -22,9 +33,9 @@ import DepthCard from '@/components/ui/DepthCard.vue'
         <div class="about-card-inner">
           <h3>Платины</h3>
           <p>
-            В будущем появится раздел «Платины» — автоматически сгенерированные
-            истории в тематике вуза. Архитектура для LLM-генерации уже заложена,
-            используется абстрактный интерфейс генератора.
+            Отдельный архив переработанных историй в тематике вуза: генератор
+            хранит исходник и результат раздельно, публикация — после проверки.
+            Читается в <RouterLink to="/platinum">/platinum/</RouterLink>.
           </p>
         </div>
       </DepthCard>
@@ -38,8 +49,9 @@ import DepthCard from '@/components/ui/DepthCard.vue'
             <span class="stack-tag">Vue 3</span>
             <span class="stack-tag">TypeScript</span>
             <span class="stack-tag">PostgreSQL</span>
-            <span class="stack-tag">Docker</span>
+            <span class="stack-tag">Three.js</span>
             <span class="stack-tag">GSAP</span>
+            <span class="stack-tag">Docker</span>
           </p>
         </div>
       </DepthCard>
@@ -77,6 +89,16 @@ import DepthCard from '@/components/ui/DepthCard.vue'
 .about-card-inner p {
   color: var(--text-secondary);
   line-height: 1.7;
+}
+
+.about-card-inner p a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.about-card-inner p a:hover {
+  color: var(--text-primary);
 }
 
 .about-stack {
