@@ -10,6 +10,10 @@ export function listThreads(boardSlug: string): Promise<Paginated<ThreadSummary>
   return request<Paginated<ThreadSummary>>(`/boards/${boardSlug}/threads/`)
 }
 
+export function listRecentThreads(limit = 6): Promise<ThreadSummary[]> {
+  return request<ThreadSummary[]>(`/threads/recent/?limit=${limit}`)
+}
+
 export function getThread(threadId: number): Promise<ThreadDetail> {
   return request<ThreadDetail>(`/threads/${threadId}/`)
 }

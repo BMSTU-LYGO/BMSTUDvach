@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
+import ThreadRow from '@/components/thread/ThreadRow.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -10,10 +11,14 @@ import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
 import { useParallax } from '@/composables/useParallax'
+import { captureMorph } from '@/composables/usePageMorph'
+import { useSound } from '@/composables/useSound'
 import { gsap, prefersReducedMotion } from '@/composables/useGsap'
 
 const store = useForumStore()
+const { sounds } = useSound()
 const sectionRef = ref<HTMLElement | null>(null)
+const recentRef = ref<HTMLElement | null>(null)
 const heroRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
 const gridLinesRef = ref<HTMLElement | null>(null)
@@ -21,9 +26,11 @@ const gridLinesRef = ref<HTMLElement | null>(null)
 const { mousePercentX, mousePercentY } = useParallax()
 
 useScrollReveal(sectionRef, '.board-card-3d')
+useScrollReveal(recentRef, '.thread-row')
 
 onMounted(() => {
   void store.fetchBoards()
+  void store.fetchRecentThreads(6)
 
   if (prefersReducedMotion() || !heroRef.value || !gridRef.value) return
 
@@ -60,6 +67,12 @@ function enterNetwork() {
     behavior: prefersReducedMotion() ? 'auto' : 'smooth',
     block: 'start',
   })
+}
+
+// Recent rows keep the same shared-element morph as board rows.
+function openRecent(event: MouseEvent, threadId: number) {
+  captureMorph(event.currentTarget as HTMLElement, `thread:${threadId}`)
+  sounds.click()
 }
 </script>
 
@@ -129,6 +142,32 @@ function enterNetwork() {
           :key="board.slug"
           :board="board"
           :index="index"
+        />
+      </div>
+    </div>
+
+    <!-- Live network activity: recent transmissions across boards -->
+    <div class="section-label">
+      <span class="label-line"></span>
+      <span class="label-text">Последние передачи</span>
+      <span class="label-line"></span>
+    </div>
+
+    <div ref="recentRef" class="recent">
+      <LoadingState v-if="store.recent.loading" />
+      <ErrorState
+        v-else-if="store.recent.error"
+        :message="store.recent.error"
+        :on-retry="() => store.fetchRecentThreads(6)"
+      />
+      <EmptyState v-else-if="store.recent.threads.length === 0" message="В сети пока тихо." />
+      <div v-else class="recent-list">
+        <ThreadRow
+          v-for="thread in store.recent.threads"
+          :key="thread.id"
+          :thread="thread"
+          show-board
+          @open="openRecent"
         />
       </div>
     </div>
@@ -310,6 +349,19 @@ function enterNetwork() {
   transform: rotateX(2deg) translateZ(-20px);
   transform-style: preserve-3d;
   transition: transform 0.6s var(--ease-out-expo);
+}
+
+/* === Recent transmissions === */
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.recent-list .thread-row:last-child {
+  border-bottom: none;
 }
 
 @media (max-width: 640px) {

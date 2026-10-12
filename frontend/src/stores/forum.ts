@@ -8,6 +8,7 @@ import {
 import {
   createThread as apiCreateThread,
   getThread,
+  listRecentThreads,
   listThreads,
 } from '@/api/threads'
 import type {
@@ -33,6 +34,10 @@ export interface ThreadListState extends LoadingErrorState {
   threads: ThreadSummary[]
 }
 
+export interface RecentThreadsState extends LoadingErrorState {
+  threads: ThreadSummary[]
+}
+
 export interface ThreadState extends LoadingErrorState {
   thread: ThreadDetail | null
 }
@@ -49,6 +54,11 @@ export const useForumStore = defineStore('forum', {
       loading: false,
       error: null as string | null,
     } as ThreadListState,
+    recent: {
+      threads: [] as ThreadSummary[],
+      loading: false,
+      error: null as string | null,
+    } as RecentThreadsState,
     thread: {
       thread: null as ThreadDetail | null,
       loading: false,
@@ -95,6 +105,18 @@ export const useForumStore = defineStore('forum', {
         this.thread.error = messageOf(err)
       } finally {
         this.thread.loading = false
+      }
+    },
+
+    async fetchRecentThreads(limit?: number) {
+      this.recent.loading = true
+      this.recent.error = null
+      try {
+        this.recent.threads = await listRecentThreads(limit)
+      } catch (err) {
+        this.recent.error = messageOf(err)
+      } finally {
+        this.recent.loading = false
       }
     },
 

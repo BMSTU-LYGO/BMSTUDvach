@@ -15,6 +15,11 @@ urlpatterns = [
         name="board-threads",
     ),
     path(
+        "threads/recent/",
+        views.RecentThreadListView.as_view(),
+        name="thread-recent",
+    ),
+    path(
         "threads/<int:pk>/",
         views.ThreadDetailView.as_view(),
         name="thread-detail",

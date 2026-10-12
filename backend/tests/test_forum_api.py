@@ -78,6 +78,46 @@ class TestThreads:
         assert results[1]["title"] == "Обычный"
 
     @pytest.mark.django_db
+    def test_recent_threads_across_boards(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        other = Board.objects.create(slug="study", name="Учёба")
+        t1 = Thread.objects.create(board=board, title="Из B")
+        Post.objects.create(thread=t1, body="op1", is_op=True)
+        t2 = Thread.objects.create(board=other, title="Из STUDY")
+        Post.objects.create(thread=t2, body="op2", is_op=True)
+
+        resp = api_client.get("/api/v1/threads/recent/")
+        assert resp.status_code == 200
+        titles = [t["title"] for t in resp.json()]
+        assert set(titles) == {"Из B", "Из STUDY"}
+
+    @pytest.mark.django_db
+    def test_recent_threads_skips_inactive_boards(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        hidden = Board.objects.create(slug="hidden", name="Hidden", is_active=False)
+        t1 = Thread.objects.create(board=board, title="Видимый")
+        Post.objects.create(thread=t1, body="op1", is_op=True)
+        t2 = Thread.objects.create(board=hidden, title="Скрытый")
+        Post.objects.create(thread=t2, body="op2", is_op=True)
+
+        resp = api_client.get("/api/v1/threads/recent/")
+        titles = [t["title"] for t in resp.json()]
+        assert titles == ["Видимый"]
+
+    @pytest.mark.django_db
+    def test_recent_threads_honours_limit(self, api_client, board):
+        from apps.forum.models import Post, Thread
+
+        for i in range(5):
+            t = Thread.objects.create(board=board, title=f"Тред {i}")
+            Post.objects.create(thread=t, body=f"op{i}", is_op=True)
+
+        resp = api_client.get("/api/v1/threads/recent/?limit=2")
+        assert len(resp.json()) == 2
+
+    @pytest.mark.django_db
     def test_retrieve_thread(self, api_client, board, thread, op_post):
         resp = api_client.get(f"/api/v1/threads/{thread.pk}/")
         assert resp.status_code == 200

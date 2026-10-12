@@ -80,6 +80,24 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         return Response(output.data, status=status.HTTP_201_CREATED)
 
 
+class RecentThreadListView(generics.ListAPIView):
+    """Recent threads across all active boards (home feed)."""
+
+    serializer_class = ThreadListSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        try:
+            limit = min(max(int(self.request.query_params.get("limit", 8)), 1), 20)
+        except ValueError:
+            limit = 8
+        return annotate_reply_counts(
+            Thread.objects.for_listing()
+            .filter(board__is_active=True)
+            .order_by("-is_pinned", "-bumped_at")
+        )[:limit]
+
+
 class ThreadDetailView(generics.RetrieveAPIView):
     """Retrieve a thread with its visible posts."""
 
