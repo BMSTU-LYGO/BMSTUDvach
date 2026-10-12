@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
-import GlowBorder from '@/components/ui/GlowBorder.vue'
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
-import CreatePostForm from '@/components/CreatePostForm.vue'
+import SignalDock from '@/components/composer/SignalDock.vue'
+import ContextFiber from '@/components/composer/ContextFiber.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import ReportDialog from '@/components/ReportDialog.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -27,17 +27,20 @@ const reportNotice = ref('')
 const reportSubmitting = ref(false)
 const reportError = ref('')
 const reportSuccessToken = ref(0)
-const formKey = ref(0)
 const activeReportPostId = ref<number | null>(null)
-const replyContext = ref<{ postId: number } | null>(null)
+const replyContext = ref<{ postId: number; source: HTMLElement | null } | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
 const postsRef = ref<HTMLElement | null>(null)
+const dockRef = ref<InstanceType<typeof SignalDock> | null>(null)
+const dockEl = ref<HTMLElement | null>(null)
 
 const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
 usePostReveal(postsRef, postsCount)
 
 onMounted(async () => {
   void store.fetchThread(props.threadId)
+  await nextTick()
+  dockEl.value = dockRef.value?.$el ?? null
 })
 
 // Play the shared-element morph once the title actually renders.
@@ -55,12 +58,11 @@ async function handlePost(input: NewPostInput) {
   postError.value = ''
   try {
     await store.createPost(props.threadId, input)
-    formKey.value += 1
     await store.fetchThread(props.threadId)
     sounds.submit()
     // Spatial feedback: a signal packet flies through the network core.
     emitSceneEvent({ type: 'reply' })
-    // Signal success to form
+    // Signal success to the dock — only now may it reset.
     postSuccessToken.value++
   } catch (err) {
     postError.value = err instanceof Error ? err.message : 'Не удалось отправить ответ.'
@@ -108,11 +110,28 @@ function formatTime(value: string): string {
   return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function handleReply(postId: number) {
-  replyContext.value = { postId }
-  // Scroll to composer
-  const composer = document.querySelector('.create-post-form')
-  composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+function handleReply(postId: number, event: Event) {
+  const source = (event.currentTarget as HTMLElement).closest<HTMLElement>('.post-item') ?? null
+  replyContext.value = { postId, source }
+}
+
+function locateReplySource() {
+  const el = replyContext.value?.source
+  el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  el?.classList.add('post-item--located')
+  window.setTimeout(() => el?.classList.remove('post-item--located'), 1200)
+}
+
+function onDockFocus() {
+  emitSceneEvent({ type: 'composer-focus' })
+}
+
+function onDockBlur() {
+  emitSceneEvent({ type: 'composer-blur' })
+}
+
+function clearReplyContext() {
+  replyContext.value = null
 }
 </script>
 
@@ -155,8 +174,9 @@ function handleReply(postId: number) {
                 class="btn-reply"
                 :title="`Ответить на пост #${post.id}`"
                 :aria-label="`Ответить на пост #${post.id}`"
-                @click="handleReply(post.id)"
+                @click="handleReply(post.id, $event)"
               >
+                <span class="btn-reply__glyph" aria-hidden="true">↳</span>
                 Ответить
               </button>
               <button
@@ -194,29 +214,35 @@ function handleReply(postId: number) {
         message="Сообщений пока нет."
       />
 
-      <div v-if="!store.thread.thread.is_locked" class="reply-section">
-        <GlowBorder>
-          <CreatePostForm 
-            :key="formKey" 
-            :thread-id="props.threadId"
-            :reply-context="replyContext"
-            :submitting="posting"
-            :submit-error="postError"
-            :success-token="postSuccessToken"
-            @submit="handlePost" 
-          />
-        </GlowBorder>
+      <div class="thread-dock">
+        <SignalDock
+          v-if="!store.thread.thread.is_locked"
+          ref="dockRef"
+          :thread-id="props.threadId"
+          :reply-context="replyContext"
+          :submitting="posting"
+          :submit-error="postError"
+          :success-token="postSuccessToken"
+          @submit="handlePost"
+          @focus="onDockFocus"
+          @blur="onDockBlur"
+          @clear-context="clearReplyContext"
+          @locate-context="locateReplySource"
+        />
       </div>
 
-      <p v-if="postError" class="text-danger" data-testid="post-error">
-        {{ postError }}
-      </p>
       <Transition name="fade">
         <p v-if="reportNotice" class="report-notice" data-testid="report-notice">
           {{ reportNotice }}
         </p>
       </Transition>
     </template>
+
+    <ContextFiber
+      :source="replyContext?.source ?? null"
+      :target="dockEl"
+      :label="replyContext ? `#${replyContext.postId}` : ''"
+    />
   </section>
 </template>
 
@@ -329,6 +355,9 @@ function handleReply(postId: number) {
 
 .btn-reply {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: none;
   border: 1px solid var(--border-subtle);
   color: var(--accent);
@@ -341,6 +370,12 @@ function handleReply(postId: number) {
     color var(--duration-fast),
     border-color var(--duration-fast),
     background var(--duration-fast);
+}
+
+.btn-reply__glyph {
+  color: var(--accent-dim);
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .btn-reply:hover {
@@ -388,9 +423,27 @@ function handleReply(postId: number) {
   gap: var(--space-2);
 }
 
-/* Reply section */
-.reply-section {
-  margin-top: var(--space-4);
+/* Signal Dock — sticky bottom station */
+.thread-dock {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 10;
+  margin-top: var(--space-6);
+}
+
+.thread-locked-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.post-item--located {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .report-notice {
