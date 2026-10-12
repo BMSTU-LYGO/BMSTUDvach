@@ -12,8 +12,19 @@ export interface PlatinumStory {
   published_at: string | null
 }
 
-export function listPlatinumStories(): Promise<Paginated<PlatinumStory>> {
-  return request<Paginated<PlatinumStory>>('/platinum/')
+export interface PlatinumStoryQuery {
+  page?: number
+  search?: string
+}
+
+export function listPlatinumStories(
+  query: PlatinumStoryQuery = {},
+): Promise<Paginated<PlatinumStory>> {
+  const params = new URLSearchParams()
+  if (query.page && query.page > 1) params.set('page', String(query.page))
+  if (query.search?.trim()) params.set('search', query.search.trim())
+  const qs = params.toString()
+  return request<Paginated<PlatinumStory>>(`/platinum/${qs ? `?${qs}` : ''}`)
 }
 
 export function getPlatinumStory(id: number): Promise<PlatinumStory> {

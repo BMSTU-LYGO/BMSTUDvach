@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.conf import settings
-from rest_framework import generics, permissions, status
+from rest_framework import filters, generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,10 +15,12 @@ from apps.platinum.serializers import (
 
 
 class PlatinumStoryListView(generics.ListAPIView):
-    """List published platinum stories."""
+    """List published platinum stories; `?search=` scans title and body."""
 
     serializer_class = PlatinumStorySerializer
     permission_classes = [permissions.AllowAny]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["title", "body"]
 
     def get_queryset(self):
         return PlatinumStory.objects.filter(status=PlatinumStory.Status.PUBLISHED)

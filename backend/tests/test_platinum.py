@@ -51,6 +51,27 @@ class TestPlatinumAPI:
         resp = api_client.get("/api/v1/platinum/")
         assert resp.json()["count"] == 0
 
+    def test_search_filters_stories(self, api_client):
+        from apps.platinum.models import PlatinumStory
+
+        PlatinumStory.objects.create(
+            title="Ночь перед экзаменом",
+            body="Про корпус МАИ",
+            status=PlatinumStory.Status.PUBLISHED,
+        )
+        PlatinumStory.objects.create(
+            title="Столовая на Раушской",
+            body="Борщ и очереди",
+            status=PlatinumStory.Status.PUBLISHED,
+        )
+
+        resp = api_client.get("/api/v1/platinum/?search=экзамен")
+        assert resp.json()["count"] == 1
+        assert resp.json()["results"][0]["title"] == "Ночь перед экзаменом"
+
+        resp = api_client.get("/api/v1/platinum/?search=очереди")
+        assert resp.json()["count"] == 1
+
     def test_generate_requires_staff(self, api_client):
         resp = api_client.post(
             "/api/v1/platinum/generate/",

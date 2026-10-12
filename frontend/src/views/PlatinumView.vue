@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 import DepthCard from '@/components/ui/DepthCard.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -17,21 +17,50 @@ const loading = ref(true)
 const error = ref('')
 const stories = ref<PlatinumStory[]>([])
 const total = ref(0)
+const page = ref(1)
+const loadingMore = ref(false)
+const query = ref('')
+const search = ref('')
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const page = await listPlatinumStories()
-    stories.value = page.results
-    total.value = page.count
-    setStoryCount(page.count)
+    const result = await listPlatinumStories({ search: search.value })
+    stories.value = result.results
+    total.value = result.count
+    setStoryCount(result.count)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Архив недоступен.'
   } finally {
     loading.value = false
   }
 }
+
+async function loadMore() {
+  loadingMore.value = true
+  try {
+    const next = await listPlatinumStories({ page: page.value + 1, search: search.value })
+    stories.value.push(...next.results)
+    total.value = next.count
+    page.value += 1
+  } catch {
+    // keep what we already have; the archive is a slow place
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+// Debounced archive search — one source of truth, refetch from page 1.
+let debounce: number | null = null
+watch(query, (value) => {
+  if (debounce) window.clearTimeout(debounce)
+  debounce = window.setTimeout(() => {
+    search.value = value.trim()
+    page.value = 1
+    void load()
+  }, 300)
+})
 
 onMounted(load)
 </script>
@@ -44,6 +73,19 @@ onMounted(load)
         Архив переработанных историй МГТУ. Фрагменты вращаются в кольцах —
         наведи курсор, чтобы сфокусироваться на фрагменте.
       </p>
+
+      <div class="archive-search">
+        <label class="archive-search__label" for="archive-search">ПОИСК ПО АРХИВУ</label>
+        <input
+          id="archive-search"
+          v-model="query"
+          class="archive-search__input"
+          type="search"
+          placeholder="слово, тема, корпус…"
+          autocomplete="off"
+        />
+      </div>
+
       <div class="archive-stats" aria-live="polite">
         <span class="stat-node" :class="{ idle: total === 0 }"></span>
         <span class="stat-text">
@@ -84,11 +126,23 @@ onMounted(load)
       <div class="empty-rings" aria-hidden="true">
         <span></span><span></span><span></span>
       </div>
-      <p>
+      <p v-if="search">По запросу «{{ search }}» архив молчит.</p>
+      <p v-else>
         Пустой архив — это тоже красиво: три орбиты, ядро-хранилище
         и ожидание первых историй.
       </p>
     </div>
+
+    <button
+      v-if="stories.length > 0 && stories.length < total"
+      type="button"
+      class="archive-more"
+      :disabled="loadingMore"
+      @click="loadMore"
+    >
+      <span v-if="loadingMore">вытягиваем фрагменты…</span>
+      <span v-else>ещё {{ total - stories.length }} в кольцах ↓</span>
+    </button>
   </section>
 </template>
 
@@ -156,6 +210,72 @@ onMounted(load)
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   color: var(--text-secondary);
+}
+
+/* Archive search — instrumentation, not a form field */
+.archive-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 340px;
+  margin: 0 auto var(--space-5);
+  text-align: left;
+}
+
+.archive-search__label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.archive-search__input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-medium);
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  padding: var(--space-2) 0;
+  min-height: 44px;
+  transition: border-color 200ms var(--ease-out-quart);
+}
+
+.archive-search__input:focus {
+  border-bottom-color: var(--accent);
+}
+
+.archive-search__input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.archive-search__input::-webkit-search-cancel-button {
+  filter: invert(0.6);
+}
+
+/* Load more — a text signal, not a pill button */
+.archive-more {
+  justify-self: center;
+  background: none;
+  border: none;
+  padding: var(--space-3);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  transition: color 160ms;
+}
+
+.archive-more:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.archive-more:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* Fragment cards */
