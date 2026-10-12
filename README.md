@@ -94,7 +94,13 @@ BMSTUDvach/
 ├── frontend/               # Vue 3 SPA
 │   ├── src/
 │   │   ├── api/            # API client modules
-│   │   ├── components/     # Reusable UI components
+│   │   ├── components/
+│   │   │   ├── composer/   # Signal Dock (reply station)
+│   │   │   ├── launch/     # Launch Bay (thread creation stage)
+│   │   │   ├── report/     # Report Probe (diagnostic constellation)
+│   │   │   ├── thread/     # PostBody / ThreadRow / previews / progress
+│   │   │   └── ui/         # Tokens-driven primitives
+│   │   ├── three/          # Single route-aware WebGL scene
 │   │   ├── layouts/        # Page layouts
 │   │   ├── router/         # Vue Router config
 │   │   ├── stores/         # Pinia state management
@@ -121,11 +127,13 @@ GET    /api/v1/boards/                # List boards
 GET    /api/v1/boards/{slug}/         # Board detail
 GET    /api/v1/boards/{slug}/threads/ # Thread list (paginated)
 POST   /api/v1/boards/{slug}/threads/ # Create thread
+GET    /api/v1/threads/recent/        # Recent threads across boards (home feed)
 GET    /api/v1/threads/{id}/          # Thread detail + posts
 POST   /api/v1/threads/{id}/posts/    # Create reply
 GET    /api/v1/posts/{id}/            # Post detail
 POST   /api/v1/posts/{id}/reports/    # Report a post
-GET    /api/v1/platinum/              # Published platinum stories
+GET    /api/v1/platinum/              # Published platinum stories (?search=)
+GET    /api/v1/platinum/{id}/         # Platinum story detail
 POST   /api/v1/platinum/generate/     # Dev: generate via fake LLM (staff)
 ```
 
@@ -164,8 +172,8 @@ board↔thread = туннель глубины, →platinum/404 = «фрагме
 Настройки: кнопка `3D` в шапке `auto → high → low → off` (persisted) и
 опциональный CRT (по умолчанию **выключен** — стиль engineering network).
 FPS-мониторинг деградирует high→low→off; без WebGL / `prefers-reduced-motion`
-— 2D-фолбэк, весь контент доступен. Бюджет: максимум 3 WebGL-контекста,
-полный dispose при смене качества/страницы.
+— 2D-фолбэк, весь контент доступен. Бюджет: максимум 2 WebGL-контекста
+(single scene + warp overlay), полный dispose при смене качества/страницы.
 
 Проверка целостности 3D:
 
@@ -181,6 +189,9 @@ provider is selected via `PLATINUM_GENERATOR_PROVIDER` env var.
 
 To add a real LLM provider, implement the `PlatinumGenerator` interface and
 register it via `register_generator()` in `apps/platinum/generators/__init__.py`.
+
+Published stories are readable at `/platinum/{id}/`; the archive list supports
+`?search=` over title and body.
 
 ## What Is Not Implemented Yet
 
