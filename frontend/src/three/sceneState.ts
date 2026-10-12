@@ -21,6 +21,12 @@ export type SceneEvent =
   | { type: 'composer-focus' }
   /** Signal Dock released focus. */
   | { type: 'composer-blur' }
+  /** Report probe opened on a post: a local danger node lights up. */
+  | { type: 'report-open' }
+  /** Report delivered: the pulse travels back into the post. */
+  | { type: 'report-submit' }
+  /** Thread launched from a board: the cluster answers. */
+  | { type: 'thread-launch'; target: string }
 
 interface SceneState {
   mode: SceneMode

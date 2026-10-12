@@ -37,6 +37,9 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     else if (ev.type === 'rescue') net.rescue()
     else if (ev.type === 'composer-focus') net.setComposerFocus(true)
     else if (ev.type === 'composer-blur') net.setComposerFocus(false)
+    else if (ev.type === 'report-open') net.dangerFlash(0.6)
+    else if (ev.type === 'report-submit') net.dangerFlash(1.2)
+    else if (ev.type === 'thread-launch') net.launchPulse(ev.target)
   })
   stopBoardWatch = watch(
     () => sceneState.boards.join('|'),

@@ -64,7 +64,7 @@ async function handleCreate(input: NewThreadInput) {
     await store.fetchThreads(props.boardSlug)
     sounds.submit()
     // Spatial feedback: the board cluster answers the launch.
-    emitSceneEvent({ type: 'pulse', target: props.boardSlug })
+    emitSceneEvent({ type: 'thread-launch', target: props.boardSlug })
     // failure keeps the bay open with title/body/files/draft intact
   } catch (err) {
     createdError.value = err instanceof Error ? err.message : 'Не удалось создать тред.'

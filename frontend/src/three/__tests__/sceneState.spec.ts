@@ -51,6 +51,24 @@ describe('sceneState', () => {
     ])
   })
 
+  it('delivers signal-console and report events', () => {
+    const events: SceneEvent[] = []
+    const off = onSceneEvent((ev) => events.push(ev))
+    emitSceneEvent({ type: 'composer-focus' })
+    emitSceneEvent({ type: 'composer-blur' })
+    emitSceneEvent({ type: 'report-open' })
+    emitSceneEvent({ type: 'report-submit' })
+    emitSceneEvent({ type: 'thread-launch', target: 'study' })
+    off()
+    expect(events).toEqual([
+      { type: 'composer-focus' },
+      { type: 'composer-blur' },
+      { type: 'report-open' },
+      { type: 'report-submit' },
+      { type: 'thread-launch', target: 'study' },
+    ])
+  })
+
   it('syncBoards copies the list', () => {
     const list = ['b', 'study']
     syncBoards(list)

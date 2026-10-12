@@ -31,6 +31,10 @@ export interface NetworkController {
   rescue(): void
   /** Signal Dock focus state — subtle core brighten, nothing more. */
   setComposerFocus(on: boolean): void
+  /** Thread launched: board ring answers with a stronger camera kick. */
+  launchPulse(slug: string): void
+  /** Report probe / delivery: danger ring at the core. */
+  dangerFlash(strength?: number): void
   setPointer(ndcX: number, ndcY: number): void
   update(dt: number, snap: NetworkSnapshot): void
   dispose(): void
@@ -47,6 +51,7 @@ function hash(str: string): number {
 }
 
 const AMBER = 0xd4882a
+const DANGER = 0xb3402f
 const STEEL = 0x5a6480
 
 interface BoardNode {
@@ -62,6 +67,7 @@ interface Pulse {
   mat: MeshBasicMaterial
   life: number
   active: boolean
+  danger: boolean
 }
 
 interface Packet {
@@ -241,20 +247,41 @@ export function buildNetwork(
     const ring = new three.Mesh(geo, mat)
     ring.visible = false
     world.add(ring)
-    pulsePool.push({ ring, mat, life: 0, active: false })
+    pulsePool.push({ ring, mat, life: 0, active: false, danger: false })
+  }
+
+  function fireRing(danger: boolean, x: number, y: number, z: number, kick: number) {
+    const p = pulsePool.find((x2) => !x2.active)
+    if (!p) return
+    p.ring.position.set(x, y, z)
+    p.ring.rotation.set(-0.35, 0, 0)
+    p.ring.visible = true
+    p.life = 0.0001
+    p.active = true
+    p.danger = danger
+    p.mat.color.setHex(danger ? DANGER : AMBER)
+    cameraKick = Math.min(0.6, cameraKick + kick)
+    return p
   }
 
   function pulseAt(slug: string) {
     const node = nodes.find((n) => n.slug === slug)
     if (!node) return
-    const p = pulsePool.find((x) => !x.active)
-    if (!p) return
-    p.ring.position.set(node.pos.x, node.pos.y, node.pos.z)
-    p.ring.rotation.set(-0.35, 0, 0)
-    p.ring.visible = true
-    p.life = 0.0001
-    p.active = true
-    cameraKick = Math.min(0.6, cameraKick + 0.35)
+    fireRing(false, node.pos.x, node.pos.y, node.pos.z, 0.35)
+  }
+
+  /** A thread was launched: the board answers with a stronger kick. */
+  function launchPulse(slug: string) {
+    const node = nodes.find((n) => n.slug === slug)
+    if (node) fireRing(false, node.pos.x, node.pos.y, node.pos.z, 0.55)
+    else fireRing(false, 0, 0, 0, 0.55)
+  }
+
+  let dangerFlashT = 0
+  /** Report probe / report delivered: danger ring + brief core tint. */
+  function dangerFlash(strength = 1) {
+    fireRing(true, 0, 0, 0, 0.18 * strength)
+    dangerFlashT = Math.min(1.2, dangerFlashT + 0.5 * strength)
   }
 
   // --- reply packets ------------------------------------------------------------
@@ -287,16 +314,8 @@ export function buildNetwork(
 
   let lostFlash = 0
   function rescue() {
-    const p = pulsePool.find((x) => !x.active)
-    if (p) {
-      p.ring.position.set(0, 0, 0)
-      p.ring.rotation.set(0, 0, 0)
-      p.ring.visible = true
-      p.life = 0.0001
-      p.active = true
-    }
+    fireRing(false, 0, 0, 0, 0.3)
     lostFlash = 0.45
-    cameraKick = Math.min(0.6, cameraKick + 0.3)
   }
 
   function sendReply() {
@@ -445,8 +464,11 @@ export function buildNetwork(
     const calm = snap.mode === 'thread'
     const netPresence = calm ? presence.network * 0.5 : presence.network
     composerGlow += ((composerFocus ? 1 : 0) - composerGlow) * Math.min(1, dt * 3)
-    coreMat.opacity = (0.85 + 0.3 * composerGlow) * presence.network
-    const coreScale = 1 + 0.12 * composerGlow
+    dangerFlashT = Math.max(0, dangerFlashT - dt * 0.8)
+    coreMat.color.setHex(dangerFlashT > 0 ? DANGER : AMBER)
+    coreMat.opacity =
+      (0.85 + 0.3 * composerGlow + 0.25 * Math.min(1, dangerFlashT)) * presence.network
+    const coreScale = 1 + 0.12 * composerGlow + 0.08 * Math.min(1, dangerFlashT)
     coreGroup.scale.setScalar(coreScale)
     dustMat.opacity =
       0.28 * Math.max(presence.network, presence.archive * 0.8, presence.lost * 0.6)
@@ -483,6 +505,7 @@ export function buildNetwork(
     for (const p of pulsePool) {
       if (!p.active) continue
       p.life += dt
+      p.mat.color.setHex(p.danger ? DANGER : AMBER)
       const t = p.life / 1.1
       if (t >= 1) {
         p.ring.visible = false
@@ -601,6 +624,8 @@ export function buildNetwork(
     setComposerFocus: (on: boolean) => {
       composerFocus = on
     },
+    launchPulse,
+    dangerFlash,
     setPointer: (x, y) => pointer.set(x, y),
     update,
     dispose: () => {

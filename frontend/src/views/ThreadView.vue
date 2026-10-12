@@ -87,6 +87,8 @@ async function handleReport(payload: {
     })
     reportNotice.value = 'Жалоба отправлена.'
     sounds.submit()
+    // Danger pulse travels back from the probe into the network.
+    emitSceneEvent({ type: 'report-submit' })
     // Signal success to the probe — only now may it close.
     reportSuccessToken.value++
     activeReportPostId.value = null
@@ -96,6 +98,12 @@ async function handleReport(payload: {
   } finally {
     reportSubmitting.value = false
   }
+}
+
+function openReport(postId: number) {
+  activeReportPostId.value = postId
+  // Spatial feedback: a local danger node lights up at the core.
+  emitSceneEvent({ type: 'report-open' })
 }
 
 function formatTime(value: string): string {
@@ -186,7 +194,7 @@ function clearReplyContext() {
                 class="btn-report"
                 :title="`Пожаловаться на пост #${post.id}`"
                 :aria-label="`Пожаловаться на пост #${post.id}`"
-                @click="activeReportPostId = post.id"
+                @click="openReport(post.id)"
               >
                 !
               </button>
