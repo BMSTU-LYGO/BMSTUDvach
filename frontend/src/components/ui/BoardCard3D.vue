@@ -52,6 +52,11 @@ function handleNavigate() {
           <span v-if="board.description" class="card-desc">
             {{ board.description }}
           </span>
+          <span v-if="board.thread_count > 0" class="card-signal">
+            <span class="card-signal__dot" aria-hidden="true"></span>
+            {{ board.thread_count }}
+            {{ board.thread_count === 1 ? 'тред' : board.thread_count < 5 ? 'треда' : 'тредов' }}
+          </span>
         </div>
         <div class="card-arrow">→</div>
       </div>
@@ -164,6 +169,25 @@ function handleNavigate() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* live signal state: how many threads live in this node */
+.card-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--accent-dim);
+}
+
+.card-signal__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .card-arrow {

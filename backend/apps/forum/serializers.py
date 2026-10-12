@@ -11,6 +11,8 @@ from apps.forum.validators import validate_attachment, validate_post_body
 
 
 class BoardSerializer(serializers.ModelSerializer):
+    thread_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Board
         fields = (
@@ -20,10 +22,18 @@ class BoardSerializer(serializers.ModelSerializer):
             "description",
             "is_active",
             "order",
+            "thread_count",
             "created_at",
             "updated_at",
         )
         read_only_fields = fields
+
+
+def annotate_thread_counts(queryset):
+    """Annotate visible thread counts for board listings."""
+    return queryset.annotate(
+        thread_count=Count("threads", filter=Q(threads__is_hidden=False))
+    )
 
 
 class AttachmentSerializer(serializers.ModelSerializer):

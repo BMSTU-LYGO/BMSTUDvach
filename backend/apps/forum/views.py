@@ -14,6 +14,7 @@ from apps.forum.serializers import (
     ThreadDetailSerializer,
     ThreadListSerializer,
     annotate_reply_counts,
+    annotate_thread_counts,
 )
 
 
@@ -24,7 +25,7 @@ class BoardListView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        return Board.objects.filter(is_active=True)
+        return annotate_thread_counts(Board.objects.filter(is_active=True))
 
 
 class BoardDetailView(generics.RetrieveAPIView):

@@ -25,6 +25,7 @@ const stubBoard: Board = {
   description: '',
   is_active: true,
   order: 0,
+  thread_count: 3,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 }

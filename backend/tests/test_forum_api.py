@@ -9,6 +9,19 @@ class TestBoards:
         assert any(b["slug"] == "b" for b in resp.json())
 
     @pytest.mark.django_db
+    def test_list_boards_counts_visible_threads(self, api_client, board):
+        from apps.forum.models import Post, Thread
+
+        visible = Thread.objects.create(board=board, title="Видимый")
+        Post.objects.create(thread=visible, body="op", is_op=True)
+        hidden = Thread.objects.create(board=board, title="Скрытый", is_hidden=True)
+        Post.objects.create(thread=hidden, body="op", is_op=True)
+
+        resp = api_client.get("/api/v1/boards/")
+        entry = next(b for b in resp.json() if b["slug"] == "b")
+        assert entry["thread_count"] == 1
+
+    @pytest.mark.django_db
     def test_retrieve_board(self, api_client, board):
         resp = api_client.get("/api/v1/boards/b/")
         assert resp.status_code == 200

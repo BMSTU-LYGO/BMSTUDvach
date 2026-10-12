@@ -5,6 +5,7 @@ export interface Board {
   description: string
   is_active: boolean
   order: number
+  thread_count: number
   created_at: string
   updated_at: string
 }
