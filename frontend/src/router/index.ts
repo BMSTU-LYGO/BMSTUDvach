@@ -44,6 +44,13 @@ const router = createRouter({
           meta: { scene: 'platinum' },
         },
         {
+          path: 'platinum/:storyId(\\d+)',
+          name: 'platinum-story',
+          component: () => import('@/views/PlatinumStoryView.vue'),
+          props: true,
+          meta: { scene: 'platinum' },
+        },
+        {
           path: 'about',
           name: 'about',
           component: () => import('@/views/AboutView.vue'),

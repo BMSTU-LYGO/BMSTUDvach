@@ -59,19 +59,26 @@ onMounted(load)
     <LoadingState v-if="loading" />
     <ErrorState v-else-if="error" :message="error" :on-retry="load" />
     <div v-else-if="stories.length" class="fragments">
-      <DepthCard v-for="story in stories" :key="story.id" :depth="1">
-        <article class="fragment-card">
-          <h3>{{ story.title }}</h3>
-          <p class="fragment-body">{{ story.body }}</p>
-          <footer class="fragment-meta">
-            <span class="text-mono">node #{{ story.id }}</span>
-            <span v-if="story.published_at">
-              опубликована
-              {{ new Date(story.published_at).toLocaleDateString('ru-RU') }}
-            </span>
-          </footer>
-        </article>
-      </DepthCard>
+      <RouterLink
+        v-for="story in stories"
+        :key="story.id"
+        :to="`/platinum/${story.id}`"
+        class="fragment-link"
+      >
+        <DepthCard :depth="1">
+          <article class="fragment-card">
+            <h3>{{ story.title }}</h3>
+            <p class="fragment-body">{{ story.body }}</p>
+            <footer class="fragment-meta">
+              <span class="text-mono">node #{{ story.id }}</span>
+              <span v-if="story.published_at">
+                опубликована
+                {{ new Date(story.published_at).toLocaleDateString('ru-RU') }}
+              </span>
+            </footer>
+          </article>
+        </DepthCard>
+      </RouterLink>
     </div>
     <div v-else class="archive-empty" data-testid="platinum-empty">
       <div class="empty-rings" aria-hidden="true">
@@ -156,6 +163,29 @@ onMounted(load)
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-4);
+}
+
+.fragment-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.fragment-link .fragment-card {
+  transition:
+    border-color var(--duration-fast),
+    box-shadow var(--duration-normal) var(--ease-out-quart);
+}
+
+.fragment-link:hover .fragment-card {
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+
+.fragment-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-lg);
 }
 
 .fragment-card {
