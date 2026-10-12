@@ -39,8 +39,6 @@ usePostReveal(postsRef, postsCount)
 
 onMounted(async () => {
   void store.fetchThread(props.threadId)
-  await nextTick()
-  dockEl.value = dockRef.value?.$el ?? null
 })
 
 // Play the shared-element morph once the title actually renders.
@@ -50,6 +48,8 @@ watch(
     if (!thread) return
     await nextTick()
     playMorph(titleRef.value, `thread:${props.threadId}`)
+    // the dock only exists once the thread is loaded — re-anchor the fiber
+    dockEl.value = dockRef.value?.$el ?? null
   },
 )
 
