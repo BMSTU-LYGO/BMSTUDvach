@@ -1,0 +1,702 @@
+<script setup lang="ts">
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+
+import type { NewPostInput } from '@/types'
+import { useDraft } from '@/composables/useDraft'
+import SignalSurface from './SignalSurface.vue'
+import AttachmentRail from './AttachmentRail.vue'
+import CommandLens, { type LensCommand } from './CommandLens.vue'
+import DraftBeacon from './DraftBeacon.vue'
+import SignalMeter from './SignalMeter.vue'
+import TransmitControl from './TransmitControl.vue'
+import NetworkIcon from './NetworkIcon.vue'
+
+const MAX_BODY = 20000
+const ACCEPTED = 'image/*,application/pdf,text/plain'
+const MAX_FILES = 4
+const MAX_SIZE = 10 * 1024 * 1024
+
+/**
+ * SIGNAL DOCK (SIGNAL-03..12) — the persistent transmission station.
+ *
+ * Not an accordion. The textarea always exists; focus expands the working
+ * surface upward, the action rail stays put. The dock never clears itself:
+ * it emits intent, the parent awaits the API and answers with
+ * successToken / submitError (SIGNAL-01 contract).
+ */
+const props = defineProps<{
+  threadId: number
+  replyContext?: { postId: number } | null
+  submitting?: boolean
+  submitError?: string | null
+  successToken?: number
+}>()
+
+const emit = defineEmits<{
+  submit: [input: NewPostInput]
+  focus: []
+  blur: []
+  'clear-context': []
+  'locate-context': []
+}>()
+
+const body = ref('')
+const files = ref<File[]>([])
+const error = ref('')
+const expanded = ref(false)
+const lensOpen = ref(false)
+const lensFilter = ref('')
+const helpOpen = ref(false)
+const dragDepth = ref(0)
+
+const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
+const railRef = ref<InstanceType<typeof AttachmentRail> | null>(null)
+const lensRef = ref<InstanceType<typeof CommandLens> | null>(null)
+
+const { draft, hasDraft, status, savedAt, saveDraft, clearDraft } = useDraft(`signal-${props.threadId}`)
+
+const canSubmit = computed(
+  () => body.value.trim().length > 0 && body.value.length <= MAX_BODY && !props.submitting,
+)
+
+// Restore a buffered draft silently — no "restore?" modal.
+onMounted(() => {
+  if (hasDraft.value && draft.value) {
+    body.value = draft.value.body
+    if (body.value.trim()) expanded.value = true
+  }
+})
+
+// Reply context → prefix >>id and take focus.
+watch(
+  () => props.replyContext?.postId,
+  (postId) => {
+    if (!postId) return
+    if (!body.value.split('\n')[0].includes(`>>${postId}`)) {
+      body.value = `>>${postId}\n${body.value}`
+    }
+    expanded.value = true
+    void nextTick(() => surfaceRef.value?.focus())
+  },
+  { immediate: true },
+)
+
+// Draft buffer: write while typing, clear when empty.
+watch(body, (value) => {
+  if (value.trim().length > 0) saveDraft(value)
+  else if (hasDraft.value) clearDraft()
+})
+
+// Parent-controlled API lifecycle (SIGNAL-01).
+watch(
+  () => props.successToken,
+  (n, o) => {
+    if (n === undefined || n === o) return
+    resetAfterSuccess()
+  },
+)
+
+const transmitErrorToken = ref(0)
+watch(
+  () => props.submitError,
+  (message) => {
+    error.value = message ?? ''
+    if (message) transmitErrorToken.value++
+  },
+)
+
+function resetAfterSuccess() {
+  body.value = ''
+  files.value = []
+  error.value = ''
+  expanded.value = false
+  lensOpen.value = false
+  helpOpen.value = false
+  clearDraft()
+}
+
+function focusSurface() {
+  surfaceRef.value?.focus()
+}
+
+function onSurfaceFocus() {
+  expanded.value = true
+  emit('focus')
+}
+
+function onSurfaceBlur() {
+  if (body.value.trim() || files.value.length || lensOpen.value || helpOpen.value) return
+  expanded.value = false
+  emit('blur')
+}
+
+function submit() {
+  if (!canSubmit.value) return
+  error.value = ''
+  emit('submit', { body: body.value, attachments: files.value })
+}
+
+function clearAll() {
+  body.value = ''
+  files.value = []
+  error.value = ''
+  clearDraft()
+}
+
+function clearContext() {
+  if (props.replyContext) {
+    const prefix = `>>${props.replyContext.postId}\n`
+    if (body.value.startsWith(prefix)) body.value = body.value.slice(prefix.length)
+  }
+  emit('clear-context')
+}
+
+const commands: LensCommand[] = [
+  {
+    id: 'attach',
+    label: 'Прикрепить файл',
+    hint: 'открыть выбор файлов',
+    shortcut: '/attach',
+    run: () => railRef.value?.openPicker(),
+  },
+  {
+    id: 'reply',
+    label: 'К чему отвечаю',
+    hint: 'показать исходный пост',
+    shortcut: '/reply',
+    run: () => emit('locate-context'),
+  },
+  {
+    id: 'clear',
+    label: 'Очистить сигнал',
+    hint: 'убрать текст, вложения и буфер',
+    shortcut: '/clear',
+    run: clearAll,
+  },
+  {
+    id: 'send',
+    label: 'Передать',
+    hint: 'отправить сообщение',
+    shortcut: '/send',
+    run: submit,
+  },
+  {
+    id: 'collapse',
+    label: 'Свернуть док',
+    hint: 'выйти из режима набора',
+    shortcut: 'Esc',
+    run: () => {
+      lensOpen.value = false
+      helpOpen.value = false
+      if (!body.value.trim()) expanded.value = false
+      surfaceRef.value?.blur()
+    },
+  },
+  {
+    id: 'help',
+    label: 'Горячие клавиши',
+    hint: 'показать подсказки',
+    shortcut: '/help',
+    run: () => {
+      helpOpen.value = !helpOpen.value
+    },
+  },
+]
+
+function openLens(filter = '') {
+  lensFilter.value = filter
+  lensOpen.value = true
+}
+
+function onSurfaceKeydown(e: KeyboardEvent) {
+  const meta = e.ctrlKey || e.metaKey
+
+  // While the lens is open it owns the keyboard.
+  if (lensOpen.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      lensOpen.value = false
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      lensRef.value?.onKeydown(e)
+      return
+    }
+    if (e.key === 'Backspace') {
+      e.preventDefault()
+      if (!lensFilter.value) lensOpen.value = false
+      else lensFilter.value = lensFilter.value.slice(0, -1)
+      return
+    }
+    if (e.key.length === 1 && !meta) {
+      e.preventDefault()
+      lensFilter.value += e.key
+      return
+    }
+    return
+  }
+
+  if (meta && e.key === 'Enter') {
+    e.preventDefault()
+    submit()
+    return
+  }
+  if (meta && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault()
+    openLens()
+    return
+  }
+  if (e.key === 'Escape') {
+    if (helpOpen.value) helpOpen.value = false
+    else if (!body.value.trim() && !files.value.length) {
+      expanded.value = false
+      emit('blur')
+    }
+    return
+  }
+  // `/` at the very start opens the Command Lens in place.
+  if (e.key === '/' && body.value.length === 0) {
+    e.preventDefault()
+    openLens()
+  }
+}
+
+// Whole-dock intake surface: drag files anywhere over the dock.
+function onDragEnter(e: DragEvent) {
+  e.preventDefault()
+  dragDepth.value++
+}
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+}
+function onDragLeave() {
+  dragDepth.value = Math.max(0, dragDepth.value - 1)
+}
+function onDrop(e: DragEvent) {
+  e.preventDefault()
+  dragDepth.value = 0
+  if (e.dataTransfer?.files?.length) railRef.value?.addFiles(e.dataTransfer.files)
+}
+
+// Clipboard images go straight into the Cargo Rail; text pastes normally.
+function onPaste(e: ClipboardEvent) {
+  if (e.clipboardData?.files?.length && railRef.value) {
+    e.preventDefault()
+    railRef.value.addFiles(e.clipboardData.files)
+  }
+}
+
+function railError(message: string) {
+  error.value = message
+}
+</script>
+
+<template>
+  <div
+    class="signal-dock"
+    :class="{
+      'signal-dock--active': expanded,
+      'signal-dock--intake': dragDepth > 0,
+      'signal-dock--submitting': submitting,
+    }"
+    data-testid="signal-dock"
+    @dragenter="onDragEnter"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
+    @paste="onPaste"
+  >
+    <!-- expanding stack: context node, cargo rail, notices -->
+    <div class="signal-dock__stack">
+      <div v-if="replyContext" class="signal-dock__context" data-testid="reply-context">
+        <button
+          type="button"
+          class="context-node"
+          :aria-label="`Показать пост #${replyContext.postId}`"
+          @click="emit('locate-context')"
+        >
+          <span class="context-node__glyph" aria-hidden="true">↳</span>
+          <span class="context-node__id">#{{ replyContext.postId }}</span>
+        </button>
+        <button
+          type="button"
+          class="context-remove"
+          aria-label="Убрать контекст ответа"
+          @click="clearContext"
+        >
+          <NetworkIcon name="close" :size="12" :stroke-width="2" />
+        </button>
+      </div>
+
+      <AttachmentRail
+        v-if="expanded || files.length"
+        ref="railRef"
+        v-model:files="files"
+        :accepted="ACCEPTED"
+        :max-files="MAX_FILES"
+        :max-size="MAX_SIZE"
+        @error="railError"
+      />
+
+      <Transition name="notice">
+        <p v-if="error" class="signal-dock__error" role="alert" data-testid="dock-error">
+          {{ error }}
+        </p>
+      </Transition>
+    </div>
+
+    <!-- persistent main row: always writable, no expand click needed -->
+    <div class="signal-dock__main" @pointerdown="focusSurface">
+      <span class="signal-dock__identity" aria-hidden="true">
+        <span class="signal-dock__dot" :class="{ 'signal-dock__dot--live': expanded }"></span>
+        ANON
+        <span class="signal-dock__thread">/#{{ threadId }}</span>
+      </span>
+      <SignalSurface
+        ref="surfaceRef"
+        v-model="body"
+        :gutter="replyContext ? `R:#${replyContext.postId}` : 'TX'"
+        :placeholder="expanded ? '' : 'передать сообщение…'"
+        :max-length="MAX_BODY"
+        :invalid="!!error"
+        @keydown="onSurfaceKeydown"
+        @focus="onSurfaceFocus"
+        @blur="onSurfaceBlur"
+      />
+    </div>
+
+    <!-- action rail: stable at the bottom -->
+    <div class="signal-dock__rail">
+      <button
+        v-if="expanded"
+        type="button"
+        class="rail-action"
+        aria-label="Прикрепить файлы"
+        @click="railRef?.openPicker()"
+      >
+        <NetworkIcon name="attach" :size="16" />
+        <span class="rail-action__label">файлы</span>
+      </button>
+      <button
+        v-if="expanded"
+        type="button"
+        class="rail-action"
+        aria-label="Открыть команды"
+        @click="openLens()"
+      >
+        <NetworkIcon name="command" :size="16" />
+        <span class="rail-action__label">/ команды</span>
+      </button>
+
+      <DraftBeacon :state="status" :saved-at="savedAt" />
+
+      <span class="signal-dock__spacer"></span>
+
+      <SignalMeter
+        v-if="body.length > 0"
+        :current="body.length"
+        :max="MAX_BODY"
+        error-label="превышен лимит сигнала"
+      />
+      <kbd v-if="expanded" class="signal-dock__hint" aria-hidden="true">⌘↵</kbd>
+      <TransmitControl
+        :disabled="!canSubmit"
+        :submitting="submitting"
+        :ready="canSubmit"
+        :success-token="successToken"
+        :error-token="transmitErrorToken"
+        @transmit="submit"
+      />
+    </div>
+
+    <CommandLens
+      ref="lensRef"
+      :open="lensOpen"
+      :filter="lensFilter"
+      :commands="commands"
+      @close="lensOpen = false"
+    />
+
+    <Transition name="notice">
+      <div v-if="helpOpen" class="signal-dock__help" data-testid="dock-help">
+        <span><kbd>⌘↵</kbd> отправить</span>
+        <span><kbd>⌘K</kbd> команды</span>
+        <span><kbd>/</kbd> команды</span>
+        <span><kbd>Esc</kbd> свернуть</span>
+      </div>
+    </Transition>
+
+    <div v-if="dragDepth > 0" class="signal-dock__intake" aria-hidden="true">
+      <span class="signal-dock__intake-label">DROP INTO SIGNAL</span>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.signal-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in oklab, var(--bg-deep) 82%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  transition:
+    border-color 220ms var(--ease-out-quart),
+    box-shadow 260ms var(--ease-out-quart),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.signal-dock--active {
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  box-shadow:
+    0 -8px 40px oklch(0 0 0 / 0.35),
+    0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent);
+  transform: translateY(-2px);
+}
+
+.signal-dock--intake {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 60px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+
+/* expanding stack — morphs upward, no dropdown arrow, no v-if accordion */
+.signal-dock__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms var(--ease-out-quart);
+}
+
+.signal-dock--active .signal-dock__stack {
+  max-height: 46vh;
+  opacity: 1;
+}
+
+/* reply context node */
+.signal-dock__context {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.context-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+
+.context-node__glyph {
+  color: var(--accent-dim);
+}
+
+.context-remove {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.context-remove:hover {
+  color: var(--text-primary);
+}
+
+/* main row */
+.signal-dock__main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 34px;
+}
+
+.signal-dock__identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.signal-dock__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  transition: all 220ms var(--ease-out-quart);
+}
+
+.signal-dock__dot--live {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.signal-dock__thread {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.signal-dock--active .signal-dock__identity {
+  color: var(--text-secondary);
+}
+
+/* action rail */
+.signal-dock__rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.signal-dock__spacer {
+  flex: 1;
+}
+
+.rail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.74rem;
+  transition: color 160ms, background 160ms;
+}
+
+.rail-action:hover {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+.rail-action__label {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.signal-dock__hint {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* error notice */
+.signal-dock__error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+/* help popover */
+.signal-dock__help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.signal-dock__help kbd {
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 4px;
+}
+
+/* drag intake veil */
+.signal-dock__intake {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--bg-deep) 88%, transparent);
+  border-radius: var(--radius-lg);
+  z-index: 20;
+}
+
+.signal-dock__intake-label {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+  animation: intake-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes intake-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* transitions */
+.notice-enter-active,
+.notice-leave-active {
+  transition: opacity 180ms var(--ease-out-quart);
+}
+.notice-enter-from,
+.notice-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .signal-dock {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .rail-action__label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-dock,
+  .signal-dock__stack,
+  .signal-dock__dot,
+  .signal-dock__intake-label {
+    transition: none;
+    animation: none;
+  }
+}
+</style>
