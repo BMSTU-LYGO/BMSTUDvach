@@ -27,8 +27,8 @@ export interface ThreeBuildResult {
   dispose?: () => void
 }
 
-/** Hard budget: network + gears (home) + warp overlay. */
-const MAX_ACTIVE_CONTEXTS = 3
+/** Hard budget: network core + warp overlay. */
+const MAX_ACTIVE_CONTEXTS = 2
 let activeContexts = 0
 
 /**

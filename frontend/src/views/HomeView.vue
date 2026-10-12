@@ -4,7 +4,6 @@ import { onMounted, ref } from 'vue'
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
-import GearHero from '@/components/three/GearHero.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -54,25 +53,35 @@ onMounted(() => {
     duration: 1,
   })
 })
+
+// The hero must say where to go next — the boards ARE the network.
+function enterNetwork() {
+  sectionRef.value?.scrollIntoView({
+    behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    block: 'start',
+  })
+}
 </script>
 
 <template>
   <section class="home">
-
-    <!-- Hero Section -->
+    <!-- Hero: copy over the persistent network core (one WebGL scene) -->
     <div ref="heroRef" class="hero">
-      <GearHero />
       <div class="hero-content">
+        <p class="hero-kicker">ИНЖЕНЕРНАЯ СЕТЬ · АНОНИМНО</p>
         <h1 class="hero-title">
           <GlitchText text="BMSTUDvach" tag="span" />
         </h1>
-        <p class="hero-subtitle">
-          Форум МГТУ им. Н. Э. Баумана
+        <p class="hero-subtitle">Форум МГТУ им. Н. Э. Баумана</p>
+        <p class="hero-explainer">
+          Доски — узлы сети, треды — каналы, ответы — сигналы. Никто не знает, кто ты.
         </p>
-        <div class="hero-tagline">
-          <span class="tagline-bracket">[</span>
-          <span class="tagline-text">разделы · треды · анонимность</span>
-          <span class="tagline-bracket">]</span>
+        <div class="hero-actions">
+          <button type="button" class="hero-cta" @click="enterNetwork">
+            Войти в сеть
+            <span class="hero-cta-arrow" aria-hidden="true">↓</span>
+          </button>
+          <RouterLink to="/about" class="hero-alt">/about/ — что это</RouterLink>
         </div>
       </div>
 
@@ -153,6 +162,14 @@ onMounted(() => {
   line-height: 1;
 }
 
+.hero-kicker {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  color: var(--accent-dim);
+  margin: 0 0 var(--space-4);
+}
+
 .hero-subtitle {
   font-size: clamp(1rem, 2vw, 1.3rem);
   color: var(--text-secondary);
@@ -161,22 +178,66 @@ onMounted(() => {
   line-height: 1.6;
 }
 
-.hero-tagline {
+.hero-explainer {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  max-width: 52ch;
+  margin: 0 auto var(--space-6);
+  line-height: 1.7;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* CTA: a signal node, not a pill button */
+.hero-cta {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.tagline-bracket {
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
   color: var(--accent);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    box-shadow var(--duration-normal) var(--ease-out-quart);
 }
 
-.tagline-text {
-  letter-spacing: 0.05em;
+.hero-cta:hover {
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  box-shadow: 0 0 28px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.hero-cta-arrow {
+  transition: transform var(--duration-fast) var(--ease-out-quart);
+}
+
+.hero-cta:hover .hero-cta-arrow {
+  transform: translateY(3px);
+}
+
+.hero-alt {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border-medium);
+  padding-bottom: 2px;
+}
+
+.hero-alt:hover {
+  color: var(--accent);
 }
 
 /* Decorative grid lines */
