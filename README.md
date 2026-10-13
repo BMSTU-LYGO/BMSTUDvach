@@ -131,6 +131,7 @@ GET    /api/v1/threads/recent/        # Recent threads across boards (home feed)
 GET    /api/v1/threads/{id}/          # Thread detail + posts
 POST   /api/v1/threads/{id}/posts/    # Create reply
 GET    /api/v1/posts/{id}/            # Post detail
+GET    /api/v1/posts/mentions/        # Replies to your tripcoded posts (?trip=)
 POST   /api/v1/posts/{id}/reports/    # Report a post
 GET    /api/v1/platinum/              # Published platinum stories (?search=)
 GET    /api/v1/platinum/{id}/         # Platinum story detail

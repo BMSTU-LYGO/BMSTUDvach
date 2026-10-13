@@ -18,6 +18,7 @@ import type {
   NewPostInput,
   NewReportInput,
   NewThreadInput,
+  Paginated,
   Post,
   ThreadDetail,
   ThreadSummary,
@@ -33,7 +34,13 @@ export interface BoardState extends LoadingErrorState {
 }
 
 export interface ThreadListState extends LoadingErrorState {
+  /** all pages fetched so far, appended in server order */
   threads: ThreadSummary[]
+  page: number
+  pages: number
+  count: number
+  loadingMore: boolean
+  hasMore: boolean
 }
 
 export interface RecentThreadsState extends LoadingErrorState {
@@ -55,6 +62,11 @@ export const useForumStore = defineStore('forum', {
       threads: [] as ThreadSummary[],
       loading: false,
       error: null as string | null,
+      page: 1,
+      pages: 1,
+      count: 0,
+      loadingMore: false,
+      hasMore: false,
     } as ThreadListState,
     recent: {
       threads: [] as ThreadSummary[],
@@ -88,13 +100,34 @@ export const useForumStore = defineStore('forum', {
     async fetchThreads(boardSlug: string, order?: ThreadOrder) {
       this.threadList.loading = true
       this.threadList.error = null
+      this.threadList.loadingMore = false
+      this.threadList.hasMore = false
       try {
-        const page = await listThreads(boardSlug, order)
+        const page = await listThreads(boardSlug, order, 1)
         this.threadList.threads = page.results
+        applyPageMeta(this.threadList, page)
+      } catch (err) {
+        this.threadList.error = messageOf(err)
+        resetPageMeta(this.threadList)
+      } finally {
+        this.threadList.loading = false
+      }
+    },
+
+    async loadMoreThreads(boardSlug: string, order?: ThreadOrder) {
+      if (this.threadList.loading || this.threadList.loadingMore) return
+      if (!this.threadList.hasMore) return
+      const next = this.threadList.page + 1
+      this.threadList.loadingMore = true
+      this.threadList.error = null
+      try {
+        const page = await listThreads(boardSlug, order, next)
+        this.threadList.threads = this.threadList.threads.concat(page.results)
+        applyPageMeta(this.threadList, page)
       } catch (err) {
         this.threadList.error = messageOf(err)
       } finally {
-        this.threadList.loading = false
+        this.threadList.loadingMore = false
       }
     },
 
@@ -143,4 +176,21 @@ export const useForumStore = defineStore('forum', {
 
 function messageOf(err: unknown): string {
   return apiErrorMessage(err, 'Неизвестная ошибка')
+}
+
+function applyPageMeta(
+  state: ThreadListState,
+  data: Paginated<ThreadSummary>,
+) {
+  state.page = data.page
+  state.pages = data.pages
+  state.count = data.count
+  state.hasMore = data.page < data.pages
+}
+
+function resetPageMeta(state: ThreadListState) {
+  state.page = 1
+  state.pages = 1
+  state.count = 0
+  state.hasMore = false
 }

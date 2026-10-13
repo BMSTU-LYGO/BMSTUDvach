@@ -10,8 +10,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.forum.models import Post, Thread
-from apps.moderation.models import Report
+from apps.moderation.models import ModerationLog, Report
 from apps.moderation.serializers import (
+    ModerationLogSerializer,
     ModerationPostSerializer,
     ReportCreateSerializer,
     ReportResolveSerializer,
@@ -28,6 +29,23 @@ class StaffOnly(permissions.BasePermission):
         return bool(
             request.user and request.user.is_authenticated and request.user.is_staff
         )
+
+
+def _log_action(
+    request, action: str, target_type: str, target_id: int, note: str = ""
+) -> None:
+    """Write an audit row for a staff action.
+
+    Always called *after* the mutation it describes: the action is already
+    committed, so a log write failing must not turn it into an error.
+    """
+    ModerationLog.objects.create(
+        actor=request.user.get_username(),
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        note=note[:255],
+    )
 
 
 class ReportCreateView(generics.CreateAPIView):
@@ -132,6 +150,29 @@ class ReportQueueView(generics.ListAPIView):
         return Response({"reports": data})
 
 
+class ModerationLogListView(APIView):
+    """Last 100 staff actions, newest first — the console audit panel."""
+
+    permission_classes = [StaffOnly]
+
+    @extend_schema(responses={200: ModerationLogSerializer})
+    def get(self, request):
+        entries = ModerationLog.objects.all()[:100]
+        data = [
+            {
+                "id": entry.id,
+                "actor": entry.actor,
+                "action": entry.action,
+                "target_type": entry.target_type,
+                "target_id": entry.target_id,
+                "note": entry.note,
+                "created_at": entry.created_at,
+            }
+            for entry in entries
+        ]
+        return Response({"actions": data})
+
+
 @extend_schema(
     request=ReportResolveSerializer,
     responses={200: ReportResolveSerializer, 400: None},
@@ -155,9 +196,14 @@ class ReportResolveView(APIView):
             report.post.is_hidden = True
             report.post.save(update_fields=["is_hidden", "updated_at"])
             report.status = Report.Status.ACTIONED
+            log_action = ModerationLog.Action.REPORT_ACTION
+            log_note = f"скрыт пост #{report.post_id}"
         else:
             report.status = Report.Status.DISMISSED
+            log_action = ModerationLog.Action.REPORT_DISMISS
+            log_note = ""
         report.save(update_fields=["status", "updated_at"])
+        _log_action(request, log_action, "report", report.id, log_note)
         return Response({"id": report.id, "status": report.status})
 
 
@@ -173,15 +219,17 @@ class PostModerationView(APIView):
         except Post.DoesNotExist as exc:
             raise Http404("Post not found.") from exc
 
-        if action == "hide":
-            post.is_hidden = True
-        elif action == "show":
-            post.is_hidden = False
-        else:
+        actions = {
+            "hide": ModerationLog.Action.HIDE_POST,
+            "show": ModerationLog.Action.SHOW_POST,
+        }
+        if action not in actions:
             return Response(
                 {"detail": "Unknown action."}, status=status.HTTP_400_BAD_REQUEST
             )
+        post.is_hidden = action == "hide"
         post.save(update_fields=["is_hidden", "updated_at"])
+        _log_action(request, actions[action], "post", post.id)
         return Response({"id": post.id, "is_hidden": post.is_hidden})
 
 
@@ -197,25 +245,23 @@ class ThreadModerationView(APIView):
         except Thread.DoesNotExist as exc:
             raise Http404("Thread not found.") from exc
 
-        update: dict[str, bool] = {}
-        if action == "hide":
-            update["is_hidden"] = True
-        elif action == "show":
-            update["is_hidden"] = False
-        elif action == "lock":
-            update["is_locked"] = True
-        elif action == "unlock":
-            update["is_locked"] = False
-        elif action == "pin":
-            update["is_pinned"] = True
-        elif action == "unpin":
-            update["is_pinned"] = False
-        else:
+        actions = {
+            # action: (flag field, new value, log action)
+            "hide": ("is_hidden", True, ModerationLog.Action.HIDE_THREAD),
+            "show": ("is_hidden", False, ModerationLog.Action.SHOW_THREAD),
+            "lock": ("is_locked", True, ModerationLog.Action.LOCK_THREAD),
+            "unlock": ("is_locked", False, ModerationLog.Action.UNLOCK_THREAD),
+            "pin": ("is_pinned", True, ModerationLog.Action.PIN_THREAD),
+            "unpin": ("is_pinned", False, ModerationLog.Action.UNPIN_THREAD),
+        }
+        if action not in actions:
             return Response(
                 {"detail": "Unknown action."}, status=status.HTTP_400_BAD_REQUEST
             )
-        Thread.objects.filter(pk=pk).update(**update)
+        field, value, log_action = actions[action]
+        Thread.objects.filter(pk=pk).update(**{field: value})
         thread.refresh_from_db()
+        _log_action(request, log_action, "thread", thread.id)
         return Response(
             {
                 "id": thread.id,

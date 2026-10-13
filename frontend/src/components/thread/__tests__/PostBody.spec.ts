@@ -1,12 +1,41 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 
 import PostBody from '../PostBody.vue'
+import type { Attachment } from '@/types'
 
 const known = new Set([1, 42])
 
-function mountBody(body: string) {
-  return mount(PostBody, { props: { body, knownIds: known } })
+const attachments: Attachment[] = [
+  {
+    id: 11,
+    url: '/media/first.png',
+    mime_type: 'image/png',
+    size: 2048,
+    width: 1200,
+    height: 800,
+    original_name: 'first.png',
+    created_at: '2026-02-01T10:00:00Z',
+  },
+  {
+    id: 12,
+    url: '/media/second.png',
+    mime_type: 'image/png',
+    size: 4096,
+    width: 800,
+    height: 600,
+    original_name: 'second.png',
+    created_at: '2026-02-01T10:01:00Z',
+  },
+]
+
+function mountBody(body: string, extra: Record<string, unknown> = {}) {
+  return mount(PostBody, { props: { body, knownIds: known, ...extra } })
+}
+
+function press(key: string) {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key, cancelable: true }))
 }
 
 describe('PostBody', () => {
@@ -82,5 +111,59 @@ describe('PostBody', () => {
 
     await wrapper.find('.post-link').trigger('mouseleave')
     expect(wrapper.emitted('preview-leave')).toHaveLength(1)
+  })
+
+  it('renders no attachment tiles and no lightbox without attachments', () => {
+    const wrapper = mountBody('просто текст')
+    expect(wrapper.find('[data-testid="post-attachments"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="attachment-lightbox"]').exists()).toBe(false)
+  })
+
+  it('opens the lightbox on the tile that was clicked', async () => {
+    const wrapper = mountBody('смотри вложение', { attachments })
+    const tiles = wrapper.findAll('[data-testid^="post-attachment-"]')
+    expect(tiles).toHaveLength(2)
+    expect(tiles[0].attributes('aria-label')).toBe('Открыть вложение first.png')
+
+    await tiles[1].trigger('click')
+
+    const lightbox = wrapper.find('[data-testid="attachment-lightbox"]')
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(lightbox.exists()).toBe(true)
+    expect(dialog.attributes('aria-label')).toBe('Вложение 2 из 2')
+    expect(lightbox.find('[data-testid="lightbox-counter"]').text()).toBe('02 / 02')
+    expect(lightbox.find('[data-testid="lightbox-image"]').attributes('src')).toBe(
+      '/media/second.png',
+    )
+    expect(lightbox.find('[data-testid="lightbox-next"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('closes the lightbox on Escape', async () => {
+    const wrapper = mountBody('текст', { attachments })
+    await wrapper.find('[data-testid="post-attachment-0"]').trigger('click')
+    expect(wrapper.find('[data-testid="attachment-lightbox"]').exists()).toBe(true)
+
+    press('Escape')
+    await nextTick()
+    expect(wrapper.find('[data-testid="attachment-lightbox"]').exists()).toBe(false)
+  })
+
+  it('walks the attachments with the arrow keys inside the lightbox', async () => {
+    const wrapper = mountBody('текст', { attachments })
+    await wrapper.find('[data-testid="post-attachment-0"]').trigger('click')
+
+    press('ArrowRight')
+    await nextTick()
+    expect(wrapper.find('[data-testid="lightbox-counter"]').text()).toBe('02 / 02')
+    expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(
+      '/media/second.png',
+    )
+
+    press('ArrowLeft')
+    await nextTick()
+    expect(wrapper.find('[data-testid="lightbox-counter"]').text()).toBe('01 / 02')
+    expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(
+      '/media/first.png',
+    )
   })
 })

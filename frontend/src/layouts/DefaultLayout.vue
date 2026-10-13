@@ -5,7 +5,9 @@ import { useRouter } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import ScanLens from '@/components/scan/ScanLens.vue'
+import OfflineBadge from '@/components/ui/OfflineBadge.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
+import { usePwa } from '@/composables/usePwa'
 import { playWarp, warpKindFor } from '@/three/warps'
 
 // The ambient particle layer (WebGL or Canvas2D) is pure decoration —
@@ -43,6 +45,10 @@ function onWindowKeydown(e: KeyboardEvent) {
 
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
+
+// PWA shell: the service worker is only registered from a production build.
+const { online, register: registerPwa } = usePwa()
+onMounted(() => void registerPwa())
 </script>
 
 <template>
@@ -50,6 +56,7 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
     <a href="#main-content" class="skip-link">Перейти к содержимому</a>
     <AmbientField />
     <AppHeader @scan="scanOpen = true" />
+    <OfflineBadge :online="online" />
     <main id="main-content" class="content">
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">

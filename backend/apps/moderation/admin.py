@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from apps.moderation.models import Report
+from apps.moderation.models import ModerationLog, Report
 
 
 @admin.register(Report)
@@ -25,3 +25,11 @@ class ReportAdmin(admin.ModelAdmin):
     @admin.action(description="Отметить: приняты меры")
     def mark_actioned(self, request, queryset):
         queryset.update(status=Report.Status.ACTIONED)
+
+
+@admin.register(ModerationLog)
+class ModerationLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "actor", "action", "target_type", "target_id", "created_at")
+    list_filter = ("action", "created_at")
+    search_fields = ("actor", "note")
+    date_hierarchy = "created_at"

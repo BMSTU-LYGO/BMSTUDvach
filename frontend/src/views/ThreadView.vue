@@ -9,7 +9,6 @@ import PostBody from '@/components/thread/PostBody.vue'
 import PostPreview from '@/components/thread/PostPreview.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import ThreadProgress from '@/components/thread/ThreadProgress.vue'
-import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -305,18 +304,11 @@ function onScroll() {
               :known-ids="knownIds"
               :author="post.author"
               :tripcode="post.tripcode"
+              :attachments="post.attachments"
               @navigate="navigateToPost"
               @preview="showPreview"
               @preview-leave="hidePreview"
             />
-
-            <div v-if="post.attachments.length" class="post-attachments">
-              <AttachmentPreview
-                v-for="attachment in post.attachments"
-                :key="attachment.id"
-                :attachment="attachment"
-              />
-            </div>
 
             <div
               v-if="(backlinks.get(post.id) ?? []).length > 0"
@@ -656,13 +648,6 @@ function onScroll() {
 
 .post-backlinks .post-link:hover {
   color: var(--text-primary);
-}
-
-.post-attachments {
-  margin-top: var(--space-3);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 /* Signal Dock — sticky bottom station */

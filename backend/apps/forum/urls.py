@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.forum import mentions as views_mentions
 from apps.forum import telemetry as views_tel
 from apps.forum import views
 
@@ -31,6 +32,11 @@ urlpatterns = [
         "threads/<int:pk>/posts/",
         views.PostCreateView.as_view(),
         name="thread-posts",
+    ),
+    path(
+        "posts/mentions/",
+        views_mentions.PostMentionsView.as_view(),
+        name="post-mentions",
     ),
     path("posts/<int:pk>/", views.PostDetailView.as_view(), name="post-detail"),
 ]

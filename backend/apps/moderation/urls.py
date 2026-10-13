@@ -13,6 +13,11 @@ urlpatterns = [
     path("moderation/me/", views.StaffMeView.as_view(), name="staff-me"),
     path("moderation/reports/", views.ReportQueueView.as_view(), name="report-queue"),
     path(
+        "moderation/log/",
+        views.ModerationLogListView.as_view(),
+        name="action-log",
+    ),
+    path(
         "moderation/reports/<int:pk>/resolve/",
         views.ReportResolveView.as_view(),
         name="report-resolve",

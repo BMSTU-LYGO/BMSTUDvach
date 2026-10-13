@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import { apiErrorMessage } from '@/api/client'
 import {
+  fetchModerationLog,
   fetchReportQueue,
   moderatePost,
   moderateThread,
@@ -13,6 +14,7 @@ import {
   staffLogout,
   staffMe,
   unpinThread,
+  type ModerationLogEntry,
   type QueuedReport,
   type ThreadState,
 } from '@/api/moderation'
@@ -22,7 +24,8 @@ import {
  *
  * Session-based staff login; the report queue carries everything needed
  * to act on a complaint: dismiss it, or hide the post and mark the
- * report actioned. Quick thread/post tools live at the bottom.
+ * report actioned. Every action lands in the audit journal, and the
+ * quick thread/post tools live at the bottom.
  */
 
 const REASON_LABELS: Record<string, string> = {
@@ -31,6 +34,25 @@ const REASON_LABELS: Record<string, string> = {
   illegal: 'нелегал',
   offtopic: 'оффтоп',
   other: 'другое',
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  hide_post: 'пост скрыт',
+  show_post: 'пост показан',
+  hide_thread: 'тред скрыт',
+  show_thread: 'тред показан',
+  lock_thread: 'тред закрыт',
+  unlock_thread: 'тред открыт',
+  pin_thread: 'тред закреплён',
+  unpin_thread: 'тред откреплён',
+  report_action: 'жалоба обработана',
+  report_dismiss: 'жалоба отклонена',
+}
+
+const TARGET_LABELS: Record<string, string> = {
+  post: 'пост',
+  thread: 'тред',
+  report: 'жалоба',
 }
 
 const isStaff = ref(false)
@@ -44,6 +66,10 @@ const loading = ref(false)
 const busy = ref<number | null>(null)
 const consoleError = ref('')
 
+const logEntries = ref<ModerationLogEntry[]>([])
+const logLoading = ref(false)
+const logError = ref('')
+
 const targetKind = ref<'post' | 'thread'>('post')
 const targetId = ref('')
 
@@ -52,7 +78,9 @@ async function check() {
   try {
     const me = await staffMe()
     isStaff.value = me.is_staff
-    if (me.is_staff) await loadQueue()
+    if (me.is_staff) {
+      await Promise.all([loadQueue(), loadLog()])
+    }
   } catch {
     isStaff.value = false
   } finally {
@@ -73,13 +101,32 @@ async function loadQueue() {
   }
 }
 
+/** Audit journal: the last staff actions, newest first. */
+async function loadLog() {
+  logLoading.value = true
+  logError.value = ''
+  try {
+    const entries = await fetchModerationLog()
+    logEntries.value = entries ?? []
+  } catch (err) {
+    logError.value = apiErrorMessage(err, 'Журнал действий недоступен.')
+  } finally {
+    logLoading.value = false
+  }
+}
+
+function logTarget(entry: ModerationLogEntry): string {
+  const kind = TARGET_LABELS[entry.target_type] ?? entry.target_type
+  return `${kind} #${entry.target_id}`
+}
+
 async function onLogin() {
   loginError.value = ''
   try {
     await staffLogin(username.value, password.value)
     isStaff.value = true
     password.value = ''
-    await loadQueue()
+    await Promise.all([loadQueue(), loadLog()])
   } catch (err) {
     loginError.value = apiErrorMessage(err, 'Не удалось войти.')
   }
@@ -93,6 +140,7 @@ async function onLogout() {
   }
   isStaff.value = false
   reports.value = []
+  logEntries.value = []
 }
 
 async function act(report: QueuedReport, action: 'dismiss' | 'action') {
@@ -101,6 +149,7 @@ async function act(report: QueuedReport, action: 'dismiss' | 'action') {
   try {
     await resolveReport(report.id, action)
     reports.value = reports.value.filter((r) => r.id !== report.id)
+    await loadLog()
   } catch (err) {
     consoleError.value = apiErrorMessage(err, 'Не удалось применить действие.')
   } finally {
@@ -132,6 +181,7 @@ async function runTool(action: 'hide' | 'show' | 'lock' | 'unlock') {
       await moderateThread(id, action)
       toolStatus.value = `тред #${id}: ${action}`
     }
+    await loadLog()
   } catch (err) {
     toolStatus.value = apiErrorMessage(err, 'действие не удалось')
   }
@@ -150,6 +200,7 @@ async function togglePin() {
       : await pinThread(id)
     targetPinned.value = state.is_pinned
     toolStatus.value = `тред #${id}: ${state.is_pinned ? 'закреплён' : 'откреплён'}`
+    await loadLog()
   } catch (err) {
     toolStatus.value = apiErrorMessage(err, 'действие не удалось')
   }
@@ -245,6 +296,50 @@ onMounted(check)
             </a>
           </footer>
         </article>
+      </div>
+
+      <!-- audit journal -->
+      <div class="journal">
+        <div class="journal__head">
+          <h2 class="journal__title">ЖУРНАЛ</h2>
+          <button
+            type="button"
+            class="journal__refresh"
+            data-testid="log-refresh"
+            @click="loadLog"
+          >
+            обновить
+          </button>
+        </div>
+
+        <p v-if="logError" class="journal__error" role="alert">{{ logError }}</p>
+        <div v-else-if="logLoading" class="console__state">загрузка журнала…</div>
+        <p
+          v-else-if="!logEntries.length"
+          class="journal__empty"
+          data-testid="log-empty"
+        >
+          действий пока не было
+        </p>
+
+        <ol
+          v-else
+          class="journal__list"
+          role="log"
+          aria-label="Журнал действий модерации"
+          data-testid="moderation-log"
+        >
+          <li v-for="entry in logEntries" :key="entry.id" class="journal__row">
+            <span class="journal__actor">{{ entry.actor }}</span>
+            <span class="journal__action">
+              {{ ACTION_LABELS[entry.action] ?? entry.action }}
+            </span>
+            <span class="journal__target">{{ logTarget(entry) }}</span>
+            <time class="journal__time" :datetime="entry.created_at">
+              {{ new Date(entry.created_at).toLocaleString('ru-RU') }}
+            </time>
+          </li>
+        </ol>
       </div>
 
       <!-- quick tools -->
@@ -567,6 +662,109 @@ onMounted(check)
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+/* audit journal */
+.journal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.journal__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.journal__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.journal__refresh {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 160ms, border-color 160ms;
+}
+
+.journal__refresh:hover {
+  color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.journal__error {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--danger);
+}
+
+.journal__empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.journal__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.journal__row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 4px 0;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--border-subtle);
+}
+
+.journal__row:last-child {
+  border-bottom: none;
+}
+
+.journal__actor {
+  color: var(--accent);
+  min-width: 88px;
+}
+
+.journal__action {
+  color: var(--text-secondary);
+}
+
+.journal__target {
+  color: var(--text-muted);
+}
+
+.journal__time {
+  margin-left: auto;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* quick tools */

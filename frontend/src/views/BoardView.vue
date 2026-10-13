@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 
 import LaunchBay from '@/components/launch/LaunchBay.vue'
+import LoadMoreNode from '@/components/thread/LoadMoreNode.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import CatalogCard from '@/components/thread/CatalogCard.vue'
 import SortLens from '@/components/thread/SortLens.vue'
@@ -64,7 +65,19 @@ function reloadThreads() {
   void store.fetchThreads(props.boardSlug, threadOrder.value)
 }
 
+// page-by-page feed: the node sits under the rows only while a list exists
+function loadMore() {
+  void store.loadMoreThreads(props.boardSlug, threadOrder.value)
+}
+
 const threads = computed(() => store.threadList.threads)
+
+const showLoadMore = computed(
+  () =>
+    !store.threadList.loading &&
+    !store.threadList.error &&
+    threads.value.length > 0,
+)
 
 onMounted(async () => {
   await nextTick()
@@ -194,6 +207,12 @@ function captureRow(event: MouseEvent, threadId: number) {
         />
       </template>
     </div>
+    <LoadMoreNode
+      v-if="showLoadMore"
+      :has-more="store.threadList.hasMore"
+      :loading="store.threadList.loadingMore"
+      @load-more="loadMore"
+    />
   </section>
 </template>
 

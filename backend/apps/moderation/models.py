@@ -39,3 +39,37 @@ class Report(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"Report #{self.pk} ({self.reason}) on post {self.post_id}"
+
+
+class ModerationLog(TimeStampedModel):
+    """An audit record of a single staff action in the console."""
+
+    class Action(models.TextChoices):
+        HIDE_POST = "hide_post", "Пост скрыт"
+        SHOW_POST = "show_post", "Пост показан"
+        HIDE_THREAD = "hide_thread", "Тред скрыт"
+        SHOW_THREAD = "show_thread", "Тред показан"
+        LOCK_THREAD = "lock_thread", "Тред закрыт"
+        UNLOCK_THREAD = "unlock_thread", "Тред открыт"
+        PIN_THREAD = "pin_thread", "Тред закреплён"
+        UNPIN_THREAD = "unpin_thread", "Тред откреплён"
+        REPORT_ACTION = "report_action", "Жалоба обработана"
+        REPORT_DISMISS = "report_dismiss", "Жалоба отклонена"
+
+    class TargetType(models.TextChoices):
+        POST = "post", "Пост"
+        THREAD = "thread", "Тред"
+        REPORT = "report", "Жалоба"
+
+    actor = models.CharField(max_length=150)
+    action = models.CharField(max_length=32, choices=Action.choices)
+    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    target_id = models.PositiveIntegerField()
+    note = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["-created_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.actor} → {self.action} {self.target_type} #{self.target_id}"

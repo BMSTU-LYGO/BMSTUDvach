@@ -45,10 +45,14 @@ vi.mock('@/api/threads', () => ({
 vi.mock('@/api/telemetry', () => ({
   getTelemetry: vi.fn(),
 }))
+vi.mock('@/api/mentions', () => ({
+  getMentions: vi.fn(),
+}))
 
 import HomeView from '@/views/HomeView.vue'
 import { listRecentThreads } from '@/api/threads'
 import { getTelemetry } from '@/api/telemetry'
+import { getMentions } from '@/api/mentions'
 
 function thread(id: number, title: string, board: string) {
   return {
@@ -139,6 +143,70 @@ describe('HomeView — telemetry rail', () => {
     vi.mocked(getTelemetry).mockRejectedValue(new Error('network down'))
     wrapper = await mountHome()
     expect(wrapper.find('[data-testid="telemetry-rail"]').exists()).toBe(false)
+    expect(wrapper.find('.hero-cta').exists()).toBe(true)
+  })
+})
+
+describe('HomeView — mentions beacon', () => {
+  const mention = (post: number, thread: number, title: string, hour: number) => ({
+    post,
+    thread,
+    thread_title: title,
+    body: ' Ответ ',
+    created_at: `2026-10-13T${String(hour).padStart(2, '0')}:00:00Z`,
+    snippet: ' Ответ ',
+  })
+
+  let wrapper: Awaited<ReturnType<typeof mountHome>>
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorageMock.clear()
+    vi.mocked(listRecentThreads).mockResolvedValue([])
+    vi.mocked(getMentions).mockResolvedValue({
+      tripcode: '!u3V2icOT',
+      count: 2,
+      mentions: [
+        mention(31, 7, 'Срочно про ИУ7', 12),
+        mention(32, 8, 'Расписание сессии', 13),
+      ],
+    })
+    localStorageMock.setItem('bmstud-identities', JSON.stringify(['!u3V2icOT']))
+  })
+
+  afterEach(() => wrapper?.unmount())
+
+  it('renders the unread count from the mentions api', async () => {
+    wrapper = await mountHome()
+    expect(getMentions).toHaveBeenCalledWith('!u3V2icOT')
+    const beacon = wrapper.find('[data-testid="mentions-beacon"]')
+    expect(beacon.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mentions-count"]').text()).toBe('+02')
+  })
+
+  it('expands the mention list on click', async () => {
+    wrapper = await mountHome()
+    const toggle = wrapper.find('[data-testid="mentions-toggle"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    const items = wrapper.findAll('[data-testid^="mention-item-"]')
+    expect(items).toHaveLength(2)
+    // свежие ответы сверху
+    expect(items[0].text()).toContain('Расписание сессии')
+    expect(items[0].attributes('href')).toBe('/threads/8#post-32')
+    expect(items[1].text()).toContain('Срочно про ИУ7')
+    expect(items[1].attributes('href')).toBe('/threads/7#post-31')
+  })
+
+  it('keeps the beacon alive when the mentions api fails', async () => {
+    vi.mocked(getMentions).mockRejectedValue(new Error('network down'))
+    wrapper = await mountHome()
+    expect(wrapper.find('[data-testid="mentions-beacon"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mentions-count"]').text()).toBe('—')
+    expect(wrapper.find('[data-testid="mentions-list"]').exists()).toBe(false)
     expect(wrapper.find('.hero-cta').exists()).toBe(true)
   })
 })

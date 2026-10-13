@@ -13,9 +13,14 @@ const THREAD_ORDERS: readonly ThreadOrder[] = ['bump', 'replies', 'newest']
 export function listThreads(
   boardSlug: string,
   order: ThreadOrder = 'bump',
+  page = 1,
 ): Promise<Paginated<ThreadSummary>> {
-  const query = THREAD_ORDERS.includes(order) ? `?order=${order}` : ''
-  return request<Paginated<ThreadSummary>>(`/boards/${boardSlug}/threads/${query}`)
+  const params = new URLSearchParams()
+  if (THREAD_ORDERS.includes(order)) params.set('order', order)
+  params.set('page', String(page))
+  return request<Paginated<ThreadSummary>>(
+    `/boards/${boardSlug}/threads/?${params.toString()}`,
+  )
 }
 
 export function listRecentThreads(limit = 6): Promise<ThreadSummary[]> {

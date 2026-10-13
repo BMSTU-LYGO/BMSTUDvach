@@ -223,3 +223,31 @@ staff console)
 
 Verified: frontend 120 tests · backend 137 · verify:3d 46 · ruff ·
 build PASS · live: /telemetry/ and ?order=replies against the stack
+
+## Improvement round (PAGE/MENTION/PWA/META/LIGHTBOX/MODLOG) — done (pushed)
+- PAGE-01: board load-more — store keeps all loaded pages + hasMore;
+  LoadMoreNode (button / «догружаю» / «сигнал передан полностью»);
+  8 BoardView tests
+- MENTION-01: GET /posts/mentions/?trip=!xxx — answers to your
+  tripcoded posts (tripcode-only, secrets never stored); mention
+  snippets, 30 cap over last 1000 posts with >>; MentionsBeacon on Home
+  (tripcode watchlist + seen-ids in localStorage); 11 backend tests
+- PWA-01: manifest + service worker (navigations network-first w/
+  offline fallback, /assets/* SWR, API never cached, PROD-only
+  registration) + OfflineBadge «НЕТ СВЯЗИ» (role=status, aria-live);
+  SW behavior covered by 17 harness checks
+- META-01: per-route title + description (router.afterEach, param
+  substitution :boardSlug/:threadId/:storyId, 404 → «Сигнал
+  потерян»); 8 router tests
+- LIGHTBOX-01: AttachmentLightbox — focus trap + focus restore, body
+  scroll lock, Esc/←/→, counter «02 / 03», reduced-motion honest;
+  PostBody renders attachment tiles (ThreadView's duplicate grid +
+  dead AttachmentPreview removed); 19 tests
+- MODLOG-01: ModerationLog model + /moderation/log/ (staff-only, last
+  100) — every staff mutation (hide/show post, lock/unlock/pin/unpin
+  thread, report action/dismiss) logged; «ЖУРНАЛ» panel in the console;
+  migration 0002_moderationlog; 7 new tests
+
+Verified: frontend 174 tests · backend 144 · verify:3d 46 · ruff ·
+build PASS · live: mentions 400/403, /moderation/log/ 403,
+pagination contract unchanged

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.moderation.models import Report
+from apps.moderation.models import ModerationLog, Report
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):
@@ -48,3 +48,20 @@ class ThreadStateSerializer(serializers.Serializer):
     is_hidden = serializers.BooleanField()
     is_locked = serializers.BooleanField()
     is_pinned = serializers.BooleanField()
+
+
+class ModerationLogSerializer(serializers.ModelSerializer):
+    """Audit entry for a staff action taken from the console."""
+
+    class Meta:
+        model = ModerationLog
+        fields = (
+            "id",
+            "actor",
+            "action",
+            "target_type",
+            "target_id",
+            "note",
+            "created_at",
+        )
+        read_only_fields = fields

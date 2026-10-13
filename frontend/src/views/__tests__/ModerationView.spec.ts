@@ -24,6 +24,7 @@ vi.mock('@/api/moderation', () => ({
   staffMe: vi.fn(),
   staffLogout: vi.fn(),
   fetchReportQueue: vi.fn(),
+  fetchModerationLog: vi.fn(),
   resolveReport: vi.fn(),
   moderatePost: vi.fn(),
   moderateThread: vi.fn(),
@@ -33,12 +34,14 @@ vi.mock('@/api/moderation', () => ({
 
 import ModerationView from '@/views/ModerationView.vue'
 import {
+  fetchModerationLog,
   fetchReportQueue,
   pinThread,
   resolveReport,
   staffLogin,
   staffMe,
   unpinThread,
+  type ModerationLogEntry,
 } from '@/api/moderation'
 
 const queue = {
@@ -60,6 +63,27 @@ const queue = {
   ],
 }
 
+const log: ModerationLogEntry[] = [
+  {
+    id: 2,
+    actor: 'moder',
+    action: 'lock_thread',
+    target_type: 'thread',
+    target_id: 7,
+    note: '',
+    created_at: '2026-10-02T12:30:00Z',
+  },
+  {
+    id: 1,
+    actor: 'alice',
+    action: 'hide_post',
+    target_type: 'post',
+    target_id: 42,
+    note: '',
+    created_at: '2026-10-01T10:00:00Z',
+  },
+]
+
 async function mountView() {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -74,6 +98,7 @@ describe('ModerationView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(staffMe).mockResolvedValue({ is_staff: false })
+    vi.mocked(fetchModerationLog).mockResolvedValue([])
   })
 
   it('gates non-staff behind a login form', async () => {
@@ -107,6 +132,7 @@ describe('ModerationView', () => {
     vi.mocked(staffLogin).mockResolvedValue({ is_staff: true, username: 'moder' })
     vi.mocked(fetchReportQueue).mockResolvedValue(queue)
     vi.mocked(resolveReport).mockResolvedValue({ id: 5, status: 'actioned' })
+    vi.mocked(fetchModerationLog).mockResolvedValue(log)
 
     const wrapper = await mountView()
     await flushPromises()
@@ -210,5 +236,70 @@ describe('ModerationView quick tools', () => {
 
     expect(wrapper.find('.tools__status').text()).toContain('действие не удалось')
     expect(wrapper.find('[data-testid="pin-toggle"]').text()).toContain('Закрепить')
+  })
+})
+
+describe('ModerationView journal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(staffMe).mockResolvedValue({ is_staff: true, username: 'moder' })
+    vi.mocked(fetchReportQueue).mockResolvedValue(queue)
+    vi.mocked(fetchModerationLog).mockResolvedValue(log)
+  })
+
+  it('renders the audit journal of recent staff actions', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const journal = wrapper.find('[data-testid="moderation-log"]')
+    expect(journal.exists()).toBe(true)
+    expect(journal.attributes('role')).toBe('log')
+    expect(journal.attributes('aria-label')).toContain('Журнал')
+    expect(fetchModerationLog).toHaveBeenCalled()
+
+    const rows = journal.findAll('.journal__row')
+    expect(rows).toHaveLength(2)
+    // newest first: actor · action · target
+    expect(rows[0].text()).toContain('moder')
+    expect(rows[0].text()).toContain('тред закрыт')
+    expect(rows[0].text()).toContain('тред #7')
+    expect(rows[1].text()).toContain('alice')
+    expect(rows[1].text()).toContain('пост скрыт')
+    expect(rows[1].text()).toContain('пост #42')
+  })
+
+  it('refreshes the journal after a moderation action', async () => {
+    vi.mocked(resolveReport).mockResolvedValue({ id: 5, status: 'actioned' })
+    const wrapper = await mountView()
+    await flushPromises()
+    expect(fetchModerationLog).toHaveBeenCalledTimes(1)
+
+    const actionBtn = wrapper
+      .findAll('.report__btn')
+      .find((b) => b.text().includes('скрыть пост'))!
+    await actionBtn.trigger('click')
+    await flushPromises()
+
+    expect(fetchModerationLog).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows an error when the journal cannot be loaded', async () => {
+    vi.mocked(fetchModerationLog).mockRejectedValue(new Error('Журнал недоступен.'))
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.journal__error').text()).toContain('Журнал недоступен')
+    expect(wrapper.find('[data-testid="moderation-log"]').exists()).toBe(false)
+  })
+
+  it('reports an empty journal', async () => {
+    vi.mocked(fetchModerationLog).mockResolvedValue([])
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="log-empty"]').text()).toContain(
+      'действий пока не было',
+    )
+    expect(wrapper.find('[data-testid="moderation-log"]').exists()).toBe(false)
   })
 })

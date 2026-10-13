@@ -1,0 +1,28 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  width="512"
+  height="512"
+  role="img"
+  aria-label="BMSTUDvach"
+>
+  <title>BMSTUDvach</title>
+  <rect width="512" height="512" rx="96" fill="#020306" />
+  <circle cx="256" cy="256" r="180" fill="#e78c08" opacity="0.10" />
+
+  <g fill="none" stroke="#a0600b" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M168 168 L344 150 L256 268 L150 352 L368 346 Z" />
+    <path d="M168 168 L256 268 L150 352" />
+    <path d="M344 150 L256 268 L368 346" />
+  </g>
+
+  <g fill="#e78c08">
+    <circle cx="168" cy="168" r="24" />
+    <circle cx="344" cy="150" r="18" />
+    <circle cx="150" cy="352" r="18" />
+    <circle cx="368" cy="346" r="24" />
+  </g>
+
+  <circle cx="256" cy="268" r="46" fill="#e78c08" />
+  <circle cx="256" cy="268" r="70" fill="none" stroke="#e78c08" stroke-width="8" opacity="0.45" />
+</svg>

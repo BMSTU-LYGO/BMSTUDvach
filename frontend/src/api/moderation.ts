@@ -27,6 +27,16 @@ export interface ThreadState {
   is_pinned: boolean
 }
 
+export interface ModerationLogEntry {
+  id: number
+  actor: string
+  action: string
+  target_type: string
+  target_id: number
+  note: string
+  created_at: string
+}
+
 const BASE = '/moderation'
 
 export function staffLogin(username: string, password: string): Promise<StaffSession> {
@@ -46,6 +56,12 @@ export function staffLogout(): Promise<unknown> {
 
 export function fetchReportQueue(status = 'new'): Promise<{ reports: QueuedReport[] }> {
   return request<{ reports: QueuedReport[] }>(`${BASE}/reports/?status=${status}`)
+}
+
+export function fetchModerationLog(): Promise<ModerationLogEntry[]> {
+  return request<{ actions: ModerationLogEntry[] }>(`${BASE}/log/`).then(
+    (data) => data.actions,
+  )
 }
 
 export function resolveReport(

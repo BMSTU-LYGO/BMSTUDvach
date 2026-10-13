@@ -1,5 +1,7 @@
 import pytest
 
+from apps.moderation.models import ModerationLog
+
 
 def login_staff(api_client, django_user_model):
     user = django_user_model.objects.create_user(
@@ -149,3 +151,116 @@ class TestModerationApi:
         me = api_client.get("/api/v1/moderation/me/")
         assert me.json()["is_staff"] is True
         assert me.json()["username"] == "moder"
+
+
+class TestModerationLog:
+    @pytest.mark.django_db
+    def test_post_hide_and_show_are_logged(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        user = login_staff(api_client, django_user_model)
+        _, op = thread_with_op
+
+        resp = api_client.post(f"/api/v1/moderation/posts/{op.id}/hide/")
+        assert resp.status_code == 200
+        resp = api_client.post(f"/api/v1/moderation/posts/{op.id}/show/")
+        assert resp.status_code == 200
+
+        entries = list(ModerationLog.objects.all())
+        assert len(entries) == 2
+        assert [e.action for e in entries] == ["show_post", "hide_post"]
+        for entry in entries:
+            assert entry.actor == user.username
+            assert entry.target_type == "post"
+            assert entry.target_id == op.id
+
+    @pytest.mark.django_db
+    def test_thread_lock_and_pin_are_logged(
+        self, api_client, django_user_model, thread
+    ):
+        login_staff(api_client, django_user_model)
+        for action in ("lock", "pin", "unpin", "unlock"):
+            assert (
+                api_client.post(
+                    f"/api/v1/moderation/threads/{thread.id}/{action}/"
+                ).status_code
+                == 200
+            )
+
+        entries = list(ModerationLog.objects.filter(target_type="thread"))
+        assert [e.action for e in entries] == [
+            "unlock_thread",
+            "unpin_thread",
+            "pin_thread",
+            "lock_thread",
+        ]
+        assert {e.target_id for e in entries} == {thread.id}
+
+    @pytest.mark.django_db
+    def test_report_resolve_and_dismiss_are_logged(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        user = login_staff(api_client, django_user_model)
+        _, op = thread_with_op
+        api_client.post(f"/api/v1/posts/{op.id}/reports/", {"reason": "spam"})
+        api_client.post(f"/api/v1/posts/{op.id}/reports/", {"reason": "abuse"})
+        queued = api_client.get("/api/v1/moderation/reports/").json()["reports"]
+        assert len(queued) == 2
+
+        api_client.post(
+            f"/api/v1/moderation/reports/{queued[0]['id']}/resolve/",
+            {"action": "action"},
+        )
+        api_client.post(
+            f"/api/v1/moderation/reports/{queued[1]['id']}/resolve/",
+            {"action": "dismiss"},
+        )
+
+        entries = list(ModerationLog.objects.filter(target_type="report"))
+        assert [e.action for e in entries] == ["report_dismiss", "report_action"]
+        assert {e.target_id for e in entries} == {r["id"] for r in queued}
+        assert all(e.actor == user.username for e in entries)
+        # the actioned report remembers which post it hid
+        actioned = next(e for e in entries if e.action == "report_action")
+        assert actioned.target_id == queued[0]["id"]
+        assert f"#{op.id}" in actioned.note
+
+    @pytest.mark.django_db
+    def test_log_list_returns_newest_first(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        login_staff(api_client, django_user_model)
+        _, op = thread_with_op
+        api_client.post(f"/api/v1/moderation/posts/{op.id}/hide/")
+        api_client.post(f"/api/v1/moderation/posts/{op.id}/show/")
+
+        resp = api_client.get("/api/v1/moderation/log/")
+        assert resp.status_code == 200
+        actions = resp.json()["actions"]
+        assert len(actions) == 2
+        assert [a["action"] for a in actions] == ["show_post", "hide_post"]
+        assert actions[0]["actor"] == "moder"
+        assert actions[0]["target_type"] == "post"
+        assert actions[0]["target_id"] == op.id
+        assert set(actions[0]) == {
+            "id",
+            "actor",
+            "action",
+            "target_type",
+            "target_id",
+            "note",
+            "created_at",
+        }
+
+    @pytest.mark.django_db
+    def test_log_list_requires_staff(self, api_client, django_user_model):
+        user = django_user_model.objects.create_user(username="plain", password="pass")
+        api_client.force_authenticate(user=user)
+        assert api_client.get("/api/v1/moderation/log/").status_code == 403
+
+    @pytest.mark.django_db
+    def test_rejected_action_is_not_logged(self, api_client, django_user_model, thread):
+        login_staff(api_client, django_user_model)
+        resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/explode/")
+        assert resp.status_code == 400
+        assert not ModerationLog.objects.exists()

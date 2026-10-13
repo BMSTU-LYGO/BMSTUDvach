@@ -1,0 +1,22 @@
+{
+  "name": "BMSTUDvach",
+  "short_name": "BMSTUD",
+  "description": "Анонимный форум для МГТУ им. Н. Э. Баумана в духе классических имиджборд: ветки тредов, посты без регистрации, платиновые ответы.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020306",
+  "theme_color": "#e78c08",
+  "categories": ["social", "news"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg",
+      "purpose": "any"
+    }
+  ]
+}

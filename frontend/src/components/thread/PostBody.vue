@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { parsePostLinks } from '@/composables/usePostLinks'
+import AttachmentLightbox from './AttachmentLightbox.vue'
+import type { Attachment } from '@/types'
 
 /**
  * Post body with `>>123` links rendered as real anchors (native keyboard,
@@ -16,6 +18,7 @@ const props = defineProps<{
   knownIds: Set<number>
   author?: string
   tripcode?: string
+  attachments?: Attachment[]
 }>()
 
 const emit = defineEmits<{
@@ -25,6 +28,17 @@ const emit = defineEmits<{
 }>()
 
 const tokens = computed(() => parsePostLinks(props.body))
+
+const attachments = computed(() => props.attachments ?? [])
+const lightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+
+function openLightbox(index: number) {
+  lightboxIndex.value = index
+  lightboxOpen.value = true
+}
+
+const isImage = (mime: string) => mime.startsWith('image/')
 
 const authorLabel = computed(() => (props.author ?? '').trim() || 'Аноним')
 const trip = computed(() => (props.tripcode ?? '').trim())
@@ -64,6 +78,37 @@ const signature = computed(() =>
       >
     </template>
   </div>
+
+  <div
+    v-if="attachments.length"
+    class="post-attachments"
+    data-testid="post-attachments"
+  >
+    <button
+      v-for="(attachment, index) in attachments"
+      :key="attachment.id"
+      type="button"
+      class="post-attachment"
+      :data-testid="`post-attachment-${index}`"
+      :aria-label="`Открыть вложение ${attachment.original_name || index + 1}`"
+      @click="openLightbox(index)"
+    >
+      <img
+        v-if="isImage(attachment.mime_type)"
+        class="post-attachment__img"
+        :src="attachment.url"
+        :alt="attachment.original_name"
+        loading="lazy"
+      />
+      <span v-else class="post-attachment__file">{{ attachment.original_name }}</span>
+    </button>
+  </div>
+
+  <AttachmentLightbox
+    v-model="lightboxOpen"
+    :attachments="attachments"
+    :start-index="lightboxIndex"
+  />
 </template>
 
 <style scoped>
@@ -116,5 +161,44 @@ const signature = computed(() =>
 
 .post-link--dead:hover {
   color: var(--text-muted);
+}
+
+.post-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.post-attachment {
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  cursor: zoom-in;
+  transition:
+    border-color var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
+}
+
+.post-attachment:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.post-attachment__img {
+  display: block;
+  max-width: 180px;
+  max-height: 180px;
+  object-fit: cover;
+}
+
+.post-attachment__file {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 </style>
