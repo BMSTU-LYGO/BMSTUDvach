@@ -18,6 +18,7 @@ import { playMorph } from '@/composables/usePageMorph'
 import { usePostReveal } from '@/composables/usePostReveal'
 import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
+import { useWatchlist } from '@/composables/useWatchlist'
 import { emitSceneEvent } from '@/three/sceneState'
 import { apiErrorMessage } from '@/api/client'
 import type { NewPostInput, Post, ReportReason } from '@/types'
@@ -39,6 +40,9 @@ const titleRef = ref<HTMLElement | null>(null)
 const postsRef = ref<HTMLElement | null>(null)
 const dockRef = ref<InstanceType<typeof SignalDock> | null>(null)
 const dockEl = ref<HTMLElement | null>(null)
+
+const watchlist = useWatchlist()
+const watched = ref(false)
 
 // reader state
 const previewPost = ref<Post | null>(null)
@@ -76,8 +80,18 @@ watch(
     playMorph(titleRef.value, `thread:${props.threadId}`)
     // the dock only exists once the thread is loaded — re-anchor the fiber
     dockEl.value = dockRef.value?.$el ?? null
+    // entering the thread counts as reading it
+    watched.value = watchlist.isTracked(props.threadId)
+    watchlist.markSeen(props.threadId, thread.reply_count)
   },
 )
+
+function toggleWatch() {
+  const thread = store.thread.thread
+  if (!thread) return
+  watchlist.toggle(props.threadId, thread.title, thread.reply_count)
+  watched.value = watchlist.isTracked(props.threadId)
+}
 
 async function handlePost(input: NewPostInput) {
   posting.value = true
@@ -223,7 +237,21 @@ function onScroll() {
       :on-retry="() => store.fetchThread(props.threadId)"
     />
     <template v-else-if="store.thread.thread">
-      <h1 ref="titleRef" class="thread-title">{{ store.thread.thread.title }}</h1>
+      <div class="thread-title-row">
+        <h1 ref="titleRef" class="thread-title">{{ store.thread.thread.title }}</h1>
+        <button
+          type="button"
+          class="watch-toggle"
+          :class="{ 'watch-toggle--on': watched }"
+          :aria-pressed="watched"
+          :title="watched ? 'Узел отслеживается — снять' : 'Отслеживать этот узел'"
+          data-testid="watch-toggle"
+          @click="toggleWatch"
+        >
+          <span class="watch-toggle__dot" aria-hidden="true"></span>
+          {{ watched ? 'отслеживается' : 'отслеживать' }}
+        </button>
+      </div>
 
       <p v-if="store.thread.thread.is_locked" class="thread-locked">
         ● Тред закрыт
@@ -399,9 +427,55 @@ function onScroll() {
 }
 
 /* Title */
+.thread-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .thread-title {
   font-size: clamp(1.5rem, 3vw, 2rem);
   margin: 0;
+}
+
+.watch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 160ms, border-color 160ms;
+}
+
+.watch-toggle:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
+.watch-toggle__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+.watch-toggle--on {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.watch-toggle--on .watch-toggle__dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .thread-locked {

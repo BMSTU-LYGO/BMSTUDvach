@@ -184,6 +184,22 @@ describe('ThreadView — thread reader', () => {
     )
   })
 
+  it('tracks the node on demand and persists it', async () => {
+    wrapper = await mountThread()
+    const toggle = wrapper.find('[data-testid="watch-toggle"]')
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+    expect(localStorage.getItem('bmstudvach-watchlist')).toContain('"threadId":1')
+
+    // reading the thread snapshots the reply count
+    await wrapper.setProps({ threadId: 1 })
+    await flushPromises()
+    const stored = JSON.parse(localStorage.getItem('bmstudvach-watchlist')!)
+    expect(stored[0].seenReplies).toBe(2)
+  })
+
   it('keeps the Signal Dock writable below the posts', async () => {
     wrapper = await mountThread()
     expect(wrapper.find('[data-testid="signal-dock"]').exists()).toBe(true)

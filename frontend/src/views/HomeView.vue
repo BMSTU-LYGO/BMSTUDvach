@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue'
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
+import WatchPanel from '@/components/watch/WatchPanel.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -171,6 +172,9 @@ function openRecent(event: MouseEvent, threadId: number) {
         />
       </div>
     </div>
+
+    <!-- Tracked nodes: your threads, with unread signal counts -->
+    <WatchPanel />
   </section>
 </template>
 
