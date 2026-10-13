@@ -159,3 +159,12 @@ Stories are finally readable: /platinum/:id calm reading stage
 - media files are only served by Django in DEBUG mode; production media
   serving (nginx/S3 + X-Content-Type-Options) is part of the not-yet
   implemented production deployment config
+
+## Error-message round (ERR-01)
+- the API wraps 400s as {detail: "Validation error", errors: {field}};
+  views showed err.message → users literally read "Validation error"
+- apiErrorMessage() (api/client): field errors → meaningful detail →
+  per-flow fallback; wired into post/report/thread/platinum + store
+- regression test: 400 with {body: [...]} surfaces the real message in
+  the Signal Dock and the typed body survives
+- 71 frontend tests, 50 backend tests, verify:3d 46, ruff, build — all green
