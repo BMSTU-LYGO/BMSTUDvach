@@ -68,7 +68,6 @@ function open(threadId: number) {
   void router.push(`/threads/${threadId}`)
 }
 
-void loading
 </script>
 
 <template>
@@ -80,7 +79,8 @@ void loading
       </span>
     </div>
 
-    <ul class="watch__list">
+    <p v-if="loading" class="watch__loading">сверяем сигналы…</p>
+    <ul v-else class="watch__list">
       <li v-for="row in rows" :key="row.threadId" class="watch__row" :data-testid="'watch-row'">
         <RouterLink :to="`/threads/${row.threadId}`" class="watch__link" @click="open(row.threadId)">
           <span class="watch__name">{{ row.title }}</span>
@@ -136,6 +136,12 @@ void loading
   border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
   border-radius: 999px;
   padding: 2px 10px;
+}
+
+.watch__loading {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .watch__list {

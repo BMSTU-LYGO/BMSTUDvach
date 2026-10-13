@@ -57,6 +57,12 @@ const router = createRouter({
           meta: { scene: 'home' },
         },
         {
+          path: 'moderation',
+          name: 'moderation',
+          component: () => import('@/views/ModerationView.vue'),
+          meta: { scene: 'home' },
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('@/views/NotFoundView.vue'),

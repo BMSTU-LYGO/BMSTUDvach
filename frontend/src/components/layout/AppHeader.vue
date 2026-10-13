@@ -8,6 +8,7 @@ import { useSound } from '@/composables/useSound'
 import { useQuality3D } from '@/composables/useQuality3D'
 import { syncBoards } from '@/three/sceneState'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
+import { staffMe } from '@/api/moderation'
 
 const store = useForumStore()
 const mobileOpen = ref(false)
@@ -36,8 +37,14 @@ const QUALITY_HINTS: Record<string, string> = {
   off: '3D: выключено — работает 2D-версия частиц.',
 }
 
+const isStaff = ref(false)
+
 onMounted(() => {
   void store.fetchBoards()
+  // the console link only shows for staff sessions
+  void staffMe().then((me) => {
+    isStaff.value = me.is_staff
+  }).catch(() => {})
 })
 
 function closeMobile() {
@@ -69,6 +76,14 @@ function closeMobile() {
           </RouterLink>
           <RouterLink to="/about" class="nav-link" @click="closeMobile">
             /about/
+          </RouterLink>
+          <RouterLink
+            v-if="isStaff"
+            to="/moderation"
+            class="nav-link nav-accent"
+            @click="closeMobile"
+          >
+            /mod/
           </RouterLink>
         </nav>
 
