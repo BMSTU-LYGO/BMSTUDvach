@@ -12,7 +12,9 @@ import TransmitControl from './TransmitControl.vue'
 import NetworkIcon from './NetworkIcon.vue'
 
 const MAX_BODY = 20000
-const ACCEPTED = 'image/*,application/pdf,text/plain'
+// Must mirror the backend allow-list exactly (SEC-01): image/* would let
+// the file picker offer SVG, which the API rejects on magic bytes.
+const ACCEPTED = 'image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain'
 const MAX_FILES = 4
 const MAX_SIZE = 10 * 1024 * 1024
 
