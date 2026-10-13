@@ -168,3 +168,14 @@ Stories are finally readable: /platinum/:id calm reading stage
 - regression test: 400 with {body: [...]} surfaces the real message in
   the Signal Dock and the typed body survives
 - 71 frontend tests, 50 backend tests, verify:3d 46, ruff, build — all green
+
+## Content round (CONTENT-01)
+- seed_dev rewritten: 4 boards / 13 threads / 63 posts / 16 resolving
+  >>id links / 5 attachments (real PNG dimensions) / 6 platinum stories
+  with SourceStory separation; idempotent + self-healing on re-run
+- fixed corrupted legacy platinum body (mojibake)
+- FIX: media was never served — config/urls.py now registers the
+  DEBUG-gated static() route; attachments returned 404 before
+- verified live: boards thread_count, recent feed, post links,
+  platinum detail, media 200; backend 53 tests, ruff, schema clean
+- remaining ops gap: production media serving (nginx/S3) — documented
