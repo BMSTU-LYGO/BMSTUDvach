@@ -6,6 +6,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import { listPlatinumStories, type PlatinumStory } from '@/api/platinum'
 import { setStoryCount } from '@/three/sceneState'
+import { apiErrorMessage } from '@/api/client'
 
 /**
  * /platinum/ — the Archive Space. The actual 3D rings/fragments live in
@@ -31,7 +32,7 @@ async function load() {
     total.value = result.count
     setStoryCount(result.count)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Архив недоступен.'
+    error.value = apiErrorMessage(err, 'Архив недоступен.')
   } finally {
     loading.value = false
   }

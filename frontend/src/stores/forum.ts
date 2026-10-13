@@ -11,6 +11,7 @@ import {
   listRecentThreads,
   listThreads,
 } from '@/api/threads'
+import { apiErrorMessage } from '@/api/client'
 import type {
   Board,
   NewPostInput,
@@ -140,5 +141,5 @@ export const useForumStore = defineStore('forum', {
 })
 
 function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : 'Неизвестная ошибка'
+  return apiErrorMessage(err, 'Неизвестная ошибка')
 }

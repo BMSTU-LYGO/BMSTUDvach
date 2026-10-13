@@ -68,3 +68,24 @@ export function toFormData(input: Record<string, unknown>): FormData {
   }
   return form
 }
+/**
+ * The API wraps validation failures as `{detail: "Validation error",
+ * errors: {field: [messages]}}`. Showing the generic detail to the user
+ * is useless — surface the field messages first, then the detail.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiRequestError) {
+    const fieldMessages = Object.values(err.errors)
+      .flat()
+      .filter((m) => typeof m === 'string' && m.length > 0)
+    if (fieldMessages.length > 0) {
+      return fieldMessages.slice(0, 2).join(' · ')
+    }
+    if (err.message && err.message !== 'Validation error') {
+      return err.message
+    }
+    return fallback
+  }
+  if (err instanceof Error && err.message) return err.message
+  return fallback
+}

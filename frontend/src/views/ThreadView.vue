@@ -18,6 +18,7 @@ import { usePostReveal } from '@/composables/usePostReveal'
 import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
 import { emitSceneEvent } from '@/three/sceneState'
+import { apiErrorMessage } from '@/api/client'
 import type { NewPostInput, Post, ReportReason } from '@/types'
 
 const props = defineProps<{ threadId: number }>()
@@ -89,7 +90,7 @@ async function handlePost(input: NewPostInput) {
     // Signal success to the dock — only now may it reset.
     postSuccessToken.value++
   } catch (err) {
-    postError.value = err instanceof Error ? err.message : 'Не удалось отправить ответ.'
+    postError.value = apiErrorMessage(err, 'Не удалось отправить ответ.')
     sounds.error()
   } finally {
     posting.value = false
@@ -117,7 +118,7 @@ async function handleReport(payload: {
     reportSuccessToken.value++
     activeReportPostId.value = null
   } catch (err) {
-    reportError.value = err instanceof Error ? err.message : 'Не удалось отправить жалобу.'
+    reportError.value = apiErrorMessage(err, 'Не удалось отправить жалобу.')
     sounds.error()
   } finally {
     reportSubmitting.value = false

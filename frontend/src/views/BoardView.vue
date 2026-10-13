@@ -12,6 +12,7 @@ import { useScrollReveal } from '@/composables/useScrollReveal'
 import { captureMorph, playMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
 import { emitSceneEvent } from '@/three/sceneState'
+import { apiErrorMessage } from '@/api/client'
 import type { NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
@@ -68,7 +69,7 @@ async function handleCreate(input: NewThreadInput) {
     emitSceneEvent({ type: 'thread-launch', target: props.boardSlug })
     // failure keeps the bay open with title/body/files/draft intact
   } catch (err) {
-    createdError.value = err instanceof Error ? err.message : 'Не удалось создать тред.'
+    createdError.value = apiErrorMessage(err, 'Не удалось создать тред.')
     sounds.error()
   } finally {
     creating.value = false
