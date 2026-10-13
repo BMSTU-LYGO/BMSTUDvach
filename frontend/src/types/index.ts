@@ -42,6 +42,7 @@ export interface ThreadSummary {
   updated_at: string
   bumped_at: string
   reply_count: number
+  op_snippet?: string
 }
 
 export interface ThreadDetail extends ThreadSummary {

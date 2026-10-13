@@ -131,6 +131,18 @@ class TestThreads:
         assert len(resp.json()) == 2
 
     @pytest.mark.django_db
+    def test_thread_list_has_op_preview(self, api_client, board, thread):
+        resp = api_client.get("/api/v1/boards/b/threads/")
+        row = resp.json()["results"][0]
+        assert row["op_snippet"].startswith("Тело OP")
+
+    @pytest.mark.django_db
+    def test_recent_has_op_preview(self, api_client, board, thread):
+        resp = api_client.get("/api/v1/threads/recent/")
+        row = next(t for t in resp.json() if t["id"] == thread.id)
+        assert row["op_snippet"].startswith("Тело OP")
+
+    @pytest.mark.django_db
     def test_retrieve_thread(self, api_client, board, thread, op_post):
         resp = api_client.get(f"/api/v1/threads/{thread.pk}/")
         assert resp.status_code == 200
@@ -219,3 +231,4 @@ class TestReports:
             {"reason": "spam"},
         )
         assert resp.status_code == 404
+

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -14,6 +14,8 @@ from apps.forum.validators import (
     validate_attachment,
     validate_post_body,
 )
+
+OP_SNIPPET_MAX = 160
 
 
 class BoardSerializer(serializers.ModelSerializer):
@@ -90,6 +92,7 @@ class PostSerializer(serializers.ModelSerializer):
 class ThreadListSerializer(serializers.ModelSerializer):
     board = serializers.SlugRelatedField(slug_field="slug", read_only=True)
     reply_count = serializers.IntegerField(read_only=True, default=0)
+    op_snippet = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
@@ -103,8 +106,16 @@ class ThreadListSerializer(serializers.ModelSerializer):
             "updated_at",
             "bumped_at",
             "reply_count",
+            "op_snippet",
         )
         read_only_fields = fields
+
+    def get_op_snippet(self, obj: Thread) -> str:
+        body = getattr(obj, "op_body", None) or ""
+        body = body.strip()
+        if len(body) <= OP_SNIPPET_MAX:
+            return body
+        return f"{body[:OP_SNIPPET_MAX].rstrip()}…"
 
 
 class ThreadDetailSerializer(ThreadListSerializer):
@@ -214,3 +225,13 @@ def annotate_reply_counts(queryset):
             filter=Q(posts__is_op=False, posts__is_hidden=False),
         )
     )
+
+
+def annotate_op_preview(queryset):
+    """Annotate the OP body for catalog previews (one cheap subquery)."""
+    first_post = (
+        Post.objects.filter(thread=OuterRef("pk"), is_hidden=False)
+        .order_by("id")
+        .values("body")[:1]
+    )
+    return queryset.annotate(op_body=Subquery(first_post))

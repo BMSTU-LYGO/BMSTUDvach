@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 
 import LaunchBay from '@/components/launch/LaunchBay.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
+import CatalogCard from '@/components/thread/CatalogCard.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -31,6 +32,18 @@ const creating = ref(false)
 const createdError = ref('')
 const createSuccessToken = ref(0)
 const launchOpen = ref(false)
+
+// board view: signal rows (list) or cluster nodes (catalog)
+type ViewMode = 'list' | 'catalog'
+const VIEW_KEY = 'board-view-mode'
+const viewMode = ref<ViewMode>(
+  (localStorage.getItem(VIEW_KEY) as ViewMode) || 'list',
+)
+
+function setViewMode(mode: ViewMode) {
+  viewMode.value = mode
+  localStorage.setItem(VIEW_KEY, mode)
+}
 
 const threads = computed(() => store.threadList.threads)
 
@@ -86,10 +99,34 @@ function captureRow(event: MouseEvent, threadId: number) {
   <section class="board-page">
     <div class="board-header">
       <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
-      <button ref="launchBtnRef" type="button" class="launch-trigger" @click="openLaunchBay">
-        <NetworkIcon name="transmit" :size="16" />
-        <span class="launch-trigger__label">Новый тред</span>
-      </button>
+      <div class="board-header__actions">
+        <div class="view-switch" role="group" aria-label="Вид разделы">
+          <button
+            type="button"
+            class="view-switch__btn"
+            :class="{ 'view-switch__btn--active': viewMode === 'list' }"
+            aria-label="Список тредов"
+            :aria-pressed="viewMode === 'list'"
+            @click="setViewMode('list')"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12M2 8h12M2 13h12"/></svg>
+          </button>
+          <button
+            type="button"
+            class="view-switch__btn"
+            :class="{ 'view-switch__btn--active': viewMode === 'catalog' }"
+            aria-label="Каталог узлов"
+            :aria-pressed="viewMode === 'catalog'"
+            @click="setViewMode('catalog')"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>
+          </button>
+        </div>
+        <button ref="launchBtnRef" type="button" class="launch-trigger" @click="openLaunchBay">
+          <NetworkIcon name="transmit" :size="16" />
+          <span class="launch-trigger__label">Новый тред</span>
+        </button>
+      </div>
     </div>
 
     <LaunchBay
@@ -117,15 +154,25 @@ function captureRow(event: MouseEvent, threadId: number) {
     <div
       v-else
       ref="sectionRef"
-      class="threads-list"
-      :class="{ 'threads-list--staged': launchOpen }"
+      :class="viewMode === 'catalog' ? 'catalog-grid' : 'threads-list'"
+      :data-staged="launchOpen"
     >
-      <ThreadRow
-        v-for="thread in threads"
-        :key="thread.id"
-        :thread="thread"
-        @open="captureRow"
-      />
+      <template v-if="viewMode === 'catalog'">
+        <CatalogCard
+          v-for="thread in threads"
+          :key="thread.id"
+          :thread="thread"
+          @open="captureRow"
+        />
+      </template>
+      <template v-else>
+        <ThreadRow
+          v-for="thread in threads"
+          :key="thread.id"
+          :thread="thread"
+          @open="captureRow"
+        />
+      </template>
     </div>
   </section>
 </template>
@@ -184,7 +231,9 @@ function captureRow(event: MouseEvent, threadId: number) {
 }
 
 /* while the Launch Bay owns the stage the list recedes */
-.threads-list--staged {
+.threads-list--staged,
+.threads-list[data-staged='true'],
+.catalog-grid[data-staged='true'] {
   transform: scale(0.97);
   filter: blur(2px);
   opacity: 0.55;
@@ -193,6 +242,50 @@ function captureRow(event: MouseEvent, threadId: number) {
     transform 350ms var(--ease-out-quart),
     filter 350ms var(--ease-out-quart),
     opacity 350ms var(--ease-out-quart);
+}
+
+.board-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* segmented view switch — instrumentation, not a pill group */
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.view-switch__btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 160ms, background 160ms;
+}
+
+.view-switch__btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.view-switch__btn--active {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+/* catalog = cluster of nodes */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
 }
 
 /* Thread list */

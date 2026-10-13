@@ -40,6 +40,7 @@ const rows = computed<Row[]>(() => {
     id: t.id,
     title: t.title,
     meta: `/${t.board}/ · ${t.reply_count} ${t.reply_count === 1 ? 'ответ' : 'ответов'}`,
+    snippet: t.op_snippet || undefined,
     to: `/threads/${t.id}`,
   }))
   const postRows: Row[] = results.value.posts.map((p: SearchPostHit) => ({

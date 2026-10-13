@@ -14,6 +14,7 @@ from apps.forum.serializers import (
     ThreadCreateSerializer,
     ThreadDetailSerializer,
     ThreadListSerializer,
+    annotate_op_preview,
     annotate_reply_counts,
     annotate_thread_counts,
 )
@@ -53,10 +54,12 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         return self._board
 
     def get_queryset(self):
-        return annotate_reply_counts(
-            Thread.objects.for_listing()
-            .filter(board=self._get_board())
-            .order_by("-is_pinned", "-bumped_at")
+        return annotate_op_preview(
+            annotate_reply_counts(
+                Thread.objects.for_listing()
+                .filter(board=self._get_board())
+                .order_by("-is_pinned", "-bumped_at")
+            )
         )
 
     def get_serializer_class(self):
@@ -100,10 +103,12 @@ class SearchView(APIView):
         posts: list = []
         if query:
             threads = list(
-                annotate_reply_counts(
-                    Thread.objects.for_listing()
-                    .filter(board__is_active=True, title__icontains=query)
-                    .order_by("-is_pinned", "-bumped_at")
+                annotate_op_preview(
+                    annotate_reply_counts(
+                        Thread.objects.for_listing()
+                        .filter(board__is_active=True, title__icontains=query)
+                        .order_by("-is_pinned", "-bumped_at")
+                    )
                 )[: self.LIMIT]
             )
             posts = list(
@@ -152,10 +157,12 @@ class RecentThreadListView(generics.ListAPIView):
             limit = min(max(int(self.request.query_params.get("limit", 8)), 1), 20)
         except ValueError:
             limit = 8
-        return annotate_reply_counts(
-            Thread.objects.for_listing()
-            .filter(board__is_active=True)
-            .order_by("-is_pinned", "-bumped_at")
+        return annotate_op_preview(
+            annotate_reply_counts(
+                Thread.objects.for_listing()
+                .filter(board__is_active=True)
+                .order_by("-is_pinned", "-bumped_at")
+            )
         )[:limit]
 
 
