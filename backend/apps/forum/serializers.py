@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -7,7 +8,12 @@ from rest_framework import serializers
 
 from apps.common.utils import client_fingerprint
 from apps.forum.models import Attachment, Board, Post, Thread
-from apps.forum.validators import validate_attachment, validate_post_body
+from apps.forum.validators import (
+    probe_image_size,
+    read_attachment_header,
+    validate_attachment,
+    validate_post_body,
+)
 
 
 class BoardSerializer(serializers.ModelSerializer):
@@ -111,12 +117,16 @@ class ThreadDetailSerializer(ThreadListSerializer):
 
 def _create_attachments(post: Post, files: list) -> None:
     for uploaded in files:
-        validate_attachment(uploaded)
+        mime_type = getattr(uploaded, "content_type", "") or ""
+        head = read_attachment_header(uploaded) or b""
+        width, height = probe_image_size(head, mime_type)
         Attachment.objects.create(
             post=post,
             file=uploaded,
-            mime_type=getattr(uploaded, "content_type", "") or "",
+            mime_type=mime_type,
             size=getattr(uploaded, "size", 0) or 0,
+            width=width,
+            height=height,
             original_name=getattr(uploaded, "name", "") or "",
         )
 
@@ -127,6 +137,16 @@ class ThreadCreateSerializer(serializers.Serializer):
     attachments = serializers.ListField(
         child=serializers.FileField(), required=False, max_length=4
     )
+
+    def validate_attachments(self, value: list) -> list:
+        # Field-level validation: a bad file must be a 400 attached to the
+        # attachments field, not a 500 raised inside the atomic create.
+        for uploaded in value or []:
+            try:
+                validate_attachment(uploaded)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.messages)
+        return value
 
     def create(self, validated_data: dict) -> Thread:
         board: Board = self.context["board"]
@@ -153,6 +173,14 @@ class PostCreateSerializer(serializers.Serializer):
     attachments = serializers.ListField(
         child=serializers.FileField(), required=False, max_length=4
     )
+
+    def validate_attachments(self, value: list) -> list:
+        for uploaded in value or []:
+            try:
+                validate_attachment(uploaded)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.messages)
+        return value
 
     def validate(self, attrs: dict) -> dict:
         thread: Thread = self.context["thread"]

@@ -160,6 +160,11 @@ CORS_ALLOW_CREDENTIALS = True
 # --- CSRF -------------------------------------------------------------------
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "http://localhost:5173")
 
+# --- Security headers -------------------------------------------------------
+# User uploads are served back with the type we validated: no sniffing.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+
 # --- OpenAPI ----------------------------------------------------------------
 SPECTACULAR_SETTINGS = {
     "TITLE": "BMSTUDvach API",

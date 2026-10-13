@@ -35,16 +35,18 @@ const isImage = (mime: string) => mime.startsWith('image/')
 .attachment-img {
   max-width: 100%;
   max-height: 240px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-deep);
 }
 .attachment-file {
   display: inline-block;
   padding: 0.3rem 0.6rem;
-  background: #eee;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  color: #333;
-  font-size: 0.85rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
 }
 </style>
