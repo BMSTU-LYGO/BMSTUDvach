@@ -179,3 +179,27 @@ Stories are finally readable: /platinum/:id calm reading stage
 - verified live: boards thread_count, recent feed, post links,
   platinum detail, media 200; backend 53 tests, ruff, schema clean
 - remaining ops gap: production media serving (nginx/S3) — documented
+
+## Feature expansion round (NEXT-05..09)
+- NEXT-05 SCAN: global network search — GET /search/?q= (titles + bodies,
+  visible only, snippets) + ScanLens overlay on Cmd/Ctrl+K (yields to
+  dock/fields), header trigger; 11 tests
+- NEXT-06 CATALOG: board as cluster — op_snippet annotation on listings,
+  CatalogCard (node id / state glyphs / reply count / teaser), segmented
+  list-catalog switch persisted in localStorage
+- NEXT-07 SAGE + PREVIEW: Post.sage (migration) — quiet replies that do
+  not bump the thread; dock toggle + /sage; post preview through the real
+  link parser; sage badge on posts
+- NEXT-08 WATCHLIST: anonymous device-local watchlist with seen-reply
+  snapshots; WatchPanel on Home with unread badges (dead threads drop
+  themselves out); track toggle in the thread title row
+- NEXT-09 MOD CONSOLE: staff API (login/me/reports queue/resolve/post and
+  thread hide-show-lock-unlock) + ModerationView with session gate,
+  quick tools; /mod/ header link only for staff
+- LIVE-QA found + fixed: DRF SessionAuthentication CSRF — credentials:
+  'include' + X-CSRFToken + csrftoken cookie on login; verified the full
+  staff flow against the running stack
+
+Verified: frontend 94 tests · backend 70 · verify:3d 46 · ruff · build ·
+spectacular clean · live API flows (scan, catalog fields, sage, watch,
+staff console)
