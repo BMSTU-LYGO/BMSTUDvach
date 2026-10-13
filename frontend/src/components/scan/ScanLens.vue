@@ -6,6 +6,7 @@ import { listBoards } from '@/api/boards'
 import { searchNetwork, type SearchPostHit, type SearchResults } from '@/api/search'
 import type { Board, ThreadSummary } from '@/types'
 import NetworkIcon from '../composer/NetworkIcon.vue'
+import ScanHighlight from './ScanHighlight.vue'
 
 /**
  * SCAN LENS (NEXT-05) — global network search on Cmd/Ctrl+K.
@@ -263,8 +264,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 {{ row.kind === 'thread' ? '◈' : '◆' }}
               </span>
               <span class="scan-row__body">
-                <span class="scan-row__title">{{ row.title }}</span>
-                <span v-if="row.snippet" class="scan-row__snippet">{{ row.snippet }}</span>
+                <span class="scan-row__title">
+                  <ScanHighlight :text="row.title" :query="query" />
+                </span>
+                <span v-if="row.snippet" class="scan-row__snippet">
+                  <ScanHighlight :text="row.snippet" :query="query" />
+                </span>
                 <span class="scan-row__meta">{{ row.meta }}</span>
               </span>
             </button>

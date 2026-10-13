@@ -90,7 +90,7 @@ const thread: ThreadDetail = {
   ],
 }
 
-async function mountThread() {
+async function mountThread(hash = '') {
   const r = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -98,6 +98,7 @@ async function mountThread() {
       { path: '/threads/:threadId', component: { template: '<div />' } },
     ],
   })
+  if (hash) await r.push(`/threads/1${hash}`)
   const wrapper = mount(ThreadView, {
     props: { threadId: 1 },
     attachTo: document.body,
@@ -296,5 +297,110 @@ describe('ThreadView — маркер новых сообщений', () => {
     // граница дошла до последнего поста — разделитель ушёл
     expect(wrapper.find('[data-testid="new-posts-divider"]').exists()).toBe(false)
     expect(JSON.parse(localStorage.getItem(SEEN_KEY)!)).toEqual({ '1': 6 })
+  })
+})
+
+const POSITION_KEY = 'bmstud-thread-position'
+
+function storedPositions(): Record<string, number> {
+  const raw = localStorage.getItem(POSITION_KEY)
+  return raw ? JSON.parse(raw) : {}
+}
+
+function setScrollY(y: number) {
+  Object.defineProperty(window, 'scrollY', { value: y, configurable: true })
+}
+
+describe('ThreadView — восстановление позиции чтения', () => {
+  let wrapper: Awaited<ReturnType<typeof mountThread>> | undefined
+  let scrollTo: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.mocked(getThread).mockResolvedValue(thread)
+    Element.prototype.scrollIntoView = vi.fn()
+    scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    wrapper?.unmount()
+    wrapper = undefined
+  })
+
+  it('восстанавливает сохранённую позицию после рендера постов', async () => {
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ '1': 640 }))
+    wrapper = await mountThread()
+
+    expect(scrollTo).toHaveBeenCalledWith(0, 640)
+    expect(storedPositions()).toEqual({ '1': 640 })
+  })
+
+  it('не трогает скролл при первом посещении треда', async () => {
+    wrapper = await mountThread()
+
+    expect(scrollTo).not.toHaveBeenCalled()
+    expect(localStorage.getItem(POSITION_KEY)).toBeNull()
+  })
+
+  it('не восстанавливает позицию для другого треда', async () => {
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ '42': 640 }))
+    wrapper = await mountThread()
+
+    expect(scrollTo).not.toHaveBeenCalled()
+    expect(storedPositions()).toEqual({ '42': 640 })
+  })
+
+  it('отдаёт приоритет якорю #post-N — restore пропущен', async () => {
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ '1': 640 }))
+    wrapper = await mountThread('#post-2')
+
+    expect(wrapper.find('#post-2').exists()).toBe(true)
+    expect(scrollTo).not.toHaveBeenCalledWith(0, 640)
+  })
+
+  it('запоминает позицию при уходе со страницы', async () => {
+    wrapper = await mountThread()
+    expect(localStorage.getItem(POSITION_KEY)).toBeNull()
+
+    setScrollY(300)
+    wrapper.unmount()
+
+    expect(storedPositions()).toEqual({ '1': 300 })
+    wrapper = undefined
+  })
+
+  it('пишет позицию на скролле', async () => {
+    wrapper = await mountThread()
+
+    setScrollY(480)
+    window.dispatchEvent(new Event('scroll'))
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    expect(storedPositions()).toEqual({ '1': 480 })
+
+    // второй скролл в пределах троттлинга (~200 мс) не перезаписывает позицию
+    setScrollY(120)
+    window.dispatchEvent(new Event('scroll'))
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    expect(storedPositions()).toEqual({ '1': 480 })
+  })
+
+  it('переживает обновление треда — позиция не прыгает назад', async () => {
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ '1': 640 }))
+    wrapper = await mountThread()
+    expect(scrollTo).toHaveBeenCalledWith(0, 640)
+
+    scrollTo.mockClear()
+    // свой ответ перечитывает тред: watcher срабатывает повторно
+    await wrapper.find('[data-testid="signal-input"]').setValue('ещё пост')
+    await wrapper.find('.transmit').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="post"]')).toHaveLength(2)
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 })

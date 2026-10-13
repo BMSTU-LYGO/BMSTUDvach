@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import Http404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.forum.models import Board, Post, Thread
+from apps.forum.search_query import ParsedSearchQuery, parse_search_query
 from apps.forum.serializers import (
     BoardSerializer,
     PostCreateSerializer,
@@ -106,9 +107,19 @@ class SearchView(APIView):
     substring matching is honest about what it is — Postgres FTS is a
     later concern.
 
-    The optional ``board`` query parameter narrows both result lists to a
-    single board (by slug). An unknown slug is not an error: the scan just
-    stays quiet and returns empty lists, same as a query without hits.
+    The query itself composes classic search-engine operators (see
+    :func:`apps.forum.search_query.parse_search_query`):
+
+    * plain words — thread titles and post bodies, as before;
+    * ``title:<слово>`` — thread titles only; post bodies are skipped
+      entirely, so ``posts`` comes back empty. Repeated ``title:``
+      operators are OR'ed, and they AND with the plain words;
+    * ``board:<slug>`` — narrow both result lists to one board, same as the
+      ``board`` query parameter. The operator wins when the two disagree.
+
+    An unknown board slug is not an error: the scan just stays quiet and
+    returns empty lists, same as a query without hits. The response shape
+    never depends on the operators — ``query`` echoes the string as typed.
     """
 
     permission_classes = [permissions.AllowAny]
@@ -118,35 +129,29 @@ class SearchView(APIView):
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()
         board = (request.query_params.get("board") or "").strip()
+        parsed = parse_search_query(query)
+        if parsed.board_slug:
+            board = parsed.board_slug
         threads: list = []
         posts: list = []
-        if query:
-            thread_scope = {
-                "board__is_active": True,
-                "title__icontains": query,
-            }
-            post_scope = {
-                "thread__board__is_active": True,
-                "body__icontains": query,
-            }
-            if board:
-                thread_scope["board__slug"] = board
-                post_scope["thread__board__slug"] = board
+        if query and parsed.has_criteria:
+            needles = " ".join(parsed.terms)
             threads = list(
                 annotate_op_preview(
                     annotate_reply_counts(
                         Thread.objects.for_listing()
-                        .filter(**thread_scope)
+                        .filter(_thread_scope(parsed, needles, board))
                         .order_by("-is_pinned", "-bumped_at")
                     )
                 )[: self.LIMIT]
             )
-            posts = list(
-                Post.objects.visible()
-                .select_related("thread")
-                .filter(**post_scope)
-                .order_by("-created_at")[: self.LIMIT]
-            )
+            if not parsed.title_only:
+                posts = list(
+                    Post.objects.visible()
+                    .select_related("thread")
+                    .filter(_post_scope(needles, board))
+                    .order_by("-created_at")[: self.LIMIT]
+                )
         return Response(
             {
                 "query": query,
@@ -157,7 +162,7 @@ class SearchView(APIView):
                         "thread": post.thread_id,
                         "thread_title": post.thread.title,
                         "is_op": post.is_op,
-                        "snippet": _snippet(post.body, query, 140),
+                        "snippet": _snippet(post.body, needles, 140),
                     }
                     for post in posts
                 ],
@@ -165,8 +170,43 @@ class SearchView(APIView):
         )
 
 
+def _thread_scope(parsed: ParsedSearchQuery, needles: str, board: str) -> Q:
+    """Build the thread filter for a parsed scan query.
+
+    ``title:`` words are OR'ed (any of them may match), the plain words
+    stay a single substring match, and everything ANDs together.
+    """
+    scope = Q(board__is_active=True)
+    if board:
+        scope &= Q(board__slug=board)
+    if parsed.title_terms:
+        scope &= _any_of("title__icontains", parsed.title_terms)
+    if needles:
+        scope &= Q(title__icontains=needles)
+    return scope
+
+
+def _post_scope(needles: str, board: str) -> Q:
+    """Build the post-body filter for a parsed scan query."""
+    scope = Q(thread__board__is_active=True)
+    if board:
+        scope &= Q(thread__board__slug=board)
+    if needles:
+        scope &= Q(body__icontains=needles)
+    return scope
+
+
+def _any_of(lookup: str, values: list[str]) -> Q:
+    """OR a set of ``icontains`` lookups: any single value may match."""
+    scope = Q()
+    for value in values:
+        scope |= Q(**{lookup: value})
+    return scope
+
+
 def _snippet(body: str, query: str, radius: int) -> str:
-    index = body.lower().find(query.lower())
+    """Cut a window of ``body`` around the first occurrence of ``query``."""
+    index = body.lower().find(query.lower()) if query else -1
     if index < 0:
         return body[: radius * 2]
     start = max(0, index - radius)

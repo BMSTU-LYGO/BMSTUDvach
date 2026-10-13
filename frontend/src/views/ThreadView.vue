@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import SignalDock from '@/components/composer/SignalDock.vue'
@@ -19,6 +20,7 @@ import { usePostReveal } from '@/composables/usePostReveal'
 import { useThreadSeen } from '@/composables/useThreadSeen'
 import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
+import { useReadingPosition } from '@/composables/useReadingPosition'
 import { useWatchlist } from '@/composables/useWatchlist'
 import { emitSceneEvent } from '@/three/sceneState'
 import { apiErrorMessage } from '@/api/client'
@@ -44,6 +46,13 @@ const dockEl = ref<HTMLElement | null>(null)
 
 const watchlist = useWatchlist()
 const watched = ref(false)
+
+const route = useRoute()
+const readingPosition = useReadingPosition()
+/** Подписка на позицию чтения: живёт, пока открыт тред. */
+let stopPositionWatch: (() => void) | null = null
+/** Позицию возвращаем один раз за монтирование — повторный рендер не должен прыгать. */
+let positionRestored = false
 
 // reader state
 const previewPost = ref<Post | null>(null)
@@ -87,6 +96,14 @@ onMounted(() => {
   void store.fetchThread(props.threadId)
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('keydown', onWindowKeydown)
+  stopPositionWatch = readingPosition.watchPosition(props.threadId)
+})
+
+onBeforeUnmount(() => {
+  // фиксируем позицию, пока тред ещё в DOM и scrollY не сброшен
+  readingPosition.remember(threadIdValue.value, window.scrollY)
+  stopPositionWatch?.()
+  stopPositionWatch = null
 })
 
 onUnmounted(() => {
@@ -108,8 +125,20 @@ watch(
     // entering the thread counts as reading it
     watched.value = watchlist.isTracked(props.threadId)
     watchlist.markSeen(props.threadId, thread.reply_count)
+    restoreReadingPosition()
   },
 )
+
+/**
+ * Возвращает читателя туда, где он остановился в прошлый раз. Якорь в URL
+ * важнее: тред, открытый ссылкой на пост, скроллит к посту, а не к позиции.
+ */
+function restoreReadingPosition() {
+  if (positionRestored) return
+  positionRestored = true
+  if (route?.hash || window.location.hash) return
+  readingPosition.restore(threadIdValue.value)
+}
 
 function toggleWatch() {
   const thread = store.thread.thread

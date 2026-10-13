@@ -188,6 +188,8 @@ FORUM_ALLOWED_ATTACHMENT_MIME_TYPES = [
     "application/pdf",
     "text/plain",
 ]
+# Product rule, not an env knob: a thread that reaches this many posts locks itself.
+THREAD_POST_LIMIT = 500
 
 # --- Platinum ---------------------------------------------------------------
 PLATINUM_GENERATOR_PROVIDER = os.getenv("PLATINUM_GENERATOR_PROVIDER", "fake")

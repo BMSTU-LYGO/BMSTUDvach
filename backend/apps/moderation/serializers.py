@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.moderation.models import ModerationLog, Report
+from apps.moderation.models import Announcement, ModerationLog, Report
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):
@@ -64,4 +64,30 @@ class ModerationLogSerializer(serializers.ModelSerializer):
             "note",
             "created_at",
         )
+        read_only_fields = fields
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    """Full announcement payload for the staff console CRUD."""
+
+    class Meta:
+        model = Announcement
+        fields = (
+            "id",
+            "text",
+            "is_active",
+            "created_by",
+            "starts_at",
+            "ends_at",
+            "created_at",
+        )
+        read_only_fields = ("id", "created_by", "created_at")
+
+
+class PublicAnnouncementSerializer(serializers.ModelSerializer):
+    """The only announcement data a visitor is allowed to see."""
+
+    class Meta:
+        model = Announcement
+        fields = ("id", "text")
         read_only_fields = fields

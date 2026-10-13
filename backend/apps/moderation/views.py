@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate, login
+from django.db.models import Q
 from django.http import Http404
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
@@ -10,10 +12,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.forum.models import Post, Thread
-from apps.moderation.models import ModerationLog, Report
+from apps.moderation.models import Announcement, ModerationLog, Report
 from apps.moderation.serializers import (
+    AnnouncementSerializer,
     ModerationLogSerializer,
     ModerationPostSerializer,
+    PublicAnnouncementSerializer,
     ReportCreateSerializer,
     ReportResolveSerializer,
     StaffLoginSerializer,
@@ -148,6 +152,82 @@ class ReportQueueView(generics.ListAPIView):
             for report in reports
         ]
         return Response({"reports": data})
+
+
+def _live_announcements():
+    """Active announcements inside their display window, newest first."""
+    now = timezone.now()
+    return (
+        Announcement.objects.filter(
+            Q(starts_at__isnull=True) | Q(starts_at__lte=now),
+            Q(ends_at__isnull=True) | Q(ends_at__gt=now),
+            is_active=True,
+        )
+        .order_by("-created_at")
+        .values("id", "text")
+    )
+
+
+@extend_schema(responses={200: PublicAnnouncementSerializer(many=True)})
+class ActiveAnnouncementsView(generics.ListAPIView):
+    """Public banner feed: up to three live announcements for visitors."""
+
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+    serializer_class = PublicAnnouncementSerializer
+
+    def get_queryset(self):
+        return _live_announcements()[:3]
+
+    def list(self, request, *args, **kwargs):
+        return Response(list(self.get_queryset()))
+
+
+@extend_schema(
+    request=AnnouncementSerializer,
+    responses={201: PublicAnnouncementSerializer},
+)
+class AnnouncementCreateView(generics.CreateAPIView):
+    """Publish a site-wide announcement (staff only)."""
+
+    permission_classes = [StaffOnly]
+    serializer_class = AnnouncementSerializer
+
+    def perform_create(self, serializer) -> Announcement:
+        return serializer.save(created_by=self.request.user.get_username())
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        announcement = self.perform_create(serializer)
+        self.published_id = announcement.id
+        return Response(
+            PublicAnnouncementSerializer(announcement).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@extend_schema(request=None, responses={200: PublicAnnouncementSerializer})
+class AnnouncementToggleView(APIView):
+    """Enable/disable an announcement (staff only)."""
+
+    permission_classes = [StaffOnly]
+
+    def post(self, request, pk):
+        try:
+            announcement = Announcement.objects.get(pk=pk)
+        except Announcement.DoesNotExist as exc:
+            raise Http404("Announcement not found.") from exc
+
+        announcement.is_active = not announcement.is_active
+        announcement.save(update_fields=["is_active", "updated_at"])
+        return Response(
+            {
+                "id": announcement.id,
+                "is_active": announcement.is_active,
+                "text": announcement.text,
+            }
+        )
 
 
 class ModerationLogListView(APIView):

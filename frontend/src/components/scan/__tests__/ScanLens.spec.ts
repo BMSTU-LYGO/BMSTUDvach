@@ -4,13 +4,15 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 
 vi.mock('@/api/client', () => ({ request: vi.fn() }))
 vi.mock('@/api/boards', () => ({ listBoards: vi.fn() }))
-vi.mock('@/api/search', () => ({
-  searchNetwork: vi.fn(),
-}))
+vi.mock('@/api/search', async (importOriginal) => {
+  // only the network call is stubbed — highlightRanges is pure and real
+  const actual = await importOriginal<typeof import('@/api/search')>()
+  return { ...actual, searchNetwork: vi.fn() }
+})
 
 import ScanLens from '../ScanLens.vue'
 import { listBoards } from '@/api/boards'
-import { searchNetwork } from '@/api/search'
+import { searchNetwork, highlightRanges } from '@/api/search'
 import { request } from '@/api/client'
 import type { SearchResults } from '@/api/search'
 import type { Board } from '@/types'
@@ -236,6 +238,168 @@ describe('ScanLens', () => {
     await flushPromises()
     expect(chip(wrapper, '').attributes('aria-pressed')).toBe('true')
     expect(chip(wrapper, 'study').attributes('aria-pressed')).toBe('false')
+  })
+})
+
+describe('search highlighting', () => {
+  function marks(node: DOMWrapper<Element>) {
+    return node.findAll('mark').map((m) => m.text())
+  }
+
+  async function type(
+    wrapper: ReturnType<typeof mountLens>,
+    value: string,
+    hits: SearchResults = data,
+  ) {
+    vi.mocked(searchNetwork).mockResolvedValue(hits)
+    await wrapper.find('[data-testid="scan-input"]').setValue(value)
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 250))
+    await flushPromises()
+    return wrapper.findAll('[data-testid="scan-row"]')
+  }
+
+  it('wraps the matching part of a title and a snippet in <mark>', async () => {
+    const wrapper = mountLens()
+    const rows = await type(wrapper, 'сесси', data)
+
+    expect(rows).toHaveLength(2)
+    expect(marks(rows[0])).toEqual(['сесси'])
+    expect(rows[0].text()).toContain('Советы по сдаче сессии')
+    expect(marks(rows[1])).toEqual(['сесси'])
+    expect(rows[1].text()).toContain('сплетнями про сессию')
+    expect(rows[0].find('mark').classes()).toContain('scan__mark')
+
+    wrapper.unmount()
+  })
+
+  it('highlights every occurrence of a term, case-insensitively', async () => {
+    const hits: SearchResults = {
+      query: 'сессия',
+      threads: [],
+      posts: [
+        {
+          id: 28,
+          thread: 10,
+          thread_title: 'Сессия и сессия',
+          is_op: false,
+          snippet: 'СЕССИЯ близко, сессия уже сдана',
+        },
+      ],
+    }
+    const wrapper = mountLens()
+    const rows = await type(wrapper, 'сессия', hits)
+
+    expect(rows).toHaveLength(1)
+    expect(marks(rows[0])).toEqual(['Сессия', 'сессия', 'СЕССИЯ', 'сессия'])
+
+    wrapper.unmount()
+  })
+
+  it('never highlights the title:/board: operators themselves', async () => {
+    const query = 'title:диффуры board:study'
+    const hits: SearchResults = {
+      query,
+      threads: [
+        {
+          id: 9,
+          board: 'study',
+          title: 'Диффуры и зачёты',
+          is_pinned: false,
+          is_locked: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          bumped_at: new Date().toISOString(),
+          reply_count: 2,
+          op_snippet: 'решаем диффуры в study-канале',
+        },
+      ],
+      posts: [
+        {
+          id: 30,
+          thread: 9,
+          thread_title: 'Диффуры и зачёты',
+          is_op: false,
+          snippet: 'сдали study',
+        },
+      ],
+    }
+    const wrapper = mountLens()
+    const rows = await type(wrapper, query, hits)
+
+    expect(searchNetwork).toHaveBeenLastCalledWith(query, { board: null })
+    expect(rows).toHaveLength(2)
+
+    const highlighted = rows.flatMap((row) => marks(row))
+    expect(highlighted).toEqual(['Диффуры', 'диффуры', 'Диффуры'])
+    expect(highlighted.join(' ')).not.toMatch(/title|board|study/i)
+    expect(rows[0].text()).toContain('Диффуры и зачёты')
+    expect(rows[0].text()).toContain('решаем диффуры в study-канале')
+
+    wrapper.unmount()
+  })
+
+  it('keeps rows unmarked when the query carries no usable term', async () => {
+    const wrapper = mountLens()
+    const rows = await type(wrapper, 'я', data)
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0].findAll('mark')).toHaveLength(0)
+    expect(rows[0].text()).toContain('Советы по сдаче сессии')
+
+    wrapper.unmount()
+  })
+})
+
+describe('highlightRanges', () => {
+  function slices(text: string, ranges: Array<[number, number]>) {
+    return ranges.map(([start, end]) => text.slice(start, end))
+  }
+
+  it('matches terms case-insensitively', () => {
+    const text = 'Советы по сдаче сессии'
+    expect(slices(text, highlightRanges(text, 'СЕССИ'))).toEqual(['сесси'])
+    expect(slices(text, highlightRanges(text, 'сесси'))).toEqual(['сесси'])
+  })
+
+  it('finds every occurrence of every term', () => {
+    const text = 'сессия и зачёт'
+    expect(slices(text, highlightRanges(text, 'сессия'))).toEqual(['сессия'])
+    expect(slices(text, highlightRanges(text, 'зачёт сессия'))).toEqual([
+      'сессия',
+      'зачёт',
+    ])
+  })
+
+  it('treats title: values as terms but drops board: scopes', () => {
+    const text = 'Учёба и диффуры'
+    expect(slices(text, highlightRanges(text, 'title:диффуры board:study'))).toEqual([
+      'диффуры',
+    ])
+    expect(highlightRanges('study hard', 'board:study')).toEqual([])
+    expect(highlightRanges('title:', 'title:')).toEqual([])
+  })
+
+  it('merges overlapping ranges into one', () => {
+    expect(highlightRanges('сессия', 'сесси сессия')).toEqual([[0, 6]])
+    expect(highlightRanges('абаба', 'аба')).toEqual([[0, 5]])
+  })
+
+  it('ignores operators, short terms and empty queries', () => {
+    expect(
+      highlightRanges('title:диффуры board:study', 'title:диффуры board:study'),
+    ).toEqual([[6, 13]])
+    expect(highlightRanges('я тут и там', 'я и')).toEqual([])
+    expect(highlightRanges('ab cd', 'a b')).toEqual([])
+    expect(highlightRanges('Советы по сдаче сессии', '')).toEqual([])
+    expect(highlightRanges('Советы по сдаче сессии', '   ')).toEqual([])
+    expect(highlightRanges('', 'сесси')).toEqual([])
+    expect(highlightRanges('Советы по сдаче сессии', 'board:study')).toEqual([])
+  })
+  it('trims punctuation hugging a term', () => {
+    const text = 'сесси, сдана'
+    expect(slices(text, highlightRanges(text, 'сесси,'))).toEqual(['сесси'])
+    expect(slices(text, highlightRanges(text, '(сесси)'))).toEqual(['сесси'])
   })
 })
 

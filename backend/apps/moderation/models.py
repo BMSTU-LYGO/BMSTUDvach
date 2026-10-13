@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import models
+from django.utils import timezone
 
 from apps.common.models import TimeStampedModel
 
@@ -73,3 +74,30 @@ class ModerationLog(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.actor} → {self.action} {self.target_type} #{self.target_id}"
+
+
+class Announcement(TimeStampedModel):
+    """A site-wide notice shown to every visitor (rules, downtime, etc.)."""
+
+    text = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_by = models.CharField(max_length=150, blank=True, default="")
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["-created_at"])]
+
+    def __str__(self) -> str:
+        return f"Announcement #{self.pk}: {self.text[:40]}"
+
+    @property
+    def is_live(self) -> bool:
+        """Visible for everyone right now: active and within its window."""
+        now = timezone.now()
+        if not self.is_active:
+            return False
+        if self.starts_at and self.starts_at > now:
+            return False
+        return not (self.ends_at and self.ends_at <= now)

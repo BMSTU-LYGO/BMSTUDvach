@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import ScanLens from '@/components/scan/ScanLens.vue'
+import AnnouncementBanner from '@/components/ui/AnnouncementBanner.vue'
 import OfflineBadge from '@/components/ui/OfflineBadge.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
 import { usePwa } from '@/composables/usePwa'
@@ -56,6 +57,7 @@ onMounted(() => void registerPwa())
     <a href="#main-content" class="skip-link">Перейти к содержимому</a>
     <AmbientField />
     <AppHeader @scan="scanOpen = true" />
+    <AnnouncementBanner />
     <OfflineBadge :online="online" />
     <main id="main-content" class="content">
       <RouterView v-slot="{ Component }">

@@ -277,3 +277,26 @@ pagination contract unchanged
 Verified: frontend 235 tests · backend 158 · verify:3d 46 · ruff ·
 spectacular · build PASS · live: search?board= quiet-empty,
 /sitemap.xml, /robots.txt
+
+## Functions round (AUTOLOCK/ANNOUNCE/NAV/POSITION/SEARCH-02/USERDATA) — done (pushed)
+- AUTOLOCK-01: THREAD_POST_LIMIT=500 (settings) — the post that reaches
+  the limit is created, then the thread auto-locks; visible posts only,
+  pinned included, sage counted; 7 tests
+- ANNOUNCE-01: Announcement model + public GET /announcements/ (live,
+  window-aware, max 3) + staff POST /moderation/announcements/ and
+  /toggle/; AnnouncementBanner under the header (close dismissed per
+  session, dots carousel); migration 0003; 17 tests
+- NAV-01: vim navigation g→h/b/m/t, / opens the scan lens; 1.5s prefix
+  timeout, guards for inputs/dialogs/modifiers; 19 tests
+- POSITION-01: per-thread scroll restore (localStorage, rAF-throttled
+  writes, hash anchor wins over restore); 16+4 tests
+- SEARCH-02: query operators board:<slug> (wins over ?board=) and
+  title:<word> (titles only, posts empty); ScanLens <mark> highlighting
+  via ScanHighlight (operators never highlighted)
+- USERDATA-01: privacy panel on /about — download JSON of all app-owned
+  localStorage keys + two-step reset (Esc/auto-cancel, role=status);
+  foreign keys never touched; 16 tests
+
+Verified: frontend 310 tests · backend 170 · verify:3d 46 · ruff ·
+spectacular · build PASS · live: /announcements/ (migrated),
+search operators against the stack

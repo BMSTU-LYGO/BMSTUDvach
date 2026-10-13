@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery
@@ -241,6 +242,10 @@ class PostCreateSerializer(serializers.Serializer):
             if not sage:
                 # sage = «тихий сигнал»: the post exists but does not bump
                 thread.bump()
+            visible_posts = thread.posts.filter(is_hidden=False).count()
+            if visible_posts >= settings.THREAD_POST_LIMIT and not thread.is_locked:
+                Thread.objects.filter(pk=thread.pk).update(is_locked=True)
+                thread.is_locked = True
         return post
 
 

@@ -8,6 +8,11 @@ urlpatterns = [
         views.ReportCreateView.as_view(),
         name="post-reports",
     ),
+    path(
+        "announcements/",
+        views.ActiveAnnouncementsView.as_view(),
+        name="announcements-active",
+    ),
     # --- staff console -----------------------------------------------------
     path("moderation/login/", views.StaffLoginView.as_view(), name="staff-login"),
     path("moderation/me/", views.StaffMeView.as_view(), name="staff-me"),
@@ -16,6 +21,16 @@ urlpatterns = [
         "moderation/log/",
         views.ModerationLogListView.as_view(),
         name="action-log",
+    ),
+    path(
+        "moderation/announcements/",
+        views.AnnouncementCreateView.as_view(),
+        name="announcement-create",
+    ),
+    path(
+        "moderation/announcements/<int:pk>/toggle/",
+        views.AnnouncementToggleView.as_view(),
+        name="announcement-toggle",
     ),
     path(
         "moderation/reports/<int:pk>/resolve/",
