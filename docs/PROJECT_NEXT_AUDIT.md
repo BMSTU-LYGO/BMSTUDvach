@@ -143,3 +143,19 @@ Stories are finally readable: /platinum/:id calm reading stage
 ## Verified totals
 - frontend: 66 tests, 13 files · verify:3d 46 · lint/build PASS
 - backend: 32 tests · ruff PASS
+
+## Security/moderation round (§40 audit)
+- SEC-01: upload hardening — magic-byte sniffing (declared Content-Type
+  is client-controlled: HTML/SVG-as-PNG used to pass), real image
+  dimensions parsed from headers (width/height finally populated),
+  field-level 400 instead of 500 mid-atomic, SECURE_CONTENT_TYPE_NOSNIFF,
+  frontend accept list mirrors the backend exactly (no SVG via image/*)
+- MOD-01: moderation had ZERO tests — added 9 (reports valid/invalid,
+  hidden post -> 404 for report, hidden content disappears from
+  thread/board, locked thread rejects replies, throttle scopes)
+- ruff B904 fixed; ruff clean; 50 backend tests green
+
+## Known ops gap (documented, not hidden)
+- media files are only served by Django in DEBUG mode; production media
+  serving (nginx/S3 + X-Content-Type-Options) is part of the not-yet
+  implemented production deployment config
