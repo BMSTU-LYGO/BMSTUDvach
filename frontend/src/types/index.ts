@@ -26,6 +26,7 @@ export interface Post {
   thread: number
   body: string
   is_op: boolean
+  sage: boolean
   created_at: string
   updated_at: string
   author: string
@@ -78,6 +79,8 @@ export interface NewThreadInput {
 export interface NewPostInput {
   body: string
   attachments?: File[]
+  /** «Тихий сигнал» — ответ без подъёма треда. */
+  sage?: boolean
 }
 
 export interface NewReportInput {

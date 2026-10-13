@@ -9,6 +9,7 @@ function post(id: number, body: string): Post {
     thread: 1,
     body,
     is_op: id === 1,
+    sage: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     author: 'Аноним',

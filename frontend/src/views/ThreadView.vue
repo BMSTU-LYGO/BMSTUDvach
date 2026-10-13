@@ -7,6 +7,7 @@ import ContextFiber from '@/components/composer/ContextFiber.vue'
 import ReportProbe from '@/components/report/ReportProbe.vue'
 import PostBody from '@/components/thread/PostBody.vue'
 import PostPreview from '@/components/thread/PostPreview.vue'
+import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import ThreadProgress from '@/components/thread/ThreadProgress.vue'
 import AttachmentPreview from '@/components/AttachmentPreview.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -245,6 +246,14 @@ function onScroll() {
             <div class="post-header">
               <span class="post-author">{{ post.author }}</span>
               <span class="post-id">#{{ post.id }}</span>
+              <span
+                v-if="post.sage"
+                class="post-sage"
+                title="Тихий сигнал — не поднимает тред"
+                data-testid="post-sage"
+              >
+                <NetworkIcon name="sage" :size="12" />
+              </span>
               <span class="post-time">{{ formatTime(post.created_at) }}</span>
               <button
                 class="btn-reply"
@@ -465,6 +474,13 @@ function onScroll() {
   font-family: var(--font-display);
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.post-sage {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 .post-time {

@@ -204,6 +204,45 @@ class TestPosts:
         assert resp.status_code == 404
 
 
+    @pytest.mark.django_db
+    def test_sage_reply_does_not_bump_thread(self, api_client, thread):
+        from django.utils import timezone
+
+        from apps.forum.models import Thread
+
+        Thread.objects.filter(pk=thread.id).update(bumped_at=timezone.now())
+        before = timezone.now() - timezone.timedelta(hours=1)
+        Thread.objects.filter(pk=thread.id).update(bumped_at=before)
+
+        resp = api_client.post(
+            f"/api/v1/threads/{thread.id}/posts/",
+            {"body": "Тихий сигнал", "sage": True},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["sage"] is True
+
+        thread.refresh_from_db()
+        assert thread.bumped_at == before
+
+    @pytest.mark.django_db
+    def test_regular_reply_bumps_thread(self, api_client, thread):
+        from django.utils import timezone
+
+        from apps.forum.models import Thread
+
+        Thread.objects.filter(pk=thread.id).update(
+            bumped_at=timezone.now() - timezone.timedelta(hours=1)
+        )
+
+        resp = api_client.post(
+            f"/api/v1/threads/{thread.id}/posts/", {"body": "Громкий сигнал"}
+        )
+        assert resp.status_code == 201
+        assert resp.json()["sage"] is False
+
+        thread.refresh_from_db()
+        assert thread.bumped_at > timezone.now() - timezone.timedelta(minutes=1)
+
 class TestReports:
     @pytest.mark.django_db
     def test_create_report(self, api_client, op_post):
@@ -231,4 +270,5 @@ class TestReports:
             {"reason": "spam"},
         )
         assert resp.status_code == 404
+
 

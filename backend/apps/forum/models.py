@@ -86,6 +86,10 @@ class Post(TimeStampedModel):
     is_hidden = models.BooleanField(default=False)
     # Non-reversible technical fingerprint used only for moderation/anti-abuse.
     poster_fingerprint = models.CharField(max_length=64, blank=True, default="")
+    sage = models.BooleanField(
+        default=False,
+        help_text="Reply that does not bump the thread («тихий сигнал»).",
+    )
 
     objects = PostQuerySet.as_manager()
 

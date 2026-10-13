@@ -78,6 +78,7 @@ class PostSerializer(serializers.ModelSerializer):
             "thread",
             "body",
             "is_op",
+            "sage",
             "created_at",
             "updated_at",
             "author",
@@ -184,6 +185,7 @@ class PostCreateSerializer(serializers.Serializer):
     attachments = serializers.ListField(
         child=serializers.FileField(), required=False, max_length=4
     )
+    sage = serializers.BooleanField(required=False, default=False)
 
     def validate_attachments(self, value: list) -> list:
         for uploaded in value or []:
@@ -206,14 +208,18 @@ class PostCreateSerializer(serializers.Serializer):
         request = self.context.get("request")
         files = validated_data.pop("attachments", [])
         with transaction.atomic():
+            sage = bool(validated_data.get("sage"))
             post = Post.objects.create(
                 thread=thread,
                 body=validated_data["body"],
                 is_op=False,
+                sage=sage,
                 poster_fingerprint=client_fingerprint(request) if request else "",
             )
             _create_attachments(post, files)
-            thread.bump()
+            if not sage:
+                # sage = «тихий сигнал»: the post exists but does not bump
+                thread.bump()
         return post
 
 

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import type { NewPostInput } from '@/types'
 import { useDraft } from '@/composables/useDraft'
+import { parsePostLinks } from '@/composables/usePostLinks'
 import SignalSurface from './SignalSurface.vue'
 import AttachmentRail from './AttachmentRail.vue'
 import CommandLens, { type LensCommand } from './CommandLens.vue'
@@ -50,12 +51,16 @@ const lensOpen = ref(false)
 const lensFilter = ref('')
 const helpOpen = ref(false)
 const dragDepth = ref(0)
+const sage = ref(false)
+const previewOpen = ref(false)
 
 const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
 const railRef = ref<InstanceType<typeof AttachmentRail> | null>(null)
 const lensRef = ref<InstanceType<typeof CommandLens> | null>(null)
 
 const { draft, hasDraft, status, savedAt, saveDraft, clearDraft } = useDraft(`signal-${props.threadId}`)
+
+const previewTokens = computed(() => parsePostLinks(body.value))
 
 const canSubmit = computed(
   () => body.value.trim().length > 0 && body.value.length <= MAX_BODY && !props.submitting,
@@ -111,6 +116,8 @@ function resetAfterSuccess() {
   body.value = ''
   files.value = []
   error.value = ''
+  sage.value = false
+  previewOpen.value = false
   expanded.value = false
   lensOpen.value = false
   helpOpen.value = false
@@ -135,7 +142,7 @@ function onSurfaceBlur() {
 function submit() {
   if (!canSubmit.value) return
   error.value = ''
-  emit('submit', { body: body.value, attachments: files.value })
+  emit('submit', { body: body.value, attachments: files.value, sage: sage.value })
 }
 
 function clearAll() {
@@ -192,6 +199,24 @@ const commands: LensCommand[] = [
       helpOpen.value = false
       if (!body.value.trim()) expanded.value = false
       surfaceRef.value?.blur()
+    },
+  },
+  {
+    id: 'sage',
+    label: 'Тихий сигнал (SAGE)',
+    hint: sage.value ? 'выключить — обычный ответ' : 'включить — без подъёма треда',
+    shortcut: '/sage',
+    run: () => {
+      sage.value = !sage.value
+    },
+  },
+  {
+    id: 'preview',
+    label: 'Предпросмотр',
+    hint: 'как сигнал появится в треде',
+    shortcut: '/preview',
+    run: () => {
+      previewOpen.value = !previewOpen.value
     },
   },
   {
@@ -349,6 +374,9 @@ function railError(message: string) {
 
     <!-- persistent main row: always writable, no expand click needed -->
     <div class="signal-dock__main" @pointerdown="focusSurface">
+      <span v-if="sage" class="signal-dock__sage" data-testid="sage-marker" title="Тихий сигнал">
+        <NetworkIcon name="sage" :size="12" />
+      </span>
       <span class="signal-dock__identity" aria-hidden="true">
         <span class="signal-dock__dot" :class="{ 'signal-dock__dot--live': expanded }"></span>
         ANON
@@ -367,6 +395,20 @@ function railError(message: string) {
       />
     </div>
 
+    <!-- expanding stack: context node, cargo rail, notices, preview -->
+    <div v-if="previewOpen && body.length > 0" class="dock-preview" data-testid="dock-preview">
+      <span class="dock-preview__kicker">ПРЕДПРОСМОТР СИГНАЛА</span>
+      <div class="dock-preview__body">
+        <template v-for="(token, i) in previewTokens" :key="i">
+          <span v-if="token.type === 'text'">{{ token.value }}</span>
+          <span v-else class="dock-preview__link">&gt;&gt;{{ token.id }}</span>
+        </template>
+      </div>
+      <span class="dock-preview__meta">
+        {{ sage ? 'тихий сигнал (sage)' : 'обычный ответ' }} · вложений: {{ files.length }}
+      </span>
+    </div>
+
     <!-- action rail: stable at the bottom -->
     <div class="signal-dock__rail">
       <button
@@ -378,6 +420,30 @@ function railError(message: string) {
       >
         <NetworkIcon name="attach" :size="16" />
         <span class="rail-action__label">файлы</span>
+      </button>
+      <button
+        v-if="expanded"
+        type="button"
+        class="rail-action"
+        :class="{ 'rail-action--active': previewOpen }"
+        :aria-pressed="previewOpen"
+        aria-label="Предпросмотр сообщения"
+        @click="previewOpen = !previewOpen"
+      >
+        <NetworkIcon name="eye" :size="16" />
+        <span class="rail-action__label">предпросмотр</span>
+      </button>
+      <button
+        v-if="expanded"
+        type="button"
+        class="rail-action"
+        :class="{ 'rail-action--sage': sage }"
+        :aria-pressed="sage"
+        aria-label="Тихий сигнал (SAGE): ответ без подъёма треда"
+        @click="sage = !sage"
+      >
+        <NetworkIcon name="sage" :size="16" />
+        <span class="rail-action__label">sage</span>
       </button>
       <button
         v-if="expanded"
@@ -482,6 +548,52 @@ function railError(message: string) {
 .signal-dock--active .signal-dock__stack {
   max-height: 46vh;
   opacity: 1;
+}
+
+/* post preview */
+.dock-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-md);
+}
+
+.dock-preview__kicker {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.dock-preview__body {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.dock-preview__link {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.86em;
+}
+
+.dock-preview__meta {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  color: var(--text-muted);
+}
+
+.signal-dock__sage {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  padding-top: 0.35rem;
+  flex-shrink: 0;
 }
 
 /* reply context node */
@@ -599,6 +711,16 @@ function railError(message: string) {
 .rail-action:hover {
   color: var(--accent);
   background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+.rail-action--active,
+.rail-action[aria-pressed='true'] {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.rail-action--sage {
+  color: var(--accent-dim);
 }
 
 .rail-action__label {

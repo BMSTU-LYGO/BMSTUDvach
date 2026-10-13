@@ -12,6 +12,7 @@ export function createPost(
   const body = toFormData({
     body: input.body,
     attachments: input.attachments ?? [],
+    sage: input.sage ? 'true' : 'false',
   })
   return request<Post>(`/threads/${threadId}/posts/`, {
     method: 'POST',

@@ -19,6 +19,8 @@ export type NetworkIconName =
   | 'lock'
   | 'sound'
   | 'mute'
+  | 'sage'
+  | 'eye'
 </script>
 
 <script setup lang="ts">
@@ -161,6 +163,18 @@ withDefaults(
     <template v-else-if="name === 'mute'">
       <path d="M4 10v4h3l4 3.5v-11L7 10z" />
       <path d="M15.5 10l5 4M20.5 10l-5 4" />
+    </template>
+
+    <!-- sage: quiet reply — no bump -->
+    <template v-else-if="name === 'sage'">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 12h7" />
+    </template>
+
+    <!-- eye: preview -->
+    <template v-else-if="name === 'eye'">
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
     </template>
   </svg>
 </template>

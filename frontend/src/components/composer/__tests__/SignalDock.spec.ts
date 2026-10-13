@@ -158,6 +158,37 @@ describe('SignalDock', () => {
     expect((wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement).value).toBe('')
   })
 
+  it('sends sage in the payload when the quiet signal is on', async () => {
+    const wrapper = mountDock()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('не бампите')
+
+    const sageBtn = wrapper.find('button[aria-label*="Тихий сигнал"]')
+    await sageBtn.trigger('click')
+    expect(sageBtn.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('[data-testid="sage-marker"]').exists()).toBe(true)
+
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).toMatchObject({ body: 'не бампите', sage: true })
+  })
+
+  it('previews the signal with links and meta before transmit', async () => {
+    const wrapper = mountDock()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('согласен с >>42')
+
+    const previewBtn = wrapper.find('button[aria-label="Предпросмотр сообщения"]')
+    await previewBtn.trigger('click')
+
+    const preview = wrapper.find('[data-testid="dock-preview"]')
+    expect(preview.exists()).toBe(true)
+    expect(preview.text()).toContain('согласен с')
+    expect(preview.text()).toContain('>>42')
+    expect(preview.text()).toContain('обычный ответ')
+  })
+
   it('keeps the transmit node disabled while empty', () => {
     const wrapper = mountDock()
     const transmit = wrapper.find('.transmit')
