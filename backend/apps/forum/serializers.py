@@ -145,7 +145,7 @@ class ThreadCreateSerializer(serializers.Serializer):
             try:
                 validate_attachment(uploaded)
             except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.messages)
+                raise serializers.ValidationError(exc.messages) from None
         return value
 
     def create(self, validated_data: dict) -> Thread:
@@ -179,7 +179,7 @@ class PostCreateSerializer(serializers.Serializer):
             try:
                 validate_attachment(uploaded)
             except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.messages)
+                raise serializers.ValidationError(exc.messages) from None
         return value
 
     def validate(self, attrs: dict) -> dict:
