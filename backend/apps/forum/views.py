@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from django.db.models import Prefetch
 from django.http import Http404
-from rest_framework import generics, status
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.forum.models import Board, Post, Thread
 from apps.forum.serializers import (
@@ -79,6 +80,65 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         thread = serializer.save()
         output = ThreadDetailSerializer(thread, context=self.get_serializer_context())
         return Response(output.data, status=status.HTTP_201_CREATED)
+
+
+class SearchView(APIView):
+    """Signal scan: search thread titles and post bodies across the network.
+
+    The frontend SCAN lens (Cmd/Ctrl+K) consumes this. Case-insensitive
+    substring matching is honest about what it is — Postgres FTS is a
+    later concern.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    LIMIT = 8
+
+    def get(self, request):
+        query = (request.query_params.get("q") or "").strip()
+        threads: list = []
+        posts: list = []
+        if query:
+            threads = list(
+                annotate_reply_counts(
+                    Thread.objects.for_listing()
+                    .filter(board__is_active=True, title__icontains=query)
+                    .order_by("-is_pinned", "-bumped_at")
+                )[: self.LIMIT]
+            )
+            posts = list(
+                Post.objects.visible()
+                .select_related("thread")
+                .filter(thread__board__is_active=True, body__icontains=query)
+                .order_by("-created_at")[: self.LIMIT]
+            )
+        return Response(
+            {
+                "query": query,
+                "threads": ThreadListSerializer(threads, many=True).data,
+                "posts": [
+                    {
+                        "id": post.id,
+                        "thread": post.thread_id,
+                        "thread_title": post.thread.title,
+                        "is_op": post.is_op,
+                        "snippet": _snippet(post.body, query, 140),
+                    }
+                    for post in posts
+                ],
+            }
+        )
+
+
+def _snippet(body: str, query: str, radius: int) -> str:
+    index = body.lower().find(query.lower())
+    if index < 0:
+        return body[: radius * 2]
+    start = max(0, index - radius)
+    end = min(len(body), index + len(query) + radius)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(body) else ""
+    return f"{prefix}{body[start:end].replace(chr(10), ' ')}{suffix}"
 
 
 class RecentThreadListView(generics.ListAPIView):

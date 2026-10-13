@@ -14,6 +14,7 @@ urlpatterns = [
         views.BoardThreadListCreateView.as_view(),
         name="board-threads",
     ),
+    path("search/", views.SearchView.as_view(), name="search"),
     path(
         "threads/recent/",
         views.RecentThreadListView.as_view(),

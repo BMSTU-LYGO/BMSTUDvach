@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+
+defineEmits<{ scan: [] }>()
 import { useForumStore } from '@/stores/forum'
 import { useCRT } from '@/composables/useCRT'
 import { useSound } from '@/composables/useSound'
@@ -71,6 +73,15 @@ function closeMobile() {
         </nav>
 
         <div class="fx-toggles">
+          <button
+            class="fx-toggle fx-toggle--scan"
+            aria-label="Поиск по сети (Cmd/Ctrl+K)"
+            title="Поиск по сети — Cmd/Ctrl+K"
+            @click="$emit('scan')"
+          >
+            <NetworkIcon name="report" :size="14" />
+            <span class="scan-label">SCAN</span>
+          </button>
           <button
             class="fx-toggle"
             :class="{ active: quality3D !== 'off' }"
@@ -199,6 +210,15 @@ function closeMobile() {
 .fx-toggle:hover {
   color: var(--text-primary);
   border-color: var(--border-medium);
+}
+
+.fx-toggle--scan {
+  gap: 6px;
+  letter-spacing: 0.08em;
+}
+
+.fx-toggle--scan .scan-label {
+  font-size: 0.66rem;
 }
 
 .fx-toggle:focus-visible {

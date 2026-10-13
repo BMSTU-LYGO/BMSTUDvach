@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import ScanLens from '@/components/scan/ScanLens.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
 import { playWarp, warpKindFor } from '@/three/warps'
 
@@ -19,13 +20,36 @@ const WarpCanvas = defineAsyncComponent(
 useRouteScene(useRouter(), (from, to) => {
   if (from !== to) playWarp(warpKindFor(from, to))
 })
+
+// Global SCAN trigger (Cmd/Ctrl+K). The Signal Dock and any field own
+// their own shortcuts — the scanner must not steal them.
+const scanOpen = ref(false)
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el || !el.closest) return false
+  return !!el.closest(
+    'input, textarea, [contenteditable="true"], [data-testid="signal-dock"], [data-testid="launch-bay"], [data-testid="scan-lens"]',
+  )
+}
+
+function onWindowKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    if (isTypingTarget(e.target)) return
+    e.preventDefault()
+    scanOpen.value = true
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onWindowKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
 </script>
 
 <template>
   <div class="layout">
     <a href="#main-content" class="skip-link">Перейти к содержимому</a>
     <AmbientField />
-    <AppHeader />
+    <AppHeader @scan="scanOpen = true" />
     <main id="main-content" class="content">
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">
@@ -35,6 +59,7 @@ useRouteScene(useRouter(), (from, to) => {
     </main>
     <AppFooter />
     <WarpCanvas />
+    <ScanLens v-model:open="scanOpen" />
   </div>
 </template>
 
