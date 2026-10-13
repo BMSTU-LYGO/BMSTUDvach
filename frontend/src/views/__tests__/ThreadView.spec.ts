@@ -28,6 +28,9 @@ vi.mock('@/api/posts', () => ({
   createReport: vi.fn(),
 }))
 
+import { createPost } from '@/api/posts'
+import { ApiRequestError } from '@/api/client'
+
 import ThreadView from '@/views/ThreadView.vue'
 import { getThread } from '@/api/threads'
 import type { ThreadDetail } from '@/types'
@@ -152,6 +155,31 @@ describe('ThreadView — thread reader', () => {
     const bar = wrapper.find('[data-testid="thread-progress"]')
     expect(bar.exists()).toBe(true)
     expect(bar.attributes('role')).toBe('progressbar')
+  })
+
+  it('surfaces real field errors from the API envelope in the dock', async () => {
+    wrapper = await mountThread()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('ответ')
+
+    // API rejects with the {detail, errors} envelope — the generic
+    // 'Validation error' must not be what the user reads
+    vi.mocked(createPost).mockRejectedValueOnce(
+      new ApiRequestError(400, 'Validation error', {
+        body: ['Post body must not exceed 20000 characters.'],
+      }),
+    )
+    await wrapper.find('.transmit').trigger('click')
+    await flushPromises()
+
+    const error = wrapper.find('[data-testid="dock-error"]')
+    expect(error.exists()).toBe(true)
+    expect(error.text()).toContain('must not exceed 20000')
+    // failure keeps the typed body
+    expect((wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement).value).toBe(
+      'ответ',
+    )
   })
 
   it('keeps the Signal Dock writable below the posts', async () => {
