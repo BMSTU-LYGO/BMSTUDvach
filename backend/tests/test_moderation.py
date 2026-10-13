@@ -46,9 +46,7 @@ class TestReports:
 
         _, op = thread_with_op
         Post.objects.filter(pk=op.id).update(is_hidden=True)
-        resp = api_client.post(
-            f"/api/v1/posts/{op.id}/reports/", {"reason": "spam"}
-        )
+        resp = api_client.post(f"/api/v1/posts/{op.id}/reports/", {"reason": "spam"})
         assert resp.status_code == 404
 
 

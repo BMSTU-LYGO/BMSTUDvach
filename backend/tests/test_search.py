@@ -35,7 +35,9 @@ class TestSearch:
 
         visible = Thread.objects.create(board=board, title="Видимый тред")
         Post.objects.create(thread=visible, body="Тело OP", is_op=True)
-        hidden = Thread.objects.create(board=board, title="Скрытый тред", is_hidden=True)
+        hidden = Thread.objects.create(
+            board=board, title="Скрытый тред", is_hidden=True
+        )
         Post.objects.create(thread=hidden, body="Тело скрытого", is_op=True)
 
         resp = api_client.get("/api/v1/search/?q=тред")

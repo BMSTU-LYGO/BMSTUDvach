@@ -203,7 +203,6 @@ class TestPosts:
         resp = api_client.get(f"/api/v1/posts/{op_post.pk}/")
         assert resp.status_code == 404
 
-
     @pytest.mark.django_db
     def test_sage_reply_does_not_bump_thread(self, api_client, thread):
         from django.utils import timezone
@@ -243,6 +242,7 @@ class TestPosts:
         thread.refresh_from_db()
         assert thread.bumped_at > timezone.now() - timezone.timedelta(minutes=1)
 
+
 class TestReports:
     @pytest.mark.django_db
     def test_create_report(self, api_client, op_post):
@@ -270,5 +270,3 @@ class TestReports:
             {"reason": "spam"},
         )
         assert resp.status_code == 404
-
-

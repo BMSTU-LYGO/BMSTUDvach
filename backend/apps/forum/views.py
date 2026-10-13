@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db.models import Prefetch
 from django.http import Http404
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,6 +12,7 @@ from apps.forum.serializers import (
     BoardSerializer,
     PostCreateSerializer,
     PostSerializer,
+    SearchResponseSerializer,
     ThreadCreateSerializer,
     ThreadDetailSerializer,
     ThreadListSerializer,
@@ -85,6 +87,7 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         return Response(output.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(responses=SearchResponseSerializer)
 class SearchView(APIView):
     """Signal scan: search thread titles and post bodies across the network.
 

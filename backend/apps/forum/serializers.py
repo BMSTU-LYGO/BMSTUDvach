@@ -241,3 +241,19 @@ def annotate_op_preview(queryset):
         .values("body")[:1]
     )
     return queryset.annotate(op_body=Subquery(first_post))
+
+
+class SearchPostHitSerializer(serializers.Serializer):
+    """A post hit returned by the signal scan."""
+
+    id = serializers.IntegerField()
+    thread = serializers.IntegerField()
+    thread_title = serializers.CharField()
+    is_op = serializers.BooleanField()
+    snippet = serializers.CharField()
+
+
+class SearchResponseSerializer(serializers.Serializer):
+    query = serializers.CharField()
+    threads = ThreadListSerializer(many=True)
+    posts = SearchPostHitSerializer(many=True)

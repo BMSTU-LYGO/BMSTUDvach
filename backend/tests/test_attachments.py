@@ -52,7 +52,9 @@ class TestAttachmentValidation:
         from apps.forum.validators import validate_attachment
 
         with pytest.raises(ValidationError):
-            validate_attachment(make_upload("a.txt", b"\xff\xfe\x00\x01binary", "text/plain"))
+            validate_attachment(
+                make_upload("a.txt", b"\xff\xfe\x00\x01binary", "text/plain")
+            )
 
     def test_accepts_utf8_text_plain(self):
         from apps.forum.validators import validate_attachment
@@ -84,7 +86,10 @@ class TestAttachmentUploadApi:
 
         resp = api_client.post(
             f"/api/v1/threads/{thread.id}/posts/",
-            {"body": "Ещё ответ", "attachments": make_upload("x.png", payload, "image/png")},
+            {
+                "body": "Ещё ответ",
+                "attachments": make_upload("x.png", payload, "image/png"),
+            },
             format="multipart",
         )
         assert resp.status_code == 400
@@ -94,7 +99,10 @@ class TestAttachmentUploadApi:
     def test_valid_png_dimensions_stored(self, api_client, thread):
         resp = api_client.post(
             f"/api/v1/threads/{thread.id}/posts/",
-            {"body": "С картинкой", "attachments": make_upload("x.png", png_bytes(64, 48), "image/png")},
+            {
+                "body": "С картинкой",
+                "attachments": make_upload("x.png", png_bytes(64, 48), "image/png"),
+            },
             format="multipart",
         )
         assert resp.status_code == 201
