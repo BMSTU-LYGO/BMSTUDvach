@@ -194,4 +194,41 @@ describe('SignalDock', () => {
     const transmit = wrapper.find('.transmit')
     expect(transmit.attributes('aria-disabled')).toBe('true')
   })
+
+  it('sends the stored identity name in the payload', async () => {
+    localStorageMock.setItem('bmstud-identity', JSON.stringify({ name: 'Пустота#sekret' }))
+    const wrapper = mountDock()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('подписанный ответ')
+
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).toMatchObject({
+      body: 'подписанный ответ',
+      name: 'Пустота#sekret',
+    })
+  })
+
+  it('sends no name when no identity is stored', async () => {
+    const wrapper = mountDock()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('анонимный ответ')
+
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).not.toHaveProperty('name')
+  })
+
+  it('persists a name typed into the identity capsule', async () => {
+    const wrapper = mountDock()
+    await wrapper.find('[data-testid="identity-input"]').setValue('Пустота#sekret')
+
+    expect(localStorageMock.getItem('bmstud-identity')).toContain('sekret')
+
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('ответ')
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).toMatchObject({ name: 'Пустота#sekret' })
+  })
 })

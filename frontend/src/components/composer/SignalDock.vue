@@ -3,9 +3,11 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import type { NewPostInput } from '@/types'
 import { useDraft } from '@/composables/useDraft'
+import { useIdentity } from '@/composables/useIdentity'
 import { parsePostLinks } from '@/composables/usePostLinks'
 import SignalSurface from './SignalSurface.vue'
 import AttachmentRail from './AttachmentRail.vue'
+import IdentityCapsule from './IdentityCapsule.vue'
 import CommandLens, { type LensCommand } from './CommandLens.vue'
 import DraftBeacon from './DraftBeacon.vue'
 import SignalMeter from './SignalMeter.vue'
@@ -59,8 +61,15 @@ const railRef = ref<InstanceType<typeof AttachmentRail> | null>(null)
 const lensRef = ref<InstanceType<typeof CommandLens> | null>(null)
 
 const { draft, hasDraft, status, savedAt, saveDraft, clearDraft } = useDraft(`signal-${props.threadId}`)
+const identity = useIdentity()
 
 const previewTokens = computed(() => parsePostLinks(body.value))
+
+// The session tag mirrors the stored identity: the display half of
+// «Имя#секрет», or the honest default when no name is saved.
+const identityDisplay = computed(
+  () => identity.name.value.split('#')[0].trim() || 'ANON',
+)
 
 const canSubmit = computed(
   () => body.value.trim().length > 0 && body.value.length <= MAX_BODY && !props.submitting,
@@ -142,7 +151,13 @@ function onSurfaceBlur() {
 function submit() {
   if (!canSubmit.value) return
   error.value = ''
-  emit('submit', { body: body.value, attachments: files.value, sage: sage.value })
+  const name = identity.name.value.trim()
+  emit('submit', {
+    body: body.value,
+    attachments: files.value,
+    sage: sage.value,
+    ...(name ? { name } : {}),
+  })
 }
 
 function clearAll() {
@@ -379,7 +394,7 @@ function railError(message: string) {
       </span>
       <span class="signal-dock__identity" aria-hidden="true">
         <span class="signal-dock__dot" :class="{ 'signal-dock__dot--live': expanded }"></span>
-        ANON
+        {{ identityDisplay }}
         <span class="signal-dock__thread">/#{{ threadId }}</span>
       </span>
       <SignalSurface
@@ -392,6 +407,15 @@ function railError(message: string) {
         @keydown="onSurfaceKeydown"
         @focus="onSurfaceFocus"
         @blur="onSurfaceBlur"
+      />
+    </div>
+
+    <!-- identity capsule: optional «Имя#секрет», kept on the device -->
+    <div class="signal-dock__identity-row">
+      <IdentityCapsule
+        :model-value="identity.name.value"
+        @update:model-value="identity.setName"
+        @change="identity.setName"
       />
     </div>
 
@@ -679,6 +703,12 @@ function railError(message: string) {
 
 .signal-dock--active .signal-dock__identity {
   color: var(--text-secondary);
+}
+
+/* identity capsule row (TRIP-01) */
+.signal-dock__identity-row {
+  display: flex;
+  min-height: 44px;
 }
 
 /* action rail */

@@ -38,8 +38,9 @@ function formatDate(value: string): string {
   >
     <div class="thread-main">
       <div class="thread-title-row">
-        <span v-if="thread.is_pinned" class="thread-pin" title="Закреплён">
+        <span v-if="thread.is_pinned" class="thread-pin" data-testid="pin-badge" title="Закреплён">
           <NetworkIcon name="pin" :size="12" />
+          <span class="thread-pin__label">pin</span>
         </span>
         <span class="thread-title">{{ thread.title }}</span>
       </div>
@@ -101,7 +102,15 @@ function formatDate(value: string): string {
   color: var(--accent);
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.thread-pin__label {
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .thread-title {

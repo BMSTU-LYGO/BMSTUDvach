@@ -47,3 +47,4 @@ class ThreadStateSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     is_hidden = serializers.BooleanField()
     is_locked = serializers.BooleanField()
+    is_pinned = serializers.BooleanField()

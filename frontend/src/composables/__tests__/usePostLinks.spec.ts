@@ -13,6 +13,7 @@ function post(id: number, body: string): Post {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     author: 'Аноним',
+    tripcode: '',
     attachments: [],
   }
 }

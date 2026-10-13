@@ -7,11 +7,14 @@ import {
   fetchReportQueue,
   moderatePost,
   moderateThread,
+  pinThread,
   resolveReport,
   staffLogin,
   staffLogout,
   staffMe,
+  unpinThread,
   type QueuedReport,
+  type ThreadState,
 } from '@/api/moderation'
 
 /**
@@ -106,11 +109,18 @@ async function act(report: QueuedReport, action: 'dismiss' | 'action') {
 }
 
 const toolStatus = ref('')
+const targetPinned = ref(false)
+
+function currentTargetId(): number | null {
+  const id = Number(targetId.value)
+  if (!Number.isInteger(id) || id <= 0) return null
+  return id
+}
 
 async function runTool(action: 'hide' | 'show' | 'lock' | 'unlock') {
   toolStatus.value = ''
-  const id = Number(targetId.value)
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = currentTargetId()
+  if (id === null) {
     toolStatus.value = 'нужен числовой id'
     return
   }
@@ -122,6 +132,24 @@ async function runTool(action: 'hide' | 'show' | 'lock' | 'unlock') {
       await moderateThread(id, action)
       toolStatus.value = `тред #${id}: ${action}`
     }
+  } catch (err) {
+    toolStatus.value = apiErrorMessage(err, 'действие не удалось')
+  }
+}
+
+async function togglePin() {
+  toolStatus.value = ''
+  const id = currentTargetId()
+  if (id === null) {
+    toolStatus.value = 'нужен числовой id'
+    return
+  }
+  try {
+    const state: ThreadState = targetPinned.value
+      ? await unpinThread(id)
+      : await pinThread(id)
+    targetPinned.value = state.is_pinned
+    toolStatus.value = `тред #${id}: ${state.is_pinned ? 'закреплён' : 'откреплён'}`
   } catch (err) {
     toolStatus.value = apiErrorMessage(err, 'действие не удалось')
   }
@@ -257,6 +285,17 @@ onMounted(check)
             @click="runTool('unlock')"
           >
             открыть
+          </button>
+          <button
+            v-if="targetKind === 'thread'"
+            type="button"
+            class="tools__btn tools__btn--pin"
+            data-testid="pin-toggle"
+            :aria-pressed="targetPinned"
+            @click="togglePin"
+          >
+            <NetworkIcon name="pin" :size="12" />
+            {{ targetPinned ? 'Открепить' : 'Закрепить' }}
           </button>
           <span v-if="toolStatus" class="tools__status">{{ toolStatus }}</span>
         </div>
@@ -561,7 +600,7 @@ onMounted(check)
 }
 
 .tools__switch button {
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 var(--space-3);
   background: none;
   border: none;
@@ -577,7 +616,7 @@ onMounted(check)
 
 .tools__id {
   width: 90px;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 var(--space-2);
   background: none;
   border: 1px solid var(--border-subtle);
@@ -592,7 +631,10 @@ onMounted(check)
 }
 
 .tools__btn {
-  min-height: 34px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 var(--space-3);
   background: none;
   border: 1px solid var(--border-medium);
@@ -603,6 +645,16 @@ onMounted(check)
 }
 
 .tools__btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tools__btn--pin {
+  color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.tools__btn--pin:hover {
   color: var(--accent);
   border-color: var(--accent);
 }

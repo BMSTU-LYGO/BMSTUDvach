@@ -33,8 +33,14 @@ void props
   >
     <div class="catalog-card__head">
       <span class="catalog-card__node">#{{ thread.id }}</span>
-      <span v-if="thread.is_pinned" class="catalog-card__pin" title="Закреплён">
+      <span
+        v-if="thread.is_pinned"
+        class="catalog-card__pin"
+        data-testid="pin-badge"
+        title="Закреплён"
+      >
         <NetworkIcon name="pin" :size="12" />
+        <span class="catalog-card__pin-label">pin</span>
       </span>
       <span v-if="thread.is_locked" class="catalog-card__lock" title="Закрыт">
         <NetworkIcon name="lock" :size="12" />
@@ -100,6 +106,15 @@ void props
 .catalog-card__pin {
   color: var(--accent);
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.catalog-card__pin-label {
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .catalog-card__lock {

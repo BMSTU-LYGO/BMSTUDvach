@@ -43,7 +43,19 @@ class BoardDetailView(generics.RetrieveAPIView):
 
 
 class BoardThreadListCreateView(generics.ListCreateAPIView):
-    """List threads for a board, or create a new thread with its OP."""
+    """List threads for a board, or create a new thread with its OP.
+
+    The listing order is selectable with the ``order`` query parameter:
+    ``bump`` (activity, default), ``replies`` (reply count) or ``newest``
+    (creation date). Anything else falls back to ``bump``; pinned threads
+    always lead the page.
+    """
+
+    ORDERINGS = {
+        "bump": ("-is_pinned", "-bumped_at"),
+        "replies": ("-is_pinned", "-reply_count", "-bumped_at"),
+        "newest": ("-is_pinned", "-created_at"),
+    }
 
     def _get_board(self) -> Board:
         if not hasattr(self, "_board"):
@@ -56,13 +68,12 @@ class BoardThreadListCreateView(generics.ListCreateAPIView):
         return self._board
 
     def get_queryset(self):
-        return annotate_op_preview(
-            annotate_reply_counts(
-                Thread.objects.for_listing()
-                .filter(board=self._get_board())
-                .order_by("-is_pinned", "-bumped_at")
-            )
+        order = self.request.query_params.get("order", "bump")
+        ordering = self.ORDERINGS.get(order, self.ORDERINGS["bump"])
+        queryset = annotate_reply_counts(
+            Thread.objects.for_listing().filter(board=self._get_board())
         )
+        return annotate_op_preview(queryset.order_by(*ordering))
 
     def get_serializer_class(self):
         if self.request.method == "POST":

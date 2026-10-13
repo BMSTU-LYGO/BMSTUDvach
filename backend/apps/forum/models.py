@@ -86,6 +86,11 @@ class Post(TimeStampedModel):
     is_hidden = models.BooleanField(default=False)
     # Non-reversible technical fingerprint used only for moderation/anti-abuse.
     poster_fingerprint = models.CharField(max_length=64, blank=True, default="")
+    # Optional imageboard identity: «Имя#секрет» is split on write — the
+    # display half lands in author_name, the secret is kept nowhere and
+    # only its one-way tripcode survives.
+    author_name = models.CharField(max_length=64, blank=True, default="")
+    tripcode = models.CharField(max_length=16, blank=True, default="")
     sage = models.BooleanField(
         default=False,
         help_text="Reply that does not bump the thread («тихий сигнал»).",

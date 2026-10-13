@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.forum import telemetry as views_tel
 from apps.forum import views
 
 urlpatterns = [
@@ -15,6 +16,7 @@ urlpatterns = [
         name="board-threads",
     ),
     path("search/", views.SearchView.as_view(), name="search"),
+    path("telemetry/", views_tel.TelemetryView.as_view(), name="telemetry"),
     path(
         "threads/recent/",
         views.RecentThreadListView.as_view(),

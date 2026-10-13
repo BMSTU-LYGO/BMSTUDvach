@@ -10,6 +10,7 @@ import {
   getThread,
   listRecentThreads,
   listThreads,
+  type ThreadOrder,
 } from '@/api/threads'
 import { apiErrorMessage } from '@/api/client'
 import type {
@@ -84,11 +85,11 @@ export const useForumStore = defineStore('forum', {
       }
     },
 
-    async fetchThreads(boardSlug: string) {
+    async fetchThreads(boardSlug: string, order?: ThreadOrder) {
       this.threadList.loading = true
       this.threadList.error = null
       try {
-        const page = await listThreads(boardSlug)
+        const page = await listThreads(boardSlug, order)
         this.threadList.threads = page.results
       } catch (err) {
         this.threadList.error = messageOf(err)

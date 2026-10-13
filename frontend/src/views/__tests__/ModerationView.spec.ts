@@ -27,14 +27,18 @@ vi.mock('@/api/moderation', () => ({
   resolveReport: vi.fn(),
   moderatePost: vi.fn(),
   moderateThread: vi.fn(),
+  pinThread: vi.fn(),
+  unpinThread: vi.fn(),
 }))
 
 import ModerationView from '@/views/ModerationView.vue'
 import {
   fetchReportQueue,
+  pinThread,
   resolveReport,
   staffLogin,
   staffMe,
+  unpinThread,
 } from '@/api/moderation'
 
 const queue = {
@@ -132,5 +136,79 @@ describe('ModerationView', () => {
     await flushPromises()
 
     expect(wrapper.find('.login__error').text()).toContain('Неверные учётные данные')
+  })
+})
+
+describe('ModerationView quick tools', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(staffLogin).mockResolvedValue({ is_staff: true, username: 'moder' })
+    vi.mocked(fetchReportQueue).mockResolvedValue(queue)
+    vi.mocked(pinThread).mockResolvedValue({
+      id: 7,
+      is_hidden: false,
+      is_locked: false,
+      is_pinned: true,
+    })
+    vi.mocked(unpinThread).mockResolvedValue({
+      id: 7,
+      is_hidden: false,
+      is_locked: false,
+      is_pinned: false,
+    })
+  })
+
+  async function mountStaffConsole() {
+    const wrapper = await mountView()
+    await flushPromises()
+    await wrapper.find('input[type="text"]').setValue('moder')
+    await wrapper.find('input[type="password"]').setValue('pass123')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    return wrapper
+  }
+
+  it('offers the pin toggle for thread targets only', async () => {
+    const wrapper = await mountStaffConsole()
+    expect(wrapper.find('[data-testid="pin-toggle"]').exists()).toBe(false)
+
+    await wrapper.findAll('.tools__switch button')[1].trigger('click')
+    expect(wrapper.find('[data-testid="pin-toggle"]').exists()).toBe(true)
+  })
+
+  it('pins and unpins the target thread', async () => {
+    const wrapper = await mountStaffConsole()
+    await wrapper.findAll('.tools__switch button')[1].trigger('click')
+    await wrapper.find('.tools__id').setValue('7')
+
+    const pinBtn = wrapper.find('[data-testid="pin-toggle"]')
+    expect(pinBtn.text()).toContain('Закрепить')
+    expect(pinBtn.attributes('aria-pressed')).toBe('false')
+
+    await pinBtn.trigger('click')
+    await flushPromises()
+    expect(pinThread).toHaveBeenCalledWith(7)
+    expect(pinBtn.text()).toContain('Открепить')
+    expect(pinBtn.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('.tools__status').text()).toContain('закреплён')
+
+    await pinBtn.trigger('click')
+    await flushPromises()
+    expect(unpinThread).toHaveBeenCalledWith(7)
+    expect(pinBtn.text()).toContain('Закрепить')
+    expect(wrapper.find('.tools__status').text()).toContain('откреплён')
+  })
+
+  it('reports an api failure instead of flipping the toggle', async () => {
+    vi.mocked(pinThread).mockRejectedValue(new Error('действие не удалось'))
+    const wrapper = await mountStaffConsole()
+    await wrapper.findAll('.tools__switch button')[1].trigger('click')
+    await wrapper.find('.tools__id').setValue('7')
+
+    await wrapper.find('[data-testid="pin-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.tools__status').text()).toContain('действие не удалось')
+    expect(wrapper.find('[data-testid="pin-toggle"]').text()).toContain('Закрепить')
   })
 })

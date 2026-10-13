@@ -53,6 +53,18 @@ describe('CatalogCard', () => {
     expect(wrapper.find('.catalog-card__lock').attributes('title')).toBe('Закрыт')
   })
 
+  it('shows the PIN badge text on a pinned node', () => {
+    const wrapper = mountCard({ ...thread, is_pinned: true })
+    const badge = wrapper.find('[data-testid="pin-badge"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text().toLowerCase()).toContain('pin')
+  })
+
+  it('hides the PIN badge when the node is not pinned', () => {
+    const wrapper = mountCard()
+    expect(wrapper.find('[data-testid="pin-badge"]').exists()).toBe(false)
+  })
+
   it('works without a teaser', () => {
     const wrapper = mountCard({ ...thread, op_snippet: undefined })
     expect(wrapper.find('.catalog-card__snippet').exists()).toBe(false)

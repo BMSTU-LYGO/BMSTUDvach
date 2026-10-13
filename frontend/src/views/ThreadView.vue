@@ -272,7 +272,6 @@ function onScroll() {
           <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
           <div class="post-content">
             <div class="post-header">
-              <span class="post-author">{{ post.author }}</span>
               <span class="post-id">#{{ post.id }}</span>
               <span
                 v-if="post.sage"
@@ -304,6 +303,8 @@ function onScroll() {
             <PostBody
               :body="post.body"
               :known-ids="knownIds"
+              :author="post.author"
+              :tripcode="post.tripcode"
               @navigate="navigateToPost"
               @preview="showPreview"
               @preview-leave="hidePreview"

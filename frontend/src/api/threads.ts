@@ -6,8 +6,16 @@ import type {
   ThreadSummary,
 } from '@/types'
 
-export function listThreads(boardSlug: string): Promise<Paginated<ThreadSummary>> {
-  return request<Paginated<ThreadSummary>>(`/boards/${boardSlug}/threads/`)
+export type ThreadOrder = 'bump' | 'replies' | 'newest'
+
+const THREAD_ORDERS: readonly ThreadOrder[] = ['bump', 'replies', 'newest']
+
+export function listThreads(
+  boardSlug: string,
+  order: ThreadOrder = 'bump',
+): Promise<Paginated<ThreadSummary>> {
+  const query = THREAD_ORDERS.includes(order) ? `?order=${order}` : ''
+  return request<Paginated<ThreadSummary>>(`/boards/${boardSlug}/threads/${query}`)
 }
 
 export function listRecentThreads(limit = 6): Promise<ThreadSummary[]> {
@@ -22,10 +30,12 @@ export function createThread(
   boardSlug: string,
   input: NewThreadInput,
 ): Promise<ThreadDetail> {
+  const name = input.name?.trim() ?? ''
   const body = toFormData({
     title: input.title,
     body: input.body,
     attachments: input.attachments ?? [],
+    ...(name ? { name } : {}),
   })
   return request<ThreadDetail>(`/boards/${boardSlug}/threads/`, {
     method: 'POST',

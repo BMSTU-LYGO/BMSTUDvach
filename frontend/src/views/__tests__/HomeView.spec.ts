@@ -42,9 +42,13 @@ vi.mock('@/api/threads', () => ({
   createThread: vi.fn(),
   listRecentThreads: vi.fn(),
 }))
+vi.mock('@/api/telemetry', () => ({
+  getTelemetry: vi.fn(),
+}))
 
 import HomeView from '@/views/HomeView.vue'
 import { listRecentThreads } from '@/api/threads'
+import { getTelemetry } from '@/api/telemetry'
 
 function thread(id: number, title: string, board: string) {
   return {
@@ -86,6 +90,56 @@ describe('HomeView — recent transmissions', () => {
     expect(rows[0].text()).toContain('Срочно про ИУ7')
     expect(rows[0].text()).toContain('/b/')
     expect(rows[1].text()).toContain('/study/')
+  })
+})
+
+describe('HomeView — telemetry rail', () => {
+  const telemetry = {
+    boards: 4,
+    threads: 13,
+    posts: 63,
+    attachments: 5,
+    last_24h: { posts: 3, threads: 1 },
+    busiest_board: { slug: 'b', name: 'Разное', posts: 40 },
+    generated_at: '2026-10-13T12:00:00Z',
+  }
+
+  let wrapper: Awaited<ReturnType<typeof mountHome>>
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(listRecentThreads).mockResolvedValue([])
+    vi.mocked(getTelemetry).mockResolvedValue(telemetry)
+  })
+
+  afterEach(() => wrapper?.unmount())
+
+  it('renders the telemetry cells from the api', async () => {
+    wrapper = await mountHome()
+    expect(getTelemetry).toHaveBeenCalled()
+    const rail = wrapper.find('[data-testid="telemetry-rail"]')
+    expect(rail.exists()).toBe(true)
+    expect(rail.attributes('aria-label')).toBe('Сетевая телеметрия')
+
+    const cell = (key: string) =>
+      wrapper.find(`[data-testid="telemetry-cell-${key}"]`)
+    expect(cell('boards').text()).toBe('РАЗДЕЛЫ04')
+    expect(cell('threads').text()).toBe('ТРЕДЫ013')
+    expect(cell('posts').text()).toBe('СООБЩЕНИЯ063')
+    expect(cell('day').text()).toBe('24Ч+003')
+    expect(cell('active').text()).toBe('АКТИВ/b/')
+
+    expect(cell('boards').attributes('title')).toBe('Активные разделы: 4')
+    expect(cell('active').attributes('aria-label')).toBe(
+      'Самый активный раздел: /b/ — 40 сообщений',
+    )
+  })
+
+  it('does not render the rail when the telemetry api fails', async () => {
+    vi.mocked(getTelemetry).mockRejectedValue(new Error('network down'))
+    wrapper = await mountHome()
+    expect(wrapper.find('[data-testid="telemetry-rail"]').exists()).toBe(false)
+    expect(wrapper.find('.hero-cta').exists()).toBe(true)
   })
 })
 

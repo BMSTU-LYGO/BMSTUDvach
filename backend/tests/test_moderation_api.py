@@ -99,6 +99,41 @@ class TestModerationApi:
         assert resp.json()["is_hidden"] is False
 
     @pytest.mark.django_db
+    def test_thread_pin_and_unpin_actions(self, api_client, django_user_model, thread):
+        login_staff(api_client, django_user_model)
+
+        resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/pin/")
+        assert resp.status_code == 200
+        assert resp.json()["is_pinned"] is True
+
+        thread.refresh_from_db()
+        assert thread.is_pinned is True
+
+        resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/unpin/")
+        assert resp.status_code == 200
+        assert resp.json()["is_pinned"] is False
+
+        thread.refresh_from_db()
+        assert thread.is_pinned is False
+
+    @pytest.mark.django_db
+    def test_thread_pin_requires_staff(self, api_client, django_user_model, thread):
+        user = django_user_model.objects.create_user(
+            username="plain", password="testpass"
+        )
+        api_client.force_authenticate(user=user)
+        resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/pin/")
+        assert resp.status_code == 403
+
+    @pytest.mark.django_db
+    def test_thread_unknown_action_is_rejected(
+        self, api_client, django_user_model, thread
+    ):
+        login_staff(api_client, django_user_model)
+        resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/explode/")
+        assert resp.status_code == 400
+
+    @pytest.mark.django_db
     def test_staff_login_rejects_non_staff(self, api_client, django_user_model):
         django_user_model.objects.create_user(username="plain", password="pass12345")
         resp = api_client.post(

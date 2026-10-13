@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from apps.common.utils import client_fingerprint
 from apps.forum.models import Attachment, Board, Post, Thread
+from apps.forum.tripcode import compute_tripcode, split_name
 from apps.forum.validators import (
     probe_image_size,
     read_attachment_header,
@@ -70,6 +71,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     attachments = AttachmentSerializer(many=True, read_only=True)
     author = serializers.SerializerMethodField()
+    tripcode = serializers.CharField(read_only=True)
 
     class Meta:
         model = Post
@@ -82,12 +84,13 @@ class PostSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "author",
+            "tripcode",
             "attachments",
         )
         read_only_fields = fields
 
     def get_author(self, obj: Post) -> str:
-        return "Аноним"
+        return obj.author_name or "Аноним"
 
 
 class ThreadListSerializer(serializers.ModelSerializer):
@@ -143,12 +146,23 @@ def _create_attachments(post: Post, files: list) -> None:
         )
 
 
+def _identity(raw: str) -> tuple[str, str]:
+    """Split a posted name into (author_name, tripcode) to persist.
+
+    The secret half of «Имя#секрет» never reaches the database or the
+    API — only the derived tripcode does.
+    """
+    display, secret = split_name(raw)
+    return display, compute_tripcode(secret)
+
+
 class ThreadCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200)
     body = serializers.CharField(validators=[validate_post_body])
     attachments = serializers.ListField(
         child=serializers.FileField(), required=False, max_length=4
     )
+    name = serializers.CharField(max_length=64, required=False, default="")
 
     def validate_attachments(self, value: list) -> list:
         # Field-level validation: a bad file must be a 400 attached to the
@@ -164,19 +178,22 @@ class ThreadCreateSerializer(serializers.Serializer):
         board: Board = self.context["board"]
         request = self.context.get("request")
         files = validated_data.pop("attachments", [])
+        author_name, tripcode = _identity(validated_data.pop("name", ""))
         with transaction.atomic():
             thread = Thread.objects.create(
                 board=board,
                 title=validated_data["title"],
                 bumped_at=timezone.now(),
             )
-            post = Post.objects.create(
+            op = Post.objects.create(
                 thread=thread,
                 body=validated_data["body"],
                 is_op=True,
+                author_name=author_name,
+                tripcode=tripcode,
                 poster_fingerprint=client_fingerprint(request) if request else "",
             )
-            _create_attachments(post, files)
+            _create_attachments(op, files)
         return thread
 
 
@@ -186,6 +203,7 @@ class PostCreateSerializer(serializers.Serializer):
         child=serializers.FileField(), required=False, max_length=4
     )
     sage = serializers.BooleanField(required=False, default=False)
+    name = serializers.CharField(max_length=64, required=False, default="")
 
     def validate_attachments(self, value: list) -> list:
         for uploaded in value or []:
@@ -207,6 +225,7 @@ class PostCreateSerializer(serializers.Serializer):
         thread: Thread = self.context["thread"]
         request = self.context.get("request")
         files = validated_data.pop("attachments", [])
+        author_name, tripcode = _identity(validated_data.pop("name", ""))
         with transaction.atomic():
             sage = bool(validated_data.get("sage"))
             post = Post.objects.create(
@@ -214,6 +233,8 @@ class PostCreateSerializer(serializers.Serializer):
                 body=validated_data["body"],
                 is_op=False,
                 sage=sage,
+                author_name=author_name,
+                tripcode=tripcode,
                 poster_fingerprint=client_fingerprint(request) if request else "",
             )
             _create_attachments(post, files)

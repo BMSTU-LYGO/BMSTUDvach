@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import LaunchBay from '@/components/launch/LaunchBay.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import CatalogCard from '@/components/thread/CatalogCard.vue'
+import SortLens from '@/components/thread/SortLens.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -14,6 +15,7 @@ import { captureMorph, playMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
 import { emitSceneEvent } from '@/three/sceneState'
 import { apiErrorMessage } from '@/api/client'
+import type { ThreadOrder } from '@/api/threads'
 import type { NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
@@ -45,12 +47,29 @@ function setViewMode(mode: ViewMode) {
   localStorage.setItem(VIEW_KEY, mode)
 }
 
+// thread order — persisted like the view mode, a change is a plain refetch
+const ORDER_KEY = 'board-thread-order'
+const threadOrder = ref<ThreadOrder>(
+  (localStorage.getItem(ORDER_KEY) as ThreadOrder) || 'bump',
+)
+
+function setThreadOrder(order: ThreadOrder) {
+  if (order === threadOrder.value) return
+  threadOrder.value = order
+  localStorage.setItem(ORDER_KEY, order)
+  reloadThreads()
+}
+
+function reloadThreads() {
+  void store.fetchThreads(props.boardSlug, threadOrder.value)
+}
+
 const threads = computed(() => store.threadList.threads)
 
 onMounted(async () => {
   await nextTick()
   playMorph(titleRef.value, `board:${props.boardSlug}`)
-  void store.fetchThreads(props.boardSlug)
+  void store.fetchThreads(props.boardSlug, threadOrder.value)
 })
 
 // "+ Новый тред" morphs into the Launch Bay stage (SIGNAL-13).
@@ -76,7 +95,7 @@ async function handleCreate(input: NewThreadInput) {
   try {
     await store.createThread(props.boardSlug, input)
     createSuccessToken.value++
-    await store.fetchThreads(props.boardSlug)
+    await store.fetchThreads(props.boardSlug, threadOrder.value)
     sounds.submit()
     // Spatial feedback: the board cluster answers the launch.
     emitSceneEvent({ type: 'thread-launch', target: props.boardSlug })
@@ -100,6 +119,7 @@ function captureRow(event: MouseEvent, threadId: number) {
     <div class="board-header">
       <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
       <div class="board-header__actions">
+        <SortLens :model-value="threadOrder" @change="setThreadOrder" />
         <div class="view-switch" role="group" aria-label="Вид разделы">
           <button
             type="button"
@@ -145,7 +165,7 @@ function captureRow(event: MouseEvent, threadId: number) {
     <ErrorState
       v-else-if="store.threadList.error"
       :message="store.threadList.error"
-      :on-retry="() => store.fetchThreads(props.boardSlug)"
+      :on-retry="reloadThreads"
     />
     <EmptyState
       v-else-if="threads.length === 0"

@@ -16,6 +16,41 @@ describe('PostBody', () => {
     expect(wrapper.findAll('.post-link')).toHaveLength(0)
   })
 
+  it('shows no author signature when the post carries none', () => {
+    const wrapper = mountBody('без подписи')
+    expect(wrapper.find('[data-testid="post-signature"]').exists()).toBe(false)
+  })
+
+  it('renders the author name alone when there is no tripcode', () => {
+    const wrapper = mount(PostBody, {
+      props: { body: 'текст', knownIds: known, author: 'Пустота' },
+    })
+    const signature = wrapper.find('[data-testid="post-signature"]')
+    expect(signature.text()).toBe('Пустота')
+    expect(signature.attributes('aria-label')).toBe('Автор: Пустота')
+    expect(wrapper.find('[data-testid="post-tripcode"]').exists()).toBe(false)
+  })
+
+  it('renders the tripcode next to the author name', () => {
+    const wrapper = mount(PostBody, {
+      props: { body: 'текст', knownIds: known, author: 'Пустота', tripcode: '!u3V2icOT' },
+    })
+    const signature = wrapper.find('[data-testid="post-signature"]')
+    expect(signature.text()).toBe('Пустота!u3V2icOT')
+    expect(signature.text()).toContain('!u3V2icOT')
+    expect(signature.attributes('aria-label')).toBe('Автор: Пустота !u3V2icOT')
+    expect(wrapper.find('[data-testid="post-tripcode"]').classes()).toContain(
+      'post-signature__tripcode',
+    )
+  })
+
+  it('falls back to Аноним for a tripcode without a display name', () => {
+    const wrapper = mount(PostBody, {
+      props: { body: 'текст', knownIds: known, author: '', tripcode: '!u3V2icOT' },
+    })
+    expect(wrapper.find('[data-testid="post-signature"]').text()).toBe('Аноним!u3V2icOT')
+  })
+
   it('renders >>id as a real anchor to the post', () => {
     const wrapper = mountBody('смотри >>42 вот')
     const link = wrapper.find('.post-link')

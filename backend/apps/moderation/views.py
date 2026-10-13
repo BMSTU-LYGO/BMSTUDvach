@@ -186,7 +186,7 @@ class PostModerationView(APIView):
 
 
 class ThreadModerationView(APIView):
-    """Hide/restore or lock/unlock a thread from the console."""
+    """Hide/restore, lock/unlock or pin/unpin a thread from the console."""
 
     permission_classes = [StaffOnly]
 
@@ -206,6 +206,10 @@ class ThreadModerationView(APIView):
             update["is_locked"] = True
         elif action == "unlock":
             update["is_locked"] = False
+        elif action == "pin":
+            update["is_pinned"] = True
+        elif action == "unpin":
+            update["is_pinned"] = False
         else:
             return Response(
                 {"detail": "Unknown action."}, status=status.HTTP_400_BAD_REQUEST
@@ -217,5 +221,6 @@ class ThreadModerationView(APIView):
                 "id": thread.id,
                 "is_hidden": thread.is_hidden,
                 "is_locked": thread.is_locked,
+                "is_pinned": thread.is_pinned,
             }
         )

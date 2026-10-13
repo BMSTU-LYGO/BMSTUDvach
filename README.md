@@ -125,7 +125,7 @@ Key endpoints:
 GET    /api/v1/health/                # Liveness probe
 GET    /api/v1/boards/                # List boards
 GET    /api/v1/boards/{slug}/         # Board detail
-GET    /api/v1/boards/{slug}/threads/ # Thread list (paginated)
+GET    /api/v1/boards/{slug}/threads/ # Thread list (paginated, ?order=bump|replies|newest)
 POST   /api/v1/boards/{slug}/threads/ # Create thread
 GET    /api/v1/threads/recent/        # Recent threads across boards (home feed)
 GET    /api/v1/threads/{id}/          # Thread detail + posts

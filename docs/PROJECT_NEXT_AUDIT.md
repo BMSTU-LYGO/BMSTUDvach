@@ -203,3 +203,23 @@ Stories are finally readable: /platinum/:id calm reading stage
 Verified: frontend 94 tests · backend 70 · verify:3d 46 · ruff · build ·
 spectacular clean · live API flows (scan, catalog fields, sage, watch,
 staff console)
+
+## Identity round (SORT/PIN/TRIP/TELEMETRY)
+- SORT-01: board thread ordering — GET /boards/{slug}/threads/?order=
+  bump|replies|newest (pinned always float first; bad value falls back
+  to bump, never 400); SortLens segmented control in the board header,
+  choice persisted in localStorage
+- PIN-01: staff pin/unpin threads — POST /moderation/threads/{id}/pin|
+  unpin/ (+is_pinned in ThreadStateSerializer); ModerationView toggle;
+  PIN badge in ThreadRow/CatalogCard
+- TRIP-01: optional name + tripcode — Post.author_name + Post.tripcode
+  (migration 0003); `Имя#секрет` → display name + deterministic 9-char
+  tripcode (sha256→base64, secret never stored/sent back); Identity
+  Capsule in the Signal Dock (localStorage), author+tripcode rendered
+  by PostBody; 24 tripcode unit tests
+- TELEMETRY-01: GET /telemetry/ (boards/threads/posts/attachments,
+  last_24h, busiest_board, generated_at; visible-only, 6 aggregates);
+  TelemetryRail mono strip on Home (loading em-dashes, error hides)
+
+Verified: frontend 120 tests · backend 137 · verify:3d 46 · ruff ·
+build PASS · live: /telemetry/ and ?order=replies against the stack

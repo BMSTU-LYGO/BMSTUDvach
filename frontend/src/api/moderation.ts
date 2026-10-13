@@ -20,6 +20,13 @@ export interface QueuedReport {
   }
 }
 
+export interface ThreadState {
+  id: number
+  is_hidden: boolean
+  is_locked: boolean
+  is_pinned: boolean
+}
+
 const BASE = '/moderation'
 
 export function staffLogin(username: string, password: string): Promise<StaffSession> {
@@ -60,4 +67,12 @@ export function moderateThread(
   action: 'hide' | 'show' | 'lock' | 'unlock',
 ): Promise<unknown> {
   return request(`${BASE}/threads/${id}/${action}/`, { method: 'POST' })
+}
+
+export function pinThread(id: number): Promise<ThreadState> {
+  return request<ThreadState>(`${BASE}/threads/${id}/pin/`, { method: 'POST' })
+}
+
+export function unpinThread(id: number): Promise<ThreadState> {
+  return request<ThreadState>(`${BASE}/threads/${id}/unpin/`, { method: 'POST' })
 }

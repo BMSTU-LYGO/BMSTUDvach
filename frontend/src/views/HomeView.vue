@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 
 import GlitchText from '@/components/ui/GlitchText.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
+import TelemetryRail from '@/components/home/TelemetryRail.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import WatchPanel from '@/components/watch/WatchPanel.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
@@ -146,6 +147,9 @@ function openRecent(event: MouseEvent, threadId: number) {
         />
       </div>
     </div>
+
+    <!-- Network telemetry: one honest line of visible-only counts -->
+    <TelemetryRail />
 
     <!-- Live network activity: recent transmissions across boards -->
     <div class="section-label">

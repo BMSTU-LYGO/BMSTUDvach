@@ -9,10 +9,14 @@ export function createPost(
   threadId: number,
   input: NewPostInput,
 ): Promise<Post> {
+  // toFormData keeps '' (it only drops undefined/null), and an empty name
+  // would overwrite the «без имени» case server-side — drop it here.
+  const name = input.name?.trim() ?? ''
   const body = toFormData({
     body: input.body,
     attachments: input.attachments ?? [],
     sage: input.sage ? 'true' : 'false',
+    ...(name ? { name } : {}),
   })
   return request<Post>(`/threads/${threadId}/posts/`, {
     method: 'POST',

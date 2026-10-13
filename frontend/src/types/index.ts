@@ -30,6 +30,8 @@ export interface Post {
   created_at: string
   updated_at: string
   author: string
+  /** `!xxxxxxxx` — серверный производный код секрета из «Имя#секрет». */
+  tripcode: string
   attachments: Attachment[]
 }
 
@@ -74,6 +76,8 @@ export interface NewThreadInput {
   title: string
   body: string
   attachments?: File[]
+  /** «Имя#секрет» — необязательно; сервер вернёт tripcode. */
+  name?: string
 }
 
 export interface NewPostInput {
@@ -81,6 +85,8 @@ export interface NewPostInput {
   attachments?: File[]
   /** «Тихий сигнал» — ответ без подъёма треда. */
   sage?: boolean
+  /** «Имя#секрет» — необязательно; сервер вернёт tripcode. */
+  name?: string
 }
 
 export interface NewReportInput {

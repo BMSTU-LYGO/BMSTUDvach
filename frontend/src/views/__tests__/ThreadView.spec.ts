@@ -72,6 +72,7 @@ const thread: ThreadDetail = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       author: 'Аноним',
+      tripcode: '',
       attachments: [],
     },
     {
@@ -83,6 +84,7 @@ const thread: ThreadDetail = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       author: 'Аноним',
+      tripcode: '',
       attachments: [],
     },
   ],
