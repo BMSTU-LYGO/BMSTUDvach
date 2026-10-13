@@ -105,6 +105,10 @@ class SearchView(APIView):
     The frontend SCAN lens (Cmd/Ctrl+K) consumes this. Case-insensitive
     substring matching is honest about what it is — Postgres FTS is a
     later concern.
+
+    The optional ``board`` query parameter narrows both result lists to a
+    single board (by slug). An unknown slug is not an error: the scan just
+    stays quiet and returns empty lists, same as a query without hits.
     """
 
     permission_classes = [permissions.AllowAny]
@@ -113,14 +117,26 @@ class SearchView(APIView):
 
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()
+        board = (request.query_params.get("board") or "").strip()
         threads: list = []
         posts: list = []
         if query:
+            thread_scope = {
+                "board__is_active": True,
+                "title__icontains": query,
+            }
+            post_scope = {
+                "thread__board__is_active": True,
+                "body__icontains": query,
+            }
+            if board:
+                thread_scope["board__slug"] = board
+                post_scope["thread__board__slug"] = board
             threads = list(
                 annotate_op_preview(
                     annotate_reply_counts(
                         Thread.objects.for_listing()
-                        .filter(board__is_active=True, title__icontains=query)
+                        .filter(**thread_scope)
                         .order_by("-is_pinned", "-bumped_at")
                     )
                 )[: self.LIMIT]
@@ -128,7 +144,7 @@ class SearchView(APIView):
             posts = list(
                 Post.objects.visible()
                 .select_related("thread")
-                .filter(thread__board__is_active=True, body__icontains=query)
+                .filter(**post_scope)
                 .order_by("-created_at")[: self.LIMIT]
             )
         return Response(

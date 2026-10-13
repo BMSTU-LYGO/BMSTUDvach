@@ -76,6 +76,10 @@ make lint            # Lint both stacks
 make format          # Auto-format backend code
 make backend-shell   # Django shell
 make frontend-install # npm install in container
+
+# Operations: hide threads with no activity (dry-run by default —
+# add --apply to actually hide; --days/--board/--limit narrow it down)
+docker compose run --rm backend python manage.py prune_threads --days 90
 ```
 
 ## Project Structure

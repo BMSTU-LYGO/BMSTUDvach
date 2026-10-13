@@ -7,6 +7,7 @@ import ContextFiber from '@/components/composer/ContextFiber.vue'
 import ReportProbe from '@/components/report/ReportProbe.vue'
 import PostBody from '@/components/thread/PostBody.vue'
 import PostPreview from '@/components/thread/PostPreview.vue'
+import NewPostsDivider from '@/components/thread/NewPostsDivider.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import ThreadProgress from '@/components/thread/ThreadProgress.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -15,6 +16,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { playMorph } from '@/composables/usePageMorph'
 import { usePostReveal } from '@/composables/usePostReveal'
+import { useThreadSeen } from '@/composables/useThreadSeen'
 import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
 import { useWatchlist } from '@/composables/useWatchlist'
@@ -52,6 +54,28 @@ const progress = ref(0)
 const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
 usePostReveal(postsRef, postsCount)
 
+const threadSeen = useThreadSeen()
+
+const threadIdValue = computed(() => store.thread.thread?.id ?? props.threadId)
+const seenBoundary = computed(() => threadSeen.lastSeenPostId(threadIdValue.value))
+const newPosts = computed(() =>
+  threadSeen.newPostsCount(threadIdValue.value, store.thread.thread?.posts ?? []),
+)
+/** Индекс первого поста за границей прочитанного; -1 — нет записи о посещении. */
+const firstNewPostIndex = computed(() => {
+  const posts = store.thread.thread?.posts ?? []
+  if (seenBoundary.value <= 0) return -1
+  return posts.findIndex((post) => post.id > seenBoundary.value)
+})
+const dividerBeforeIndex = computed(() =>
+  newPosts.value > 0 ? firstNewPostIndex.value : -1,
+)
+
+function maxPostId(): number {
+  const posts = store.thread.thread?.posts ?? []
+  return posts.reduce((max, post) => Math.max(max, post.id), 0)
+}
+
 const knownIds = computed(
   () => new Set((store.thread.thread?.posts ?? []).map((p) => p.id)),
 )
@@ -68,6 +92,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('keydown', onWindowKeydown)
+  // уходя со страницы, фиксируем максимальный увиденный post-id
+  threadSeen.markSeen(threadIdValue.value, maxPostId())
 })
 
 // Play the shared-element morph once the title actually renders.
@@ -98,6 +124,8 @@ async function handlePost(input: NewPostInput) {
   try {
     await store.createPost(props.threadId, input)
     await store.fetchThread(props.threadId)
+    // свой ответ тоже прочитан — разделитель пересчитывается по новой границе
+    threadSeen.markSeen(threadIdValue.value, maxPostId())
     sounds.submit()
     // Spatial feedback: a signal packet flies through the network core.
     emitSceneEvent({ type: 'reply' })
@@ -257,86 +285,87 @@ function onScroll() {
       </p>
 
       <div ref="postsRef" class="posts" :class="{ 'posts--probing': activeReportPostId !== null }">
-        <article
-          v-for="post in store.thread.thread.posts"
-          :key="post.id"
-          :id="`post-${post.id}`"
-          class="post-item"
-          :class="{
-            op: post.is_op,
-            'post-item--probe': activeReportPostId === post.id,
-          }"
-          data-testid="post"
-        >
-          <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
-          <div class="post-content">
-            <div class="post-header">
-              <span class="post-id">#{{ post.id }}</span>
-              <span
-                v-if="post.sage"
-                class="post-sage"
-                title="Тихий сигнал — не поднимает тред"
-                data-testid="post-sage"
-              >
-                <NetworkIcon name="sage" :size="12" />
-              </span>
-              <span class="post-time">{{ formatTime(post.created_at) }}</span>
-              <button
-                class="btn-reply"
-                :title="`Ответить на пост #${post.id}`"
-                :aria-label="`Ответить на пост #${post.id}`"
-                @click="handleReply(post.id, $event)"
-              >
-                <span class="btn-reply__glyph" aria-hidden="true">↳</span>
-                Ответить
-              </button>
-              <button
-                class="btn-report"
-                :title="`Пожаловаться на пост #${post.id}`"
-                :aria-label="`Пожаловаться на пост #${post.id}`"
-                @click="openReport(post.id)"
-              >
-                !
-              </button>
-            </div>
-            <PostBody
-              :body="post.body"
-              :known-ids="knownIds"
-              :author="post.author"
-              :tripcode="post.tripcode"
-              :attachments="post.attachments"
-              @navigate="navigateToPost"
-              @preview="showPreview"
-              @preview-leave="hidePreview"
-            />
+        <template v-for="(post, index) in store.thread.thread.posts" :key="post.id">
+          <NewPostsDivider v-if="dividerBeforeIndex === index" :count="newPosts" />
+          <article
+            :id="`post-${post.id}`"
+            class="post-item"
+            :class="{
+              op: post.is_op,
+              'post-item--probe': activeReportPostId === post.id,
+            }"
+            data-testid="post"
+          >
+            <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
+            <div class="post-content">
+              <div class="post-header">
+                <span class="post-id">#{{ post.id }}</span>
+                <span
+                  v-if="post.sage"
+                  class="post-sage"
+                  title="Тихий сигнал — не поднимает тред"
+                  data-testid="post-sage"
+                >
+                  <NetworkIcon name="sage" :size="12" />
+                </span>
+                <span class="post-time">{{ formatTime(post.created_at) }}</span>
+                <button
+                  class="btn-reply"
+                  :title="`Ответить на пост #${post.id}`"
+                  :aria-label="`Ответить на пост #${post.id}`"
+                  @click="handleReply(post.id, $event)"
+                >
+                  <span class="btn-reply__glyph" aria-hidden="true">↳</span>
+                  Ответить
+                </button>
+                <button
+                  class="btn-report"
+                  :title="`Пожаловаться на пост #${post.id}`"
+                  :aria-label="`Пожаловаться на пост #${post.id}`"
+                  @click="openReport(post.id)"
+                >
+                  !
+                </button>
+              </div>
+              <PostBody
+                :body="post.body"
+                :known-ids="knownIds"
+                :author="post.author"
+                :tripcode="post.tripcode"
+                :attachments="post.attachments"
+                @navigate="navigateToPost"
+                @preview="showPreview"
+                @preview-leave="hidePreview"
+              />
 
-            <div
-              v-if="(backlinks.get(post.id) ?? []).length > 0"
-              class="post-backlinks"
-              data-testid="post-backlinks"
-            >
-              <span class="post-backlinks__label">ответы:</span>
-              <a
-                v-for="id in backlinks.get(post.id)!"
-                :key="id"
-                class="post-link"
-                :href="`#post-${id}`"
-                @click.prevent="navigateToPost(id)"
-                >&gt;&gt;{{ id }}</a
+              <div
+                v-if="(backlinks.get(post.id) ?? []).length > 0"
+                class="post-backlinks"
+                data-testid="post-backlinks"
               >
-            </div>
+                <span class="post-backlinks__label">ответы:</span>
+                <a
+                  v-for="id in backlinks.get(post.id)!"
+                  :key="id"
+                  class="post-link"
+                  :href="`#post-${id}`"
+                  @click.prevent="navigateToPost(id)"
+                  >&gt;&gt;{{ id }}</a
+                >
+              </div>
 
-            <ReportProbe
-              v-if="activeReportPostId === post.id"
-              :post-id="post.id"
-              :submitting="reportSubmitting"
-              :submit-error="reportError"
-              :success-token="reportSuccessToken"
-              @close="activeReportPostId = null"
-              @submit="(payload) => handleReport({ postId: post.id, ...payload })"
-            />
-          </div>
-        </article>
+              <ReportProbe
+                v-if="activeReportPostId === post.id"
+                :post-id="post.id"
+                :submitting="reportSubmitting"
+                :submit-error="reportError"
+                :success-token="reportSuccessToken"
+                @close="activeReportPostId = null"
+                @submit="(payload) => handleReport({ postId: post.id, ...payload })"
+              />
+            </div>
+          </article>
+        </template>
       </div>
 
       <EmptyState

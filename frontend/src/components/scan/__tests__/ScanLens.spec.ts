@@ -1,14 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type DOMWrapper } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
+vi.mock('@/api/client', () => ({ request: vi.fn() }))
+vi.mock('@/api/boards', () => ({ listBoards: vi.fn() }))
 vi.mock('@/api/search', () => ({
   searchNetwork: vi.fn(),
 }))
 
 import ScanLens from '../ScanLens.vue'
+import { listBoards } from '@/api/boards'
 import { searchNetwork } from '@/api/search'
+import { request } from '@/api/client'
 import type { SearchResults } from '@/api/search'
+import type { Board } from '@/types'
 
 function mountLens(open = true) {
   return mount(ScanLens, {
@@ -45,11 +50,54 @@ const data: SearchResults = {
   ],
 }
 
+const boards: Board[] = [
+  {
+    id: 1,
+    slug: 'study',
+    name: 'Учёба',
+    description: 'сессии и зачёты',
+    is_active: true,
+    order: 1,
+    thread_count: 12,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 2,
+    slug: 'b',
+    name: 'Разное',
+    description: 'всё остальное',
+    is_active: true,
+    order: 2,
+    thread_count: 3,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  },
+]
+
 describe('ScanLens', () => {
   beforeEach(() => {
+    vi.mocked(listBoards).mockReset()
+    vi.mocked(listBoards).mockResolvedValue(boards)
     vi.mocked(searchNetwork).mockReset()
     vi.mocked(searchNetwork).mockResolvedValue(data)
   })
+
+  function chip(
+    wrapper: ReturnType<typeof mountLens>,
+    board: string,
+  ): DOMWrapper<HTMLElement> {
+    return wrapper.find<HTMLElement>(
+      `[data-testid="scan-board-chip"][data-board="${board}"]`,
+    )
+  }
+
+  async function search(wrapper: ReturnType<typeof mountLens>) {
+    await wrapper.find('[data-testid="scan-input"]').setValue('сесси')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 250))
+    await flushPromises()
+  }
 
   it('renders closed when open=false', () => {
     const wrapper = mountLens(false)
@@ -108,5 +156,115 @@ describe('ScanLens', () => {
     await wrapper.setProps({ open: true })
     await input.trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('update:open')!.at(-1)).toEqual([false])
+  })
+
+  it('renders a chip per board after the boards load', async () => {
+    const wrapper = mountLens()
+    await flushPromises()
+
+    const chips = wrapper.findAll('[data-testid="scan-board-chip"]')
+    expect(chips).toHaveLength(3)
+    expect(chips.map((c) => c.attributes('data-board'))).toEqual(['', 'study', 'b'])
+    expect(chip(wrapper, '').text()).toBe('ВСЕ')
+    expect(chip(wrapper, 'study').text()).toBe('study')
+    expect(chip(wrapper, '').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('keeps only the ALL chip when the board list fails', async () => {
+    vi.mocked(listBoards).mockRejectedValue(new Error('boom'))
+    const wrapper = mountLens()
+    await flushPromises()
+
+    const chips = wrapper.findAll('[data-testid="scan-board-chip"]')
+    expect(chips).toHaveLength(1)
+    expect(chips[0].text()).toBe('ВСЕ')
+    expect(chips[0].attributes('aria-pressed')).toBe('true')
+  })
+
+  it('re-runs the scan for the picked board', async () => {
+    const wrapper = mountLens()
+    await flushPromises()
+    await search(wrapper)
+    vi.mocked(searchNetwork).mockClear()
+
+    await chip(wrapper, 'study').trigger('click')
+    await flushPromises()
+
+    expect(searchNetwork).toHaveBeenCalledWith('сесси', { board: 'study' })
+    expect(chip(wrapper, 'study').attributes('aria-pressed')).toBe('true')
+    expect(chip(wrapper, '').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('drops the board scope when the ALL chip is picked', async () => {
+    const wrapper = mountLens()
+    await flushPromises()
+    await search(wrapper)
+    await chip(wrapper, 'study').trigger('click')
+    await flushPromises()
+    vi.mocked(searchNetwork).mockClear()
+
+    await chip(wrapper, '').trigger('click')
+    await flushPromises()
+
+    const call = vi.mocked(searchNetwork).mock.calls.at(-1)
+    expect(call?.[0]).toBe('сесси')
+    expect(call?.[1]?.board).toBeFalsy()
+    expect(chip(wrapper, '').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('moves focus between chips with the arrow keys', async () => {
+    const wrapper = mountLens()
+    await flushPromises()
+    chip(wrapper, '').element.focus()
+
+    await wrapper.find('.scan__chips').trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(chip(wrapper, 'study').element)
+
+    await wrapper.find('.scan__chips').trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(chip(wrapper, '').element)
+  })
+
+  it('forgets the picked board when the lens reopens', async () => {
+    const wrapper = mountLens()
+    await flushPromises()
+    await chip(wrapper, 'study').trigger('click')
+    await flushPromises()
+    expect(chip(wrapper, 'study').attributes('aria-pressed')).toBe('true')
+
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    expect(chip(wrapper, '').attributes('aria-pressed')).toBe('true')
+    expect(chip(wrapper, 'study').attributes('aria-pressed')).toBe('false')
+  })
+})
+
+describe('searchNetwork query params', () => {
+  it('appends the board slug and keeps the query encoded', async () => {
+    const real = await vi.importActual<typeof import('@/api/search')>('@/api/search')
+
+    await real.searchNetwork('сесси', { board: 'study' })
+    expect(request).toHaveBeenLastCalledWith(
+      '/search/?q=%D1%81%D0%B5%D1%81%D1%81%D0%B8&board=study',
+    )
+  })
+
+  it('omits an empty or missing board scope', async () => {
+    const real = await vi.importActual<typeof import('@/api/search')>('@/api/search')
+
+    await real.searchNetwork('сесси')
+    expect(request).toHaveBeenLastCalledWith(
+      '/search/?q=%D1%81%D0%B5%D1%81%D1%81%D0%B8',
+    )
+
+    await real.searchNetwork('сесси', { board: '   ' })
+    expect(request).toHaveBeenLastCalledWith(
+      '/search/?q=%D1%81%D0%B5%D1%81%D1%81%D0%B8',
+    )
+
+    await real.searchNetwork('сесси', { board: null })
+    expect(request).toHaveBeenLastCalledWith(
+      '/search/?q=%D1%81%D0%B5%D1%81%D1%81%D0%B8',
+    )
   })
 })

@@ -2,8 +2,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { listBoards } from '@/api/boards'
 import { searchNetwork, type SearchPostHit, type SearchResults } from '@/api/search'
-import type { ThreadSummary } from '@/types'
+import type { Board, ThreadSummary } from '@/types'
 import NetworkIcon from '../composer/NetworkIcon.vue'
 
 /**
@@ -22,8 +23,12 @@ const results = ref<SearchResults>({ query: '', threads: [], posts: [] })
 const loading = ref(false)
 const active = ref(0)
 
+const boardFilter = ref<string | null>(null)
+const boards = ref<Board[]>([])
+
 const inputRef = ref<HTMLInputElement | null>(null)
 const listRef = ref<HTMLElement | null>(null)
+const chipsRef = ref<HTMLElement | null>(null)
 
 interface Row {
   kind: 'thread' | 'post'
@@ -61,6 +66,18 @@ const empty = computed(() => hasQuery.value && !loading.value && rows.value.leng
 let debounce: number | null = null
 let requestId = 0
 
+async function runSearch(value: string) {
+  const id = ++requestId
+  try {
+    const data = await searchNetwork(value, { board: boardFilter.value })
+    if (id === requestId) results.value = data
+  } catch {
+    if (id === requestId) results.value = { query: value, threads: [], posts: [] }
+  } finally {
+    if (id === requestId) loading.value = false
+  }
+}
+
 watch(query, (value) => {
   active.value = 0
   if (debounce) window.clearTimeout(debounce)
@@ -70,23 +87,46 @@ watch(query, (value) => {
     return
   }
   loading.value = true
-  debounce = window.setTimeout(async () => {
-    const id = ++requestId
-    try {
-      const data = await searchNetwork(value)
-      if (id === requestId) results.value = data
-    } catch {
-      if (id === requestId) results.value = { query: value, threads: [], posts: [] }
-    } finally {
-      if (id === requestId) loading.value = false
-    }
-  }, 200)
+  debounce = window.setTimeout(() => void runSearch(value), 200)
 })
+
+async function loadBoards() {
+  try {
+    boards.value = await listBoards()
+  } catch {
+    boards.value = []
+  }
+}
+
+function selectBoard(slug: string | null) {
+  boardFilter.value = slug
+  active.value = 0
+  if (!hasQuery.value) return
+  if (debounce) window.clearTimeout(debounce)
+  loading.value = true
+  void runSearch(query.value)
+}
+
+function onChipsKeydown(e: KeyboardEvent) {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+  const chips = Array.from(
+    chipsRef.value?.querySelectorAll<HTMLButtonElement>('.scan__chip') ?? [],
+  )
+  const index = chips.indexOf(document.activeElement as HTMLButtonElement)
+  if (index < 0) return
+  e.preventDefault()
+  const next =
+    e.key === 'ArrowRight'
+      ? (index + 1) % chips.length
+      : (index - 1 + chips.length) % chips.length
+  chips[next]?.focus()
+}
 
 watch(open, async (isOpen) => {
   if (!isOpen) return
   query.value = ''
   results.value = { query: '', threads: [], posts: [] }
+  boardFilter.value = null
   await nextTick()
   inputRef.value?.focus()
 })
@@ -130,6 +170,7 @@ function onBackdropClick(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', onGlobalKeydown, true)
+  void loadBoards()
 })
 
 onUnmounted(() => {
@@ -167,6 +208,42 @@ function onGlobalKeydown(e: KeyboardEvent) {
             <NetworkIcon name="close" :size="14" :stroke-width="2" />
           </button>
         </header>
+
+        <div
+          ref="chipsRef"
+          class="scan__chips"
+          role="group"
+          aria-label="Фильтр по разделу"
+          @keydown="onChipsKeydown"
+        >
+          <button
+            type="button"
+            class="scan__chip"
+            :class="{ 'scan__chip--active': boardFilter === null }"
+            data-testid="scan-board-chip"
+            data-board=""
+            aria-label="Все разделы"
+            :aria-pressed="boardFilter === null"
+            @click="selectBoard(null)"
+          >
+            ВСЕ
+          </button>
+          <button
+            v-for="board in boards"
+            :key="board.slug"
+            type="button"
+            class="scan__chip"
+            :class="{ 'scan__chip--active': boardFilter === board.slug }"
+            :data-testid="'scan-board-chip'"
+            :data-board="board.slug"
+            :aria-label="`Раздел ${board.name}`"
+            :aria-pressed="boardFilter === board.slug"
+            :title="board.name"
+            @click="selectBoard(board.slug)"
+          >
+            {{ board.slug }}
+          </button>
+        </div>
 
         <div v-if="rows.length" ref="listRef" class="scan__results" role="listbox">
           <template v-for="(row, i) in rows" :key="`${row.kind}-${row.id}`">
@@ -308,6 +385,59 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__close:hover {
   color: var(--text-primary);
+}
+
+.scan__chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.scan__chip {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  display: grid;
+  place-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    background var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart);
+}
+
+.scan__chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.scan__chip--active {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.scan__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan__chip {
+    transition: none;
+  }
 }
 
 .scan__results {

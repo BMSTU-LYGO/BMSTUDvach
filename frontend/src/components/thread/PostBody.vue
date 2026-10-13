@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 
 import { parsePostLinks } from '@/composables/usePostLinks'
+import { useQuoteThreadId } from '@/composables/useQuoteInsert'
+import { useDraftQuoteStore } from '@/stores/draftQuote'
 import AttachmentLightbox from './AttachmentLightbox.vue'
 import type { Attachment } from '@/types'
 
@@ -12,6 +14,9 @@ import type { Attachment } from '@/types'
  *
  * Optional author signature: the display name plus the server-computed
  * tripcode, so a poster stays recognisable across posts without accounts.
+ *
+ * A plain click on a live link quotes the post into the Signal Dock draft
+ * (QUOTE-01) on top of navigating; modified clicks stay native.
  */
 const props = defineProps<{
   body: string
@@ -19,6 +24,7 @@ const props = defineProps<{
   author?: string
   tripcode?: string
   attachments?: Attachment[]
+  threadId?: number
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +32,16 @@ const emit = defineEmits<{
   preview: [id: number, event: MouseEvent]
   'preview-leave': []
 }>()
+
+const quoteStore = useDraftQuoteStore()
+const routeThreadId = useQuoteThreadId()
+const quoteThreadId = computed(() => props.threadId ?? routeThreadId.value)
+const quotedId = ref<number | null>(null)
+let quotedTimer: number | undefined
+
+onUnmounted(() => {
+  if (quotedTimer) window.clearTimeout(quotedTimer)
+})
 
 const tokens = computed(() => parsePostLinks(props.body))
 
@@ -39,6 +55,66 @@ function openLightbox(index: number) {
 }
 
 const isImage = (mime: string) => mime.startsWith('image/')
+
+function linkTitle(id: number): string {
+  if (!props.knownIds.has(id)) return 'Пост не найден'
+  return `Пост #${id}: клик вставит цитату >>${id} в черновик, Ctrl/Cmd+клик — новая вкладка`
+}
+
+function flashQuote(id: number) {
+  quotedId.value = id
+  if (quotedTimer) window.clearTimeout(quotedTimer)
+  quotedTimer = window.setTimeout(() => {
+    quotedId.value = null
+  }, 900)
+}
+
+function requestQuote(postId: number) {
+  const threadId = quoteThreadId.value
+  if (threadId !== null) {
+    quoteStore.requestQuote(threadId, postId)
+    flashQuote(postId)
+  }
+}
+
+function opensInBackground(mods: {
+  ctrlKey: boolean
+  metaKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+}): boolean {
+  return mods.ctrlKey || mods.metaKey || mods.shiftKey || mods.altKey
+}
+
+function targetOpensNewTab(event: Event): boolean {
+  const target = event.currentTarget as HTMLElement | null
+  return target?.getAttribute('target') === '_blank'
+}
+
+function onLinkClick(id: number, event: MouseEvent) {
+  const native =
+    event.button !== 0 || opensInBackground(event) || targetOpensNewTab(event)
+  activateLink(id, native, () => event.preventDefault())
+}
+
+function onLinkEnter(id: number, event: KeyboardEvent) {
+  const native = opensInBackground(event) || targetOpensNewTab(event)
+  activateLink(id, native, () => event.preventDefault())
+}
+
+function activateLink(id: number, native: boolean, preventDefault: () => void) {
+  if (!props.knownIds.has(id)) {
+    preventDefault()
+    return
+  }
+  // Ctrl/Cmd/Shift/middle clicks and target=_blank keep the browser's own
+  // behaviour — the quote belongs to the plain activation only.
+  if (!native) {
+    preventDefault()
+    requestQuote(id)
+  }
+  emit('navigate', id)
+}
 
 const authorLabel = computed(() => (props.author ?? '').trim() || 'Аноним')
 const trip = computed(() => (props.tripcode ?? '').trim())
@@ -66,12 +142,16 @@ const signature = computed(() =>
       <a
         v-else
         class="post-link"
-        :class="{ 'post-link--dead': !knownIds.has(token.id) }"
+        :class="{
+          'post-link--dead': !knownIds.has(token.id),
+          'post-link--quoted': quotedId === token.id,
+        }"
         :href="`#post-${token.id}`"
         :data-target="token.id"
         :aria-disabled="!knownIds.has(token.id) || undefined"
-        :title="knownIds.has(token.id) ? `Пост #${token.id}` : 'Пост не найден'"
-        @click.prevent="knownIds.has(token.id) && emit('navigate', token.id)"
+        :title="linkTitle(token.id)"
+        @click="onLinkClick(token.id, $event)"
+        @keydown.enter="onLinkEnter(token.id, $event)"
         @mouseenter="knownIds.has(token.id) && emit('preview', token.id, $event)"
         @mouseleave="emit('preview-leave')"
         >&gt;&gt;{{ token.id }}</a
@@ -163,6 +243,21 @@ const signature = computed(() =>
   color: var(--text-muted);
 }
 
+.post-link--quoted {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+  animation: post-link-quoted 900ms var(--ease-out-quart);
+}
+
+@keyframes post-link-quoted {
+  0% {
+    background: color-mix(in oklab, var(--accent) 30%, transparent);
+  }
+  100% {
+    background: color-mix(in oklab, var(--accent) 0%, transparent);
+  }
+}
+
 .post-attachments {
   display: flex;
   flex-wrap: wrap;
@@ -200,5 +295,17 @@ const signature = computed(() =>
   font-family: var(--font-display);
   font-size: 0.75rem;
   color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-link,
+  .post-attachment {
+    transition: none;
+  }
+
+  .post-link--quoted {
+    animation: none;
+    background: color-mix(in oklab, var(--accent) 20%, transparent);
+  }
 }
 </style>

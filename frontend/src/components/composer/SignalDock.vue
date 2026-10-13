@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import type { NewPostInput } from '@/types'
 import { useDraft } from '@/composables/useDraft'
 import { useIdentity } from '@/composables/useIdentity'
+import { useQuoteInsert } from '@/composables/useQuoteInsert'
 import { parsePostLinks } from '@/composables/usePostLinks'
 import SignalSurface from './SignalSurface.vue'
 import AttachmentRail from './AttachmentRail.vue'
@@ -62,6 +63,14 @@ const lensRef = ref<InstanceType<typeof CommandLens> | null>(null)
 
 const { draft, hasDraft, status, savedAt, saveDraft, clearDraft } = useDraft(`signal-${props.threadId}`)
 const identity = useIdentity()
+
+// QUOTE-01: clicks on `>>id` in post bodies land in this draft.
+const { watchQuotes } = useQuoteInsert()
+const stopQuotes = watchQuotes(body, props.threadId, () => {
+  expanded.value = true
+  void nextTick(() => surfaceRef.value?.focus())
+})
+onUnmounted(stopQuotes)
 
 const previewTokens = computed(() => parsePostLinks(body.value))
 
@@ -320,12 +329,19 @@ function onDrop(e: DragEvent) {
   if (e.dataTransfer?.files?.length) railRef.value?.addFiles(e.dataTransfer.files)
 }
 
-// Clipboard images go straight into the Cargo Rail; text pastes normally.
+// Clipboard files take the same Cargo Rail path as picker and drop: one
+// validate, one 4-file limit, one error surface. Plain text falls through
+// untouched — the textarea keeps its native paste.
 function onPaste(e: ClipboardEvent) {
-  if (e.clipboardData?.files?.length && railRef.value) {
-    e.preventDefault()
-    railRef.value.addFiles(e.clipboardData.files)
-  }
+  if (props.submitting) return
+  const pasted = e.clipboardData?.files
+  if (!pasted || pasted.length === 0) return
+  e.preventDefault()
+  const railMounted = railRef.value !== null
+  if (!railMounted) expanded.value = true
+  const intake = () => railRef.value?.addFiles(pasted)
+  if (railMounted) intake()
+  else void nextTick(intake)
 }
 
 function railError(message: string) {

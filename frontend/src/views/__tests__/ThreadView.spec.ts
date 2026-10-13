@@ -207,3 +207,94 @@ describe('ThreadView — thread reader', () => {
     expect(wrapper.find('[data-testid="signal-dock"]').exists()).toBe(true)
   })
 })
+
+const SEEN_KEY = 'bmstud-thread-seen'
+
+function post(id: number): ThreadDetail['posts'][number] {
+  return {
+    id,
+    thread: 1,
+    body: `пост ${id}`,
+    is_op: id === 1,
+    sage: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    author: 'Аноним',
+    tripcode: '',
+    attachments: [],
+  }
+}
+
+const fourPostThread: ThreadDetail = {
+  ...thread,
+  posts: [post(1), post(2), post(3), post(4)],
+}
+
+describe('ThreadView — маркер новых сообщений', () => {
+  let wrapper: Awaited<ReturnType<typeof mountThread>> | undefined
+
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.mocked(getThread).mockResolvedValue(fourPostThread)
+  })
+
+  afterEach(() => {
+    wrapper?.unmount()
+    wrapper = undefined
+  })
+
+  it('ставит разделитель перед первым новым постом', async () => {
+    localStorage.setItem(SEEN_KEY, JSON.stringify({ '1': 2 }))
+    wrapper = await mountThread()
+
+    const divider = wrapper.find('[data-testid="new-posts-divider"]')
+    expect(divider.exists()).toBe(true)
+    expect(divider.attributes('role')).toBe('separator')
+    expect(divider.attributes('aria-label')).toBe('2 новых сообщений')
+    expect(divider.text()).toContain('НОВЫЕ СООБЩЕНИЯ · 02')
+
+    // разделитель — прямой ребёнок списка постов, ровно перед постом #3
+    const children = Array.from(wrapper.find('.posts').element.children)
+    expect(children).toHaveLength(5)
+    expect(children[2].getAttribute('data-testid')).toBe('new-posts-divider')
+    expect(children[3].id).toBe('post-3')
+  })
+
+  it('не показывает разделитель при первом посещении треда', async () => {
+    wrapper = await mountThread()
+    expect(wrapper.find('[data-testid="new-posts-divider"]').exists()).toBe(false)
+    expect(localStorage.getItem(SEEN_KEY)).toBeNull()
+  })
+
+  it('не показывает разделитель, когда новых постов нет', async () => {
+    localStorage.setItem(SEEN_KEY, JSON.stringify({ '1': 4 }))
+    wrapper = await mountThread()
+    expect(wrapper.find('[data-testid="new-posts-divider"]').exists()).toBe(false)
+  })
+
+  it('запоминает максимальный post-id при уходе со страницы', async () => {
+    localStorage.setItem(SEEN_KEY, JSON.stringify({ '1': 1 }))
+    wrapper = await mountThread()
+    expect(JSON.parse(localStorage.getItem(SEEN_KEY)!)).toEqual({ '1': 1 })
+
+    wrapper.unmount()
+    expect(JSON.parse(localStorage.getItem(SEEN_KEY)!)).toEqual({ '1': 4 })
+  })
+
+  it('считает свой ответ прочитанным после ответа в тред', async () => {
+    localStorage.setItem(SEEN_KEY, JSON.stringify({ '1': 2 }))
+    let current = fourPostThread
+    vi.mocked(getThread).mockImplementation(() => Promise.resolve(current))
+    wrapper = await mountThread()
+    expect(wrapper.find('[data-testid="new-posts-divider"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="signal-input"]').setValue('ответ')
+    current = { ...fourPostThread, posts: [...fourPostThread.posts, post(5), post(6)] }
+    await wrapper.find('.transmit').trigger('click')
+    await flushPromises()
+
+    // граница дошла до последнего поста — разделитель ушёл
+    expect(wrapper.find('[data-testid="new-posts-divider"]').exists()).toBe(false)
+    expect(JSON.parse(localStorage.getItem(SEEN_KEY)!)).toEqual({ '1': 6 })
+  })
+})

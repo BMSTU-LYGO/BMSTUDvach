@@ -251,3 +251,29 @@ build PASS · live: /telemetry/ and ?order=replies against the stack
 Verified: frontend 174 tests · backend 144 · verify:3d 46 · ruff ·
 build PASS · live: mentions 400/403, /moderation/log/ 403,
 pagination contract unchanged
+
+## Functionality round (SEEN/QUOTE/PASTE/FILTER/SITEMAP/PRUNE) — done (pushed)
+- SEEN-01: «новые сообщения» — per-thread last-seen post id in
+  localStorage; NewPostsDivider before the first unseen post;
+  first visit shows nothing (no shouting); 12+5 tests
+- QUOTE-01: click `>>id` (or Enter, no modifiers) in a post body →
+  `>>id` appended to the dock draft via draftQuote store (dedup,
+  foreign-thread safe); Ctrl/Cmd/Shift/middle clicks keep native
+  navigation; dock focuses and expands on quote; 20 tests
+- PASTE-01: clipboard image → same AttachmentRail path as drop
+  (accept allow-list mirrored from backend, 4-file/10MB limits,
+  binary never leaks into the textarea); 5 tests
+- FILTER-01: search?board=<slug> narrows threads+posts; unknown slug
+  → quiet empty; ScanLens board chips (ВСЕ + per board, ←/→ focus
+  roving, request guarded against stale replies); 5+8 tests
+- SITEMAP-01: /sitemap.xml + /sitemap-<section>.xml (threads/boards,
+  visible only) + /robots.txt (Sitemap absolute, api/admin disallowed);
+  django.contrib.sitemaps registered; 8 tests
+- PRUNE-01: manage.py prune_threads — --days (default 90), --apply
+  (dry-run by default), --board, --limit, --dry-run conflict guard;
+  pinned never hidden, inactive boards excluded, one-mass-update,
+  idempotent; 14 tests
+
+Verified: frontend 235 tests · backend 158 · verify:3d 46 · ruff ·
+spectacular · build PASS · live: search?board= quiet-empty,
+/sitemap.xml, /robots.txt

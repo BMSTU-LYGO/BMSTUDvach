@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createPinia } from 'pinia'
 
 import PostBody from '../PostBody.vue'
+import { useDraftQuoteStore } from '@/stores/draftQuote'
 import type { Attachment } from '@/types'
 
 const known = new Set([1, 42])
@@ -31,7 +33,19 @@ const attachments: Attachment[] = [
 ]
 
 function mountBody(body: string, extra: Record<string, unknown> = {}) {
-  return mount(PostBody, { props: { body, knownIds: known, ...extra } })
+  return mount(PostBody, {
+    props: { body, knownIds: known, ...extra },
+    global: { plugins: [createPinia()] },
+  })
+}
+
+function mountQuoted(body: string, extra: Record<string, unknown> = {}) {
+  const pinia = createPinia()
+  const wrapper = mount(PostBody, {
+    props: { body, knownIds: known, threadId: 7, ...extra },
+    global: { plugins: [pinia] },
+  })
+  return { wrapper, quotes: useDraftQuoteStore(pinia) }
 }
 
 function press(key: string) {
@@ -62,7 +76,12 @@ describe('PostBody', () => {
 
   it('renders the tripcode next to the author name', () => {
     const wrapper = mount(PostBody, {
-      props: { body: 'текст', knownIds: known, author: 'Пустота', tripcode: '!u3V2icOT' },
+      props: {
+        body: 'текст',
+        knownIds: known,
+        author: 'Пустота',
+        tripcode: '!u3V2icOT',
+      },
     })
     const signature = wrapper.find('[data-testid="post-signature"]')
     expect(signature.text()).toBe('Пустота!u3V2icOT')
@@ -77,7 +96,9 @@ describe('PostBody', () => {
     const wrapper = mount(PostBody, {
       props: { body: 'текст', knownIds: known, author: '', tripcode: '!u3V2icOT' },
     })
-    expect(wrapper.find('[data-testid="post-signature"]').text()).toBe('Аноним!u3V2icOT')
+    expect(wrapper.find('[data-testid="post-signature"]').text()).toBe(
+      'Аноним!u3V2icOT',
+    )
   })
 
   it('renders >>id as a real anchor to the post', () => {
@@ -135,7 +156,9 @@ describe('PostBody', () => {
     expect(lightbox.find('[data-testid="lightbox-image"]').attributes('src')).toBe(
       '/media/second.png',
     )
-    expect(lightbox.find('[data-testid="lightbox-next"]').attributes('disabled')).toBeDefined()
+    expect(
+      lightbox.find('[data-testid="lightbox-next"]').attributes('disabled'),
+    ).toBeDefined()
   })
 
   it('closes the lightbox on Escape', async () => {
@@ -165,5 +188,91 @@ describe('PostBody', () => {
     expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(
       '/media/first.png',
     )
+  })
+})
+
+describe('PostBody — quote into the draft (QUOTE-01)', () => {
+  it('requests a quote on a plain click of a live link', async () => {
+    const { wrapper, quotes } = mountQuoted('смотри >>42')
+    await wrapper.find('.post-link').trigger('click')
+
+    expect(quotes.pendingQuote).toEqual({ threadId: 7, postId: 42, token: 1 })
+    // navigation still happens on the very same click
+    expect(wrapper.emitted('navigate')).toEqual([[42]])
+    wrapper.unmount()
+  })
+
+  it('flashes the link that was just quoted', async () => {
+    const { wrapper } = mountQuoted('>>42')
+    expect(wrapper.find('.post-link').classes()).not.toContain('post-link--quoted')
+
+    await wrapper.find('.post-link').trigger('click')
+    expect(wrapper.find('.post-link').classes()).toContain('post-link--quoted')
+    wrapper.unmount()
+  })
+
+  it('keeps the browser behaviour for Ctrl/Cmd/Shift/alt clicks', async () => {
+    for (const modifiers of [
+      { ctrlKey: true },
+      { metaKey: true },
+      { shiftKey: true },
+      { altKey: true },
+    ]) {
+      const { wrapper, quotes } = mountQuoted('>>42')
+      await wrapper.find('.post-link').trigger('click', modifiers)
+      expect(quotes.pendingQuote).toBe(null)
+      wrapper.unmount()
+    }
+  })
+
+  it('leaves middle clicks (button 1) to the browser', async () => {
+    const { wrapper, quotes } = mountQuoted('>>42')
+    await wrapper.find('.post-link').trigger('mousedown', { button: 1 })
+    await wrapper.find('.post-link').trigger('click', { button: 1 })
+    expect(quotes.pendingQuote).toBe(null)
+    wrapper.unmount()
+  })
+
+  it('quotes by the keyboard too — Enter on the focused link', async () => {
+    const { wrapper, quotes } = mountQuoted('>>42')
+    await wrapper.find('.post-link').trigger('keydown.enter')
+
+    expect(quotes.pendingQuote).toEqual({ threadId: 7, postId: 42, token: 1 })
+    expect(wrapper.emitted('navigate')).toEqual([[42]])
+    wrapper.unmount()
+  })
+
+  it('keeps Ctrl+Enter for the browser', async () => {
+    const { wrapper, quotes } = mountQuoted('>>42')
+    await wrapper.find('.post-link').trigger('keydown.enter', { ctrlKey: true })
+    expect(quotes.pendingQuote).toBe(null)
+    wrapper.unmount()
+  })
+
+  it('does not quote a dead link', async () => {
+    const { wrapper, quotes } = mountQuoted('>>404')
+    await wrapper.find('.post-link').trigger('click')
+    expect(quotes.pendingQuote).toBe(null)
+    wrapper.unmount()
+  })
+
+  it('does not quote when the thread is unknown', async () => {
+    const pinia = createPinia()
+    const wrapper = mount(PostBody, {
+      props: { body: '>>42', knownIds: known },
+      global: { plugins: [pinia] },
+    })
+    await wrapper.find('.post-link').trigger('click')
+
+    expect(useDraftQuoteStore(pinia).pendingQuote).toBe(null)
+    expect(wrapper.emitted('navigate')).toEqual([[42]])
+    wrapper.unmount()
+  })
+
+  it('prefers the threadId prop over the route', async () => {
+    const { wrapper, quotes } = mountQuoted('>>42', { threadId: 99 })
+    await wrapper.find('.post-link').trigger('click')
+    expect(quotes.pendingQuote?.threadId).toBe(99)
+    wrapper.unmount()
   })
 })

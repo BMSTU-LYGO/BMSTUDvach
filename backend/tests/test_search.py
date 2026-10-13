@@ -53,6 +53,91 @@ class TestSearch:
         assert len(resp.json()["posts"]) == 1
 
     @pytest.mark.django_db
+    def test_search_board_scope_narrows_threads_and_posts(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        tech = Board.objects.create(slug="tech", name="Технологии")
+
+        target = Thread.objects.create(board=tech, title="Кофе и процессоры")
+        Post.objects.create(thread=target, body="Тело OP", is_op=True)
+        Post.objects.create(thread=target, body="жажда кофе")
+
+        noise = Thread.objects.create(board=board, title="Кофе в столовой")
+        Post.objects.create(thread=noise, body="Тело OP", is_op=True)
+        Post.objects.create(thread=noise, body="где кофе?")
+
+        resp = api_client.get("/api/v1/search/?q=кофе&board=tech")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert [t["title"] for t in body["threads"]] == ["Кофе и процессоры"]
+        assert [p["thread_title"] for p in body["posts"]] == ["Кофе и процессоры"]
+
+    @pytest.mark.django_db
+    def test_search_unknown_board_returns_empty_lists(self, api_client, thread):
+        resp = api_client.get("/api/v1/search/?q=Тело&board=no-such-board")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["query"] == "Тело"
+        assert body["threads"] == []
+        assert body["posts"] == []
+
+    @pytest.mark.django_db
+    def test_search_without_board_spans_every_board(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        tech = Board.objects.create(slug="tech", name="Технологии")
+
+        first = Thread.objects.create(board=board, title="Кофе в столовой")
+        Post.objects.create(thread=first, body="Тело OP", is_op=True)
+        second = Thread.objects.create(board=tech, title="Кофе и процессоры")
+        Post.objects.create(thread=second, body="Тело OP", is_op=True)
+        Post.objects.create(thread=second, body="вкус кофе")
+
+        resp = api_client.get("/api/v1/search/?q=кофе")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert sorted(t["title"] for t in body["threads"]) == [
+            "Кофе в столовой",
+            "Кофе и процессоры",
+        ]
+        assert [p["thread_title"] for p in body["posts"]] == ["Кофе и процессоры"]
+
+    @pytest.mark.django_db
+    def test_search_board_scope_hides_other_boards_posts(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        tech = Board.objects.create(slug="tech", name="Технологии")
+
+        own = Thread.objects.create(board=tech, title="череп для тех")
+        Post.objects.create(thread=own, body="череп", is_op=True)
+        other = Thread.objects.create(board=board, title="череп для разного")
+        Post.objects.create(thread=other, body="череп", is_op=True)
+
+        resp = api_client.get("/api/v1/search/?q=череп&board=tech")
+        body = resp.json()
+        assert [t["title"] for t in body["threads"]] == ["череп для тех"]
+        assert [p["thread_title"] for p in body["posts"]] == ["череп для тех"]
+
+    @pytest.mark.django_db
+    def test_search_empty_board_param_behaves_like_no_board(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        tech = Board.objects.create(slug="tech", name="Технологии")
+
+        first = Thread.objects.create(board=board, title="Кофе в столовой")
+        Post.objects.create(thread=first, body="Тело OP", is_op=True)
+        second = Thread.objects.create(board=tech, title="Кофе и процессоры")
+        Post.objects.create(thread=second, body="утро и кофе", is_op=True)
+
+        resp = api_client.get("/api/v1/search/?q=кофе&board=")
+        body = resp.json()
+        assert sorted(t["title"] for t in body["threads"]) == [
+            "Кофе в столовой",
+            "Кофе и процессоры",
+        ]
+        assert [p["thread_title"] for p in body["posts"]] == ["Кофе и процессоры"]
+
+    @pytest.mark.django_db
     def test_search_snippet_marks_bounds(self, api_client, board):
         from apps.forum.models import Post, Thread
 

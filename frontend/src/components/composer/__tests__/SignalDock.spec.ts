@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { nextTick } from 'vue'
 
 import SignalDock from '../SignalDock.vue'
+import { useDraftQuoteStore } from '@/stores/draftQuote'
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
@@ -23,7 +25,10 @@ const localStorageMock = (() => {
 Object.defineProperty(window, 'localStorage', { value: localStorageMock })
 
 function mountDock(props: Record<string, unknown> = {}) {
-  return mount(SignalDock, { props: { threadId: 7, ...props } })
+  return mount(SignalDock, {
+    props: { threadId: 7, ...props },
+    global: { plugins: [createPinia()] },
+  })
 }
 
 describe('SignalDock', () => {
@@ -230,5 +235,147 @@ describe('SignalDock', () => {
     await input.setValue('ответ')
     await wrapper.find('.transmit').trigger('click')
     expect(wrapper.emitted('submit')![0][0]).toMatchObject({ name: 'Пустота#sekret' })
+  })
+})
+
+function makeFile(name: string, type: string) {
+  return new File([new Uint8Array(2048)], name, { type })
+}
+
+describe('SignalDock paste (PASTE-01)', () => {
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.clearAllMocks()
+  })
+
+  /**
+   * jsdom has no ClipboardEvent, so a paste is a bubbling Event carrying a
+   * mocked clipboardData. Dispatching on the textarea also proves the dock
+   * container handler sees the bubbled event (text paste never swallowed).
+   */
+  function dispatchPaste(wrapper: VueWrapper, files: File[]) {
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.assign(event, { clipboardData: { files } })
+    wrapper.find('[data-testid="signal-input"]').element.dispatchEvent(event)
+    return event
+  }
+
+  // Paste intake mounts the Cargo Rail on next tick; let the scheduler run
+  // mount → addFiles → files update → render before asserting on the DOM.
+  function settle() {
+    return new Promise((resolve) => setTimeout(resolve, 0))
+  }
+
+  it('attaches a pasted image through the same rail path as drop', async () => {
+    const wrapper = mountDock()
+
+    const event = dispatchPaste(wrapper, [makeFile('pasted.png', 'image/png')])
+    await settle()
+
+    expect(wrapper.findAll('.capsule__name').map((n) => n.text())).toEqual(['pasted.png'])
+    expect(wrapper.classes()).toContain('signal-dock--active')
+    expect(wrapper.find('[data-testid="dock-error"]').exists()).toBe(false)
+    // binary must not leak into the textarea
+    expect(event.defaultPrevented).toBe(true)
+
+    await wrapper.find('[data-testid="signal-input"]').setValue('с файлом')
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).toMatchObject({
+      attachments: [expect.objectContaining({ name: 'pasted.png' })],
+    })
+  })
+
+  it('rejects an unsupported pasted type and adds nothing', async () => {
+    const wrapper = mountDock()
+
+    dispatchPaste(wrapper, [makeFile('vector.svg', 'image/svg+xml')])
+    await settle()
+
+    expect(wrapper.find('[data-testid="dock-error"]').text()).toContain('неподдерживаемый формат')
+    expect(wrapper.findAll('.capsule__name')).toHaveLength(0)
+    expect(wrapper.find('.capsule--rejected').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="signal-input"]').setValue('текст без вложения')
+    await wrapper.find('.transmit').trigger('click')
+    expect(wrapper.emitted('submit')![0][0]).toMatchObject({ attachments: [] })
+  })
+
+  it('lets a plain text paste through untouched', async () => {
+    const wrapper = mountDock()
+
+    const event = dispatchPaste(wrapper, [])
+    await settle()
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.findAll('[data-testid="attachment-capsule"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="dock-error"]').exists()).toBe(false)
+  })
+
+  it('ignores paste while the dock is submitting', async () => {
+    const wrapper = mountDock({ submitting: true })
+
+    dispatchPaste(wrapper, [makeFile('late.png', 'image/png')])
+    await settle()
+
+    expect(wrapper.findAll('[data-testid="attachment-capsule"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="dock-error"]').exists()).toBe(false)
+  })
+
+  it('holds the 4-file limit on paste', async () => {
+    const wrapper = mountDock()
+    const files = Array.from({ length: 5 }, (_, i) => makeFile(`file-${i}.png`, 'image/png'))
+
+    dispatchPaste(wrapper, files)
+    await settle()
+
+    expect(wrapper.findAll('.capsule__name').map((n) => n.text())).toEqual([
+      'file-0.png',
+      'file-1.png',
+      'file-2.png',
+      'file-3.png',
+    ])
+    expect(wrapper.find('[data-testid="dock-error"]').text()).toContain('достигнут лимит файлов')
+  })
+})
+
+describe('SignalDock quotes (QUOTE-01)', () => {
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.clearAllMocks()
+  })
+
+  it('receives a requested quote into the draft and expands', async () => {
+    const pinia = createPinia()
+    const wrapper = mount(SignalDock, {
+      props: { threadId: 7 },
+      global: { plugins: [pinia] },
+    })
+
+    const store = useDraftQuoteStore(pinia)
+    store.requestQuote(7, 55)
+    await nextTick()
+    await nextTick()
+
+    expect(
+      (wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement).value,
+    ).toContain('>>55')
+    expect(wrapper.classes()).toContain('signal-dock--active')
+  })
+
+  it('ignores a quote requested for another thread', async () => {
+    const pinia = createPinia()
+    const wrapper = mount(SignalDock, {
+      props: { threadId: 7 },
+      global: { plugins: [pinia] },
+    })
+
+    const store = useDraftQuoteStore(pinia)
+    store.requestQuote(99, 55)
+    await nextTick()
+    await nextTick()
+
+    expect(
+      (wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement).value,
+    ).toBe('')
   })
 })
