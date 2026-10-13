@@ -19,6 +19,11 @@ export class ApiRequestError extends Error {
   }
 }
 
+function csrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -30,7 +35,19 @@ export async function request<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
+  // Session-authenticated staff calls (moderation console) are
+  // CSRF-protected by Django — send the token when we have it.
+  const method = (options.method ?? 'GET').toUpperCase()
+  if (method !== 'GET' && method !== 'HEAD') {
+    const token = csrfToken()
+    if (token) headers.set('X-CSRFToken', token)
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  })
 
   const contentType = response.headers.get('Content-Type') ?? ''
   const text = await response.text()

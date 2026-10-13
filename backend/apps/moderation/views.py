@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.contrib.auth import authenticate, login
 from django.http import Http404
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -64,6 +66,8 @@ class StaffLoginView(APIView):
 
     permission_classes = [permissions.AllowAny]
 
+    # the console needs the csrftoken cookie to make staff calls
+    @method_decorator(ensure_csrf_cookie)
     def post(self, request):
         username = (request.data or {}).get("username", "")
         password = (request.data or {}).get("password", "")
