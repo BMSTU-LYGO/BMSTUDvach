@@ -3,17 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 
 import { TRIPCODE_MAX, useMentions } from '@/composables/useMentions'
 
-/**
- * Маяк ответов (MENTION-01) — компактная строка «ОТВЕТЫ · +N» на главной.
- *
- * Ответы ищутся только по трипкоду `!xxxxxxxx`: аккаунтов нет, значит
- * «мои» посты отличает лишь он. Секрет «Имя#секрет» сюда не вводится и
- * не хранится — устройство знает только коды, за которыми стоит следить.
- *
- * Маяк вспомогательный: загрузка и ошибки сети показывают «—» и
- * скрывают список, но никогда не ломают главную.
- */
-
 const {
   tripcodes,
   unread,
@@ -36,7 +25,7 @@ onMounted(() => {
 
 const badge = computed(() => {
   if (loading.value || failed.value) return '—'
-  return unreadCount.value > 0 ? `+${pad(unreadCount.value)}` : 'НЕТ ОТВЕТОВ'
+  return unreadCount.value > 0 ? `+${pad(unreadCount.value)}` : 'Нет ответов'
 })
 
 const badgeTitle = computed(() => {
@@ -75,7 +64,7 @@ function submit(): void {
       data-testid="mentions-toggle"
       @click="expanded = !expanded"
     >
-      <span class="beacon__lead" aria-hidden="true">ОТВЕТЫ</span>
+      <span class="beacon__lead">Ответы</span>
       <span
         class="beacon__value"
         :class="{ 'beacon__value--unread': unreadCount > 0 }"
@@ -94,7 +83,7 @@ function submit(): void {
         ответы недоступны
       </p>
       <p v-else-if="!unread.length" class="beacon__note" data-testid="mentions-empty">
-        НЕТ ОТВЕТОВ
+        Нет ответов
       </p>
       <ul v-else class="beacon__list" data-testid="mentions-list">
         <li v-for="mention in unread" :key="mention.post" class="beacon__item">
@@ -160,15 +149,28 @@ function submit(): void {
 
 <style scoped>
 .beacon {
+  --paper-raised: #EAE4D4;
+  --paper-sunken: #F7F3E8;
+  --ink: #1C1A14;
+  --ink-secondary: #5B5547;
+  --ink-tertiary: #8A8273;
+  --rule: #D4CEB8;
+  --accent: #2F4F4E;
+  --danger: #9C2A1F;
+  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --duration-fast: 150ms;
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper-raised);
 }
 
 .beacon__toggle {
@@ -180,44 +182,42 @@ function submit(): void {
   padding: var(--space-3) var(--space-4);
   background: none;
   border: none;
-  border-radius: var(--radius-lg);
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 400;
   cursor: pointer;
   text-align: left;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .beacon__toggle:hover {
-  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  background: var(--paper-sunken);
 }
 
 .beacon__lead {
-  font-size: 0.62rem;
-  letter-spacing: 0.22em;
-  color: var(--accent-dim);
-  border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-tertiary);
 }
 
 .beacon__value {
-  color: var(--text-muted);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
 }
 
 .beacon__value--unread {
   color: var(--accent);
+  font-weight: 600;
 }
 
-/* === Развёрнутый вид === */
 .beacon__panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: 0 var(--space-4) var(--space-4);
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--rule);
   padding-top: var(--space-3);
 }
 
@@ -225,10 +225,9 @@ function submit(): void {
 .beacon__hint,
 .beacon__warn {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
 }
 
 .beacon__warn {
@@ -241,13 +240,13 @@ function submit(): void {
   padding: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   overflow: hidden;
 }
 
 .beacon__item + .beacon__item {
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--rule);
 }
 
 .beacon__link {
@@ -259,30 +258,29 @@ function submit(): void {
   padding: var(--space-2) var(--space-3);
   text-decoration: none;
   color: inherit;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .beacon__link:hover {
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  background: var(--paper-sunken);
 }
 
 .beacon__title {
-  color: var(--text-primary);
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .beacon__snippet {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* === Управление трипкодами === */
 .beacon__manage {
   display: flex;
   align-items: center;
@@ -295,26 +293,30 @@ function submit(): void {
   min-width: 140px;
   min-height: 44px;
   padding: 0 var(--space-2);
-  background: color-mix(in oklab, var(--bg-raised) 60%, transparent);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-size: 0.75rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
   outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
 .beacon__input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
-.beacon__input:focus-visible,
+.beacon__input:focus-visible {
+  border-bottom: 2px solid var(--accent);
+}
+
 .beacon__toggle:focus-visible,
 .beacon__action:focus-visible,
 .beacon__remove:focus-visible,
 .beacon__link:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .beacon__action,
@@ -322,19 +324,22 @@ function submit(): void {
   min-height: 44px;
   padding: 0 var(--space-3);
   background: none;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-family: var(--font-display);
-  font-size: 0.66rem;
-  letter-spacing: 0.1em;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  color: var(--ink-secondary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .beacon__action:hover,
 .beacon__remove:hover {
-  color: var(--accent);
-  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: var(--paper-sunken);
+  border-color: var(--ink-tertiary);
 }
 
 .beacon__trips {
@@ -350,28 +355,24 @@ function submit(): void {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
   padding-left: var(--space-2);
 }
 
 .beacon__trip-code {
-  font-size: 0.68rem;
-  color: var(--accent-dim);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--accent);
 }
 
 .beacon__trip .beacon__remove {
   min-height: 32px;
   padding: 0 var(--space-2);
   border: none;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 @media (max-width: 640px) {
-  .beacon {
-    font-size: 0.66rem;
-  }
-
   .beacon__link {
     padding: var(--space-2);
   }

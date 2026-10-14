@@ -289,7 +289,7 @@ describe('BoardView — board rules', () => {
 
     const block = wrapper.find('[data-testid="board-rules"]')
     expect(block.exists()).toBe(true)
-    expect(block.text()).toContain('ПРАВИЛА РАЗДЕЛА')
+    expect(block.text()).toContain('Правила раздела')
     expect(block.text()).toContain('Без спама.')
   })
 

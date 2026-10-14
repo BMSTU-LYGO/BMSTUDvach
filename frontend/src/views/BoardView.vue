@@ -156,7 +156,7 @@ function captureRow(event: MouseEvent, threadId: number) {
 <template>
   <section class="board-page">
     <div class="board-header">
-      <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
+      <h1 ref="titleRef" class="board-title">/{{ boardSlug }}/</h1>
       <div class="board-header__actions">
         <SortLens :model-value="threadOrder" @change="setThreadOrder" />
         <HiddenThreadsChip />
@@ -191,7 +191,7 @@ function captureRow(event: MouseEvent, threadId: number) {
 
     <div v-if="showRules" class="board-rules" data-testid="board-rules">
       <div class="board-rules__head">
-        <span class="board-rules__label text-mono">ПРАВИЛА РАЗДЕЛА</span>
+        <span class="board-rules__label">Правила раздела</span>
         <button
           v-if="rulesCollapsible"
           type="button"
@@ -272,6 +272,8 @@ function captureRow(event: MouseEvent, threadId: number) {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .board-header {
@@ -280,22 +282,24 @@ function captureRow(event: MouseEvent, threadId: number) {
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--rule);
 }
 
 .board-title {
-  font-size: clamp(1.8rem, 4vw, 2.5rem);
-  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
   margin: 0;
-  text-shadow: 0 0 30px var(--accent-glow);
 }
 
-/* department rules — a thin accent-dim rail, not a card */
 .board-rules {
-  border: 1px solid var(--border-subtle);
-  border-left: 2px solid var(--accent-dim);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   padding: var(--space-3) var(--space-4);
-  background: color-mix(in oklab, var(--bg-surface) 70%, transparent);
+  background: var(--paper-raised);
 }
 
 .board-rules__head {
@@ -307,21 +311,21 @@ function captureRow(event: MouseEvent, threadId: number) {
 }
 
 .board-rules__label {
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  color: var(--accent-dim);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-secondary);
 }
 
 .board-rules__toggle {
   background: none;
   border: none;
   padding: 0;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  transition: color var(--duration-fast);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .board-rules__toggle:hover {
@@ -330,9 +334,9 @@ function captureRow(event: MouseEvent, threadId: number) {
 
 .board-rules__text {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.55;
+  color: var(--ink-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
   white-space: pre-line;
 }
 
@@ -343,49 +347,38 @@ function captureRow(event: MouseEvent, threadId: number) {
   overflow: hidden;
 }
 
-/* Launch trigger — node, not a generic primary button */
 .launch-trigger {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
   padding: 0 var(--space-4);
-  background: none;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 0;
   color: var(--accent);
   cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   transition:
-    border-color var(--duration-fast),
-    background var(--duration-fast),
-    box-shadow var(--duration-normal) var(--ease-out-quart);
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .launch-trigger:hover {
   border-color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--accent) 18%, transparent);
+  background: var(--paper-sunken);
 }
 
 .launch-trigger__label {
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
-/* while the Launch Bay owns the stage the list recedes */
-.threads-list--staged,
 .threads-list[data-staged='true'],
 .catalog-grid[data-staged='true'] {
-  transform: scale(0.97);
-  filter: blur(2px);
-  opacity: 0.55;
+  opacity: 0.5;
   pointer-events: none;
-  transition:
-    transform 350ms var(--ease-out-quart),
-    filter 350ms var(--ease-out-quart),
-    opacity 350ms var(--ease-out-quart);
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .board-header__actions {
@@ -395,11 +388,10 @@ function captureRow(event: MouseEvent, threadId: number) {
   flex-wrap: wrap;
 }
 
-/* segmented view switch — instrumentation, not a pill group */
 .view-switch {
   display: inline-flex;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -410,29 +402,27 @@ function captureRow(event: MouseEvent, threadId: number) {
   place-items: center;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
-  transition: color 160ms, background 160ms;
+  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
 
 .view-switch__btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+  color: var(--ink);
+  background: var(--paper-sunken);
 }
 
 .view-switch__btn--active {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  background: var(--paper-sunken);
 }
 
-/* catalog = cluster of nodes */
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-4);
 }
 
-/* Thread list */
 .threads-list {
   display: flex;
   flex-direction: column;

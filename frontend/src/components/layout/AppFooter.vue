@@ -18,8 +18,8 @@
 .app-footer {
   margin-top: auto;
   padding: var(--space-6) var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-deep);
+  border-top: 1px solid var(--rule);
+  background: var(--paper-raised);
 }
 
 .footer-inner {
@@ -30,23 +30,24 @@
   justify-content: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
 }
 
 .footer-brand {
   font-family: var(--font-display);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--ink);
 }
 
 .footer-sep {
-  color: var(--border-medium);
+  color: var(--rule);
 }
 
 .footer-link {
-  color: var(--text-muted);
+  color: var(--ink-secondary);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .footer-link:hover {

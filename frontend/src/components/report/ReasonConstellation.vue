@@ -118,7 +118,7 @@ function pick(reason: ReportReason, i: number) {
 }
 
 .constellation__wires line {
-  stroke: var(--border-medium);
+  stroke: var(--rule);
   stroke-width: 1;
   transition: stroke 220ms var(--ease-out-quart);
 }
@@ -138,20 +138,19 @@ function pick(reason: ReportReason, i: number) {
   border: none;
   cursor: pointer;
   padding: 4px;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .node__ring {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--rule);
   display: grid;
   place-items: center;
-  background: var(--bg-deep);
+  background: var(--paper);
   transition:
     border-color 200ms var(--ease-out-quart),
-    box-shadow 200ms var(--ease-out-quart),
     transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -163,9 +162,8 @@ function pick(reason: ReportReason, i: number) {
 }
 
 .node__label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
-  letter-spacing: 0.04em;
   white-space: nowrap;
   opacity: 0.75;
   transition: opacity 160ms, color 160ms;
@@ -188,7 +186,6 @@ function pick(reason: ReportReason, i: number) {
 
 .node--live .node__ring {
   border-color: var(--accent);
-  box-shadow: 0 0 14px var(--accent-glow);
 }
 
 .node--live .node__label {
@@ -205,7 +202,6 @@ function pick(reason: ReportReason, i: number) {
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 /* mobile: vertical diagnostic track, not a card stack */

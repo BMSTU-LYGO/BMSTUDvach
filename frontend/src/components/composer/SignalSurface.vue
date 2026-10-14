@@ -95,10 +95,9 @@ defineExpose({
 }
 
 .signal-surface__gutter {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   padding-top: 0.35rem;
   user-select: none;
   flex-shrink: 0;
@@ -116,7 +115,7 @@ defineExpose({
   border: none;
   outline: none;
   resize: none;
-  color: var(--text-primary);
+  color: var(--ink);
   font-family: var(--font-body);
   font-size: 0.95rem;
   line-height: 1.6;
@@ -126,7 +125,7 @@ defineExpose({
 }
 
 .signal-surface__input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   opacity: 0.7;
 }
 

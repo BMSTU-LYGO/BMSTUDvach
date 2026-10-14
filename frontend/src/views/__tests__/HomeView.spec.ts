@@ -130,11 +130,11 @@ describe('HomeView — telemetry rail', () => {
     expect(rail.attributes('aria-label')).toBe('Сетевая телеметрия')
 
     const cell = (key: string) => wrapper.find(`[data-testid="telemetry-cell-${key}"]`)
-    expect(cell('boards').text()).toBe('РАЗДЕЛЫ04')
-    expect(cell('threads').text()).toBe('ТРЕДЫ013')
-    expect(cell('posts').text()).toBe('СООБЩЕНИЯ063')
-    expect(cell('day').text()).toBe('24Ч+003')
-    expect(cell('active').text()).toBe('АКТИВ/b/')
+    expect(cell('boards').text()).toBe('Разделы04')
+    expect(cell('threads').text()).toBe('Треды013')
+    expect(cell('posts').text()).toBe('Сообщения063')
+    expect(cell('day').text()).toBe('24 часа+003')
+    expect(cell('active').text()).toBe('Актив/b/')
 
     expect(cell('boards').attributes('title')).toBe('Активные разделы: 4')
     expect(cell('active').attributes('aria-label')).toBe(
@@ -256,9 +256,6 @@ describe('HomeView — page structure', () => {
   it('keeps the decorative hero layers out of the a11y tree', async () => {
     wrapper = await mountHome()
     for (const selector of [
-      '.hero-grid-lines',
-      '.hero-rule',
-      '.hero-kicker__dot',
       '.hero-kicker__sep',
       '.hero-cta-arrow',
     ]) {
@@ -284,8 +281,8 @@ describe('HomeView — page structure', () => {
     wrapper = await mountHome()
     const readouts = wrapper.findAll('.label-meta')
     expect(readouts).toHaveLength(2)
-    expect(readouts[0].text()).toBe('УЗЛЫ · 00')
-    expect(readouts[1].text()).toBe('СИГНАЛЫ · 00')
+    expect(readouts[0].text()).toBe('00 узлов')
+    expect(readouts[1].text()).toBe('00 сигналов')
   })
 })
 

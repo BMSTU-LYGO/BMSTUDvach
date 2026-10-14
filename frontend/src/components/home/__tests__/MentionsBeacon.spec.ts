@@ -73,7 +73,7 @@ describe('MentionsBeacon', () => {
   it('says "НЕТ ОТВЕТОВ" and skips the api without tripcodes', async () => {
     const wrapper = await mountBeacon()
     const count = wrapper.find('[data-testid="mentions-count"]')
-    expect(count.text()).toBe('НЕТ ОТВЕТОВ')
+    expect(count.text()).toBe('Нет ответов')
     expect(getMentions).not.toHaveBeenCalled()
 
     await wrapper.find('[data-testid="mentions-toggle"]').trigger('click')

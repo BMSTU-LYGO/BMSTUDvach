@@ -93,7 +93,7 @@ function reset() {
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--bg-raised) 60%, transparent);
+  background: color-mix(in oklab, var(--paper-raised) 60%, transparent);
 }
 
 .identity-capsule:focus-within {
@@ -101,10 +101,9 @@ function reset() {
 }
 
 .identity-capsule__kicker {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   flex-shrink: 0;
 }
 
@@ -115,14 +114,14 @@ function reset() {
   background: none;
   border: none;
   outline: none;
-  color: var(--text-primary);
-  font-family: var(--font-display);
+  color: var(--ink);
+  font-family: var(--font-body);
   font-size: 0.8rem;
   padding: 0 var(--space-1);
 }
 
 .identity-capsule__input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   opacity: 0.75;
 }
 
@@ -134,7 +133,7 @@ function reset() {
   background: none;
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
   flex-shrink: 0;
   transition: color 160ms, background 160ms;
@@ -148,10 +147,9 @@ function reset() {
 .identity-capsule__hint {
   margin: 0;
   flex-basis: 100%;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 @media (prefers-reduced-motion: reduce) {

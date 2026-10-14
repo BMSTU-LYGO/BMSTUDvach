@@ -84,6 +84,7 @@ onMounted(() => void registerPwa())
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--paper);
 }
 
 .content {
@@ -96,11 +97,9 @@ onMounted(() => void registerPwa())
   z-index: 1;
 }
 
-/* Minimal veil: the WebGL route warp (WarpCanvas) carries the transition,
-   the DOM only crossfades underneath it. */
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 0.2s linear;
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .page-enter-from,

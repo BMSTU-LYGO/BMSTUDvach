@@ -54,7 +54,7 @@ function size() {
   >
     <template v-if="rejected">
       <div class="capsule__rejected">
-        <span class="capsule__rejected-label">REJECTED</span>
+        <span class="capsule__rejected-label">не принят</span>
         <span class="capsule__rejected-reason">{{ rejectReason }}</span>
       </div>
     </template>
@@ -62,7 +62,7 @@ function size() {
     <template v-else-if="isImage">
       <div class="capsule__thumb">
         <img v-if="previewUrl && !previewFailed" :src="previewUrl" :alt="file.name" />
-        <span v-else class="capsule__fallback" aria-hidden="true">IMG</span>
+        <span v-else class="capsule__fallback" aria-hidden="true">файл</span>
       </div>
       <div class="capsule__meta">
         <span class="capsule__name">{{ file.name }}</span>
@@ -98,7 +98,7 @@ function size() {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  background: var(--bg-raised);
+  background: var(--paper-raised);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   max-width: 220px;
@@ -114,7 +114,7 @@ function size() {
   border-radius: var(--radius-sm);
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--bg-deep);
+  background: var(--paper);
   display: grid;
   place-items: center;
 }
@@ -126,9 +126,9 @@ function size() {
 }
 
 .capsule__fallback {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .capsule__file {
@@ -142,12 +142,12 @@ function size() {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--rule);
   display: grid;
   place-items: center;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.55rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   flex-shrink: 0;
 }
 
@@ -159,7 +159,7 @@ function size() {
 
 .capsule__name {
   font-size: 0.72rem;
-  color: var(--text-primary);
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -168,7 +168,7 @@ function size() {
 
 .capsule__size {
   font-size: 0.62rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .capsule__remove {
@@ -180,7 +180,7 @@ function size() {
   background: none;
   border: none;
   border-radius: 50%;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
   opacity: 0;
   transition: opacity 160ms, color 160ms;
@@ -197,7 +197,7 @@ function size() {
 
 .capsule--rejected {
   border-color: var(--danger-dim);
-  background: color-mix(in oklab, var(--danger) 8%, var(--bg-raised));
+  background: color-mix(in oklab, var(--danger) 8%, var(--paper-raised));
 }
 
 .capsule__rejected {
@@ -207,14 +207,13 @@ function size() {
 }
 
 .capsule__rejected-label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.66rem;
-  letter-spacing: 0.08em;
   color: var(--danger);
 }
 
 .capsule__rejected-reason {
   font-size: 0.64rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 </style>

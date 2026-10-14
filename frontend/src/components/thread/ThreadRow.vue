@@ -100,8 +100,8 @@ function formatDate(value: string): string {
 <style scoped>
 .thread-item {
   position: relative;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: opacity var(--duration-normal) var(--ease-out-quart);
+  border-bottom: 1px solid var(--rule);
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .thread-item--hidden {
@@ -115,15 +115,12 @@ function formatDate(value: string): string {
   gap: var(--space-4);
   padding: var(--space-4) calc(var(--space-5) + 36px) var(--space-4) var(--space-5);
   text-decoration: none;
-  color: inherit;
-  transition:
-    background var(--duration-fast) var(--ease-out-quart),
-    transform var(--duration-fast) var(--ease-out-quart);
+  color: var(--ink);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .thread-row:hover {
-  background: var(--bg-surface);
-  transform: translateX(4px);
+  background: var(--paper-sunken);
 }
 
 .thread-row:focus-visible {
@@ -153,15 +150,17 @@ function formatDate(value: string): string {
 }
 
 .thread-pin__label {
-  font-family: var(--font-display);
-  font-size: 0.56rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--accent);
 }
 
 .thread-title {
-  font-weight: 600;
-  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -171,32 +170,31 @@ function formatDate(value: string): string {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
 }
 
 .meta-board {
-  font-family: var(--font-display);
-  color: var(--accent-dim);
+  color: var(--ink-tertiary);
 }
 
 .meta-count {
-  font-family: var(--font-display);
   font-weight: 600;
-  color: var(--accent-dim);
+  color: var(--ink-secondary);
 }
 
 .meta-lock {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
 .thread-time {
-  font-family: var(--font-display);
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--ink-tertiary);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -212,14 +210,14 @@ function formatDate(value: string): string {
   place-items: center;
   background: none;
   border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
+  border-radius: 0;
+  color: var(--ink-tertiary);
   cursor: pointer;
   opacity: 0;
   transition:
-    color var(--duration-fast),
-    background var(--duration-fast),
-    opacity var(--duration-fast);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .thread-item:hover .thread-hide,
@@ -229,7 +227,7 @@ function formatDate(value: string): string {
 
 .thread-hide:hover {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  background: var(--paper-sunken);
 }
 
 .thread-hide:focus-visible {

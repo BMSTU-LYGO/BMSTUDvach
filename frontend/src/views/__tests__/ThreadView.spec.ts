@@ -254,7 +254,7 @@ describe('ThreadView — маркер новых сообщений', () => {
     expect(divider.exists()).toBe(true)
     expect(divider.attributes('role')).toBe('separator')
     expect(divider.attributes('aria-label')).toBe('2 новых сообщений')
-    expect(divider.text()).toContain('НОВЫЕ СООБЩЕНИЯ · 02')
+    expect(divider.text()).toContain('новые сообщения · 02')
 
     // разделитель — прямой ребёнок списка постов, ровно перед постом #3
     const children = Array.from(wrapper.find('.posts').element.children)

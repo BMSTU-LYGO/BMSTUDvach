@@ -116,8 +116,8 @@ describe('ScanLens', () => {
 
     const rows = wrapper.findAll('[data-testid="scan-row"]')
     expect(rows).toHaveLength(2)
-    expect(wrapper.text()).toContain('ТРЕДЫ')
-    expect(wrapper.text()).toContain('ПОСТЫ')
+    expect(wrapper.text()).toContain('треды')
+    expect(wrapper.text()).toContain('посты')
     expect(rows[0].text()).toContain('Советы по сдаче сессии')
     expect(rows[1].text()).toContain('сплетнями про сессию')
   })
@@ -167,7 +167,7 @@ describe('ScanLens', () => {
     const chips = wrapper.findAll('[data-testid="scan-board-chip"]')
     expect(chips).toHaveLength(3)
     expect(chips.map((c) => c.attributes('data-board'))).toEqual(['', 'study', 'b'])
-    expect(chip(wrapper, '').text()).toBe('ВСЕ')
+    expect(chip(wrapper, '').text()).toBe('Все')
     expect(chip(wrapper, 'study').text()).toBe('study')
     expect(chip(wrapper, '').attributes('aria-pressed')).toBe('true')
   })
@@ -179,7 +179,7 @@ describe('ScanLens', () => {
 
     const chips = wrapper.findAll('[data-testid="scan-board-chip"]')
     expect(chips).toHaveLength(1)
-    expect(chips[0].text()).toBe('ВСЕ')
+    expect(chips[0].text()).toBe('Все')
     expect(chips[0].attributes('aria-pressed')).toBe('true')
   })
 

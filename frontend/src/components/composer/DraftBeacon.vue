@@ -67,10 +67,9 @@ const glyph = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   white-space: nowrap;
 }
 
@@ -81,7 +80,7 @@ const glyph = computed(() => {
 }
 
 .beacon--writing .beacon__dot {
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   animation: beacon-blink 1s ease-in-out infinite;
 }
 
@@ -90,7 +89,7 @@ const glyph = computed(() => {
 }
 
 .beacon--saved .beacon__text {
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .beacon--error .beacon__dot {

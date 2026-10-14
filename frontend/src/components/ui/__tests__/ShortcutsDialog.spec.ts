@@ -40,8 +40,8 @@ describe('ShortcutsDialog', () => {
     )
 
     expect(wrapper.findAll('[data-testid="shortcut-row"]').length).toBeGreaterThanOrEqual(11)
-    expect(dialog.text()).toContain('ГЛОБАЛЬНО')
-    expect(dialog.text()).toContain('SIGNAL DOCK')
+    expect(dialog.text()).toContain('Глобально')
+    expect(dialog.text()).toContain('Signal Dock')
     expect(dialog.text()).toContain('главная')
     expect(dialog.text()).toContain('командная линза')
     expect(dialog.text()).toContain('эта справка')

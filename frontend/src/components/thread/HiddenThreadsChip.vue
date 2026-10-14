@@ -39,13 +39,12 @@ const { hiddenCount, revealHidden, toggleReveal } = useHiddenThreads()
   gap: var(--space-2);
   min-height: 44px;
   padding: 0 var(--space-2) 0 var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: none;
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper-raised);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
 }
 
 .hidden-chip__count {
@@ -60,18 +59,18 @@ const { hiddenCount, revealHidden, toggleReveal } = useHiddenThreads()
   padding: 0 var(--space-2);
   background: none;
   border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  border-radius: 0;
+  color: var(--ink);
   cursor: pointer;
   font: inherit;
   transition:
-    color var(--duration-fast),
-    background var(--duration-fast);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .hidden-chip__toggle:hover {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  background: var(--paper-sunken);
 }
 
 .hidden-chip__toggle:focus-visible {

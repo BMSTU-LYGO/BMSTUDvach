@@ -59,10 +59,10 @@ const snippet = computed(() => {
   position: fixed;
   z-index: 25;
   padding: var(--space-3);
-  background: var(--bg-raised);
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  background: var(--paper-raised, #EAE4D4);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
+  box-shadow: 0 4px 12px rgba(28, 26, 20, 0.08);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -75,40 +75,41 @@ const snippet = computed(() => {
 }
 
 .post-preview__id {
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  color: var(--accent);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary, #8A8273);
 }
 
 .post-preview__author {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ink, #1C1A14);
 }
 
 .post-preview__op {
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  color: var(--accent-dim);
-  border: 1px solid var(--accent-dim);
-  border-radius: 3px;
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.75rem;
+  color: var(--accent, #2F4F4E);
+  border: 1px solid var(--accent, #2F4F4E);
+  border-radius: 0;
   padding: 0 4px;
 }
 
 .post-preview__snippet {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--ink-secondary, #5B5547);
   max-height: 96px;
   overflow: hidden;
+  font-family: var(--font-body, 'Inter', sans-serif);
 }
 
 .post-preview__meta {
   display: block;
   margin-top: var(--space-2);
-  font-family: var(--font-display);
-  font-size: 0.64rem;
-  color: var(--text-muted);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary, #8A8273);
 }
 </style>

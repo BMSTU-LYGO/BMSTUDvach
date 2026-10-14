@@ -96,7 +96,7 @@ defineExpose({ onKeydown, commit })
       @keydown="onKeydown"
     >
       <div class="lens__head" aria-hidden="true">
-        <span class="lens__kicker">COMMAND<span class="lens__kicker-sep">/</span>LENS</span>
+        <span class="lens__kicker">команды</span>
         <span class="lens__query">
           <span class="lens__query-prefix">/</span>{{ filter }}<span class="lens__caret"></span>
         </span>
@@ -145,14 +145,10 @@ defineExpose({ onKeydown, commit })
   bottom: calc(100% + 8px);
   left: 0;
   right: 0;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(14px) saturate(130%);
-  border: 1px solid var(--border-medium);
+  background: var(--paper);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent),
-    0 18px 50px oklch(0 0 0 / 0.6),
-    0 0 40px color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: var(--shadow-md);
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
@@ -160,21 +156,6 @@ defineExpose({ onKeydown, commit })
   overflow: hidden;
 }
 
-/* optical edge — the same hairline of light the scan lens carries */
-.lens::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--accent) 60%, transparent) 35%,
-    color-mix(in oklab, var(--accent) 60%, transparent) 65%,
-    transparent
-  );
-  pointer-events: none;
-}
 
 .lens__head {
   display: flex;
@@ -182,10 +163,9 @@ defineExpose({ onKeydown, commit })
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
-  background: color-mix(in oklab, var(--bg-deep) 45%, transparent);
-  font-family: var(--font-display);
+  background: var(--paper-sunken);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  letter-spacing: 0.14em;
 }
 
 .lens__kicker {
@@ -197,7 +177,7 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__kicker-sep {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .lens__query {
@@ -206,14 +186,14 @@ defineExpose({ onKeydown, commit })
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  color: var(--text-primary);
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .lens__query-prefix {
-  color: var(--accent-dim);
+  color: var(--accent-hover);
 }
 
 .lens__caret {
@@ -236,7 +216,7 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__count {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   flex-shrink: 0;
 }
 
@@ -266,7 +246,7 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__item:hover {
-  background: color-mix(in oklab, var(--text-primary) 5%, transparent);
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
 }
 
 .lens__item--active {
@@ -284,11 +264,10 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__name {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.82rem;
-  letter-spacing: 0.02em;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--ink);
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;
@@ -301,19 +280,19 @@ defineExpose({ onKeydown, commit })
 
 .lens__hint {
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .lens__shortcut kbd {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
   line-height: 1.4;
-  color: var(--text-secondary);
-  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-secondary);
+  background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
+  border: 1px solid var(--rule);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   padding: 2px 5px;
@@ -333,7 +312,7 @@ defineExpose({ onKeydown, commit })
   position: relative;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--rule);
   border-radius: 50%;
 }
 
@@ -342,12 +321,12 @@ defineExpose({ onKeydown, commit })
   position: absolute;
   inset: 9px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--ink-tertiary);
 }
 
 .lens__empty-text {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .lens__foot {
@@ -357,10 +336,9 @@ defineExpose({ onKeydown, commit })
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border-subtle);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .lens__foot-keys {
@@ -370,12 +348,12 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__foot-keys kbd {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
   line-height: 1.4;
-  color: var(--text-secondary);
-  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-secondary);
+  background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
+  border: 1px solid var(--rule);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   padding: 2px 5px;

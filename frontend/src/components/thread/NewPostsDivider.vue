@@ -23,7 +23,7 @@ const padded = computed(() =>
     data-testid="new-posts-divider"
   >
     <span class="new-posts__line" aria-hidden="true"></span>
-    <span class="new-posts__label">НОВЫЕ СООБЩЕНИЯ · {{ padded }}</span>
+    <span class="new-posts__label">новые сообщения · {{ padded }}</span>
     <span class="new-posts__line" aria-hidden="true"></span>
   </div>
 </template>
@@ -34,25 +34,19 @@ const padded = computed(() =>
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--rule, #D4CEB8);
 }
 
 .new-posts__line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--accent-glow-strong),
-    transparent
-  );
+  background: var(--rule, #D4CEB8);
 }
 
 .new-posts__label {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  color: var(--accent);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
+  color: var(--accent, #2F4F4E);
   white-space: nowrap;
 }
 
@@ -63,13 +57,7 @@ const padded = computed(() =>
   }
 
   .new-posts__label {
-    font-size: 0.62rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .new-posts__line {
-    background: var(--border-medium);
+    font-size: 0.75rem;
   }
 }
 </style>

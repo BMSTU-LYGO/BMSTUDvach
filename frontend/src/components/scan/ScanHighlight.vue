@@ -50,7 +50,7 @@ const segments = computed<Segment[]>(() => {
 <style scoped>
 .scan__mark {
   background: var(--accent-dim);
-  color: var(--bg-deep);
+  color: var(--ink);
   border-radius: var(--radius-sm);
   padding: 0 1px;
   font-weight: inherit;

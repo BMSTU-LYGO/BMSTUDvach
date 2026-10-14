@@ -437,7 +437,7 @@ function railError(message: string) {
 
     <!-- expanding stack: context node, cargo rail, notices, preview -->
     <div v-if="previewOpen && body.length > 0" class="dock-preview" data-testid="dock-preview">
-      <span class="dock-preview__kicker">ПРЕДПРОСМОТР СИГНАЛА</span>
+      <span class="dock-preview__kicker">предпросмотр сигнала</span>
       <div class="dock-preview__body">
         <template v-for="(token, i) in previewTokens" :key="i">
           <span v-if="token.type === 'text'">{{ token.value }}</span>
@@ -535,7 +535,7 @@ function railError(message: string) {
     </Transition>
 
     <div v-if="dragDepth > 0" class="signal-dock__intake" aria-hidden="true">
-      <span class="signal-dock__intake-label">DROP INTO SIGNAL</span>
+      <span class="signal-dock__intake-label">перетащите файл</span>
     </div>
   </div>
 </template>
@@ -547,10 +547,9 @@ function railError(message: string) {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in oklab, var(--bg-deep) 82%, transparent);
+  background: var(--paper-raised);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
   transition:
     border-color 220ms var(--ease-out-quart),
     box-shadow 260ms var(--ease-out-quart),
@@ -559,17 +558,12 @@ function railError(message: string) {
 
 .signal-dock--active {
   border-color: color-mix(in oklab, var(--accent) 35%, transparent);
-  box-shadow:
-    0 -8px 40px oklch(0 0 0 / 0.35),
-    0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .signal-dock--intake {
   border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 0 60px color-mix(in oklab, var(--accent) 25%, transparent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* expanding stack — morphs upward, no dropdown arrow, no v-if accordion */
@@ -596,21 +590,20 @@ function railError(message: string) {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  border: 1px dashed var(--border-medium);
+  border: 1px dashed var(--rule);
   border-radius: var(--radius-md);
 }
 
 .dock-preview__kicker {
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.64rem;
+  color: var(--ink-tertiary);
 }
 
 .dock-preview__body {
   font-size: 0.88rem;
   line-height: 1.6;
-  color: var(--text-primary);
+  color: var(--ink);
   white-space: pre-wrap;
   max-height: 180px;
   overflow-y: auto;
@@ -618,20 +611,20 @@ function railError(message: string) {
 
 .dock-preview__link {
   color: var(--accent);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.86em;
 }
 
 .dock-preview__meta {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .signal-dock__sage {
   display: grid;
   place-items: center;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   padding-top: 0.35rem;
   flex-shrink: 0;
 }
@@ -658,7 +651,7 @@ function railError(message: string) {
 }
 
 .context-node__glyph {
-  color: var(--accent-dim);
+  color: var(--ink-tertiary);
 }
 
 .context-remove {
@@ -666,14 +659,14 @@ function railError(message: string) {
   border: none;
   padding: 4px;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   border-radius: 50%;
   display: grid;
   place-items: center;
 }
 
 .context-remove:hover {
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 /* main row */
@@ -689,10 +682,9 @@ function railError(message: string) {
   align-items: center;
   gap: 7px;
   padding-top: 0.45rem;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.66rem;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   white-space: nowrap;
   flex-shrink: 0;
   user-select: none;
@@ -702,23 +694,22 @@ function railError(message: string) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  border: 1px solid var(--text-muted);
+  border: 1px solid var(--ink-tertiary);
   transition: all 220ms var(--ease-out-quart);
 }
 
 .signal-dock__dot--live {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .signal-dock__thread {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   opacity: 0.7;
 }
 
 .signal-dock--active .signal-dock__identity {
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 /* identity capsule row (TRIP-01) */
@@ -748,7 +739,7 @@ function railError(message: string) {
   background: none;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
   font-size: 0.74rem;
   transition: color 160ms, background 160ms;
@@ -766,20 +757,19 @@ function railError(message: string) {
 }
 
 .rail-action--sage {
-  color: var(--accent-dim);
+  color: var(--ink-tertiary);
 }
 
 .rail-action__label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  letter-spacing: 0.04em;
 }
 
 .signal-dock__hint {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  color: var(--text-muted);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-tertiary);
+  border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 2px 6px;
 }
@@ -799,13 +789,13 @@ function railError(message: string) {
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border-subtle);
   font-size: 0.74rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .signal-dock__help kbd {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.66rem;
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 1px 5px;
   margin-right: 4px;
@@ -817,15 +807,14 @@ function railError(message: string) {
   inset: 0;
   display: grid;
   place-items: center;
-  background: color-mix(in oklab, var(--bg-deep) 88%, transparent);
+  background: color-mix(in oklab, var(--paper) 88%, transparent);
   border-radius: var(--radius-lg);
   z-index: 20;
 }
 
 .signal-dock__intake-label {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  letter-spacing: 0.3em;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
   color: var(--accent);
   animation: intake-pulse 1.2s ease-in-out infinite;
 }

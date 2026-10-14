@@ -73,7 +73,7 @@ const gaugeStyle = computed(() => ({
 }
 
 .signal-meter--ok {
-  --meter-color: var(--text-muted);
+  --meter-color: var(--ink-tertiary);
   opacity: 0.35;
 }
 
@@ -83,7 +83,7 @@ const gaugeStyle = computed(() => ({
 }
 
 .signal-meter--critical {
-  --meter-color: #f59e0b;
+  --meter-color: var(--accent-hover);
   opacity: 1;
 }
 
@@ -113,9 +113,9 @@ const gaugeStyle = computed(() => ({
   position: absolute;
   top: 16px;
   right: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   white-space: nowrap;
 }
 

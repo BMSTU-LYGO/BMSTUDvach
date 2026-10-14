@@ -86,7 +86,7 @@ function onKeydown(e: KeyboardEvent) {
     @keydown="onKeydown"
   >
     <header class="probe-head">
-      <span class="probe-head__kicker">DIAGNOSTIC</span>
+      <span class="probe-head__kicker">жалоба</span>
       <span class="probe-head__target">#{{ postId }}</span>
       <button
         type="button"
@@ -131,7 +131,7 @@ function onKeydown(e: KeyboardEvent) {
       </p>
 
       <div class="probe-submit">
-        <span class="probe-submit__label">SEND REPORT</span>
+        <span class="probe-submit__label">отправить жалобу</span>
         <TransmitControl
           :submitting="submitting"
           :ready="true"
@@ -148,10 +148,10 @@ function onKeydown(e: KeyboardEvent) {
 .report-probe {
   margin-top: var(--space-4);
   padding: var(--space-4);
-  background: color-mix(in oklab, var(--bg-deep) 85%, transparent);
-  border: 1px solid color-mix(in oklab, var(--accent) 26%, transparent);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow: 0 18px 60px oklch(0 0 0 / 0.4);
+  box-shadow: var(--shadow-md);
   animation: probe-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -170,16 +170,15 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .probe-head__kicker {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  letter-spacing: 0.22em;
   color: var(--accent);
 }
 
 .probe-head__target {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .probe-head__close {
@@ -188,15 +187,15 @@ function onKeydown(e: KeyboardEvent) {
   border: none;
   padding: 8px;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   border-radius: 50%;
   display: grid;
   place-items: center;
 }
 
 .probe-head__close:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+  color: var(--ink);
+  background: var(--paper-raised);
 }
 
 /* stage 2 */
@@ -221,15 +220,13 @@ function onKeydown(e: KeyboardEvent) {
   display: grid;
   place-items: center;
   color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
   flex-shrink: 0;
 }
 
 .probe-anchor__label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 .probe-anchor__change {
@@ -239,7 +236,7 @@ function onKeydown(e: KeyboardEvent) {
   padding: 4px 0;
   cursor: pointer;
   font-size: 0.7rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -251,11 +248,11 @@ function onKeydown(e: KeyboardEvent) {
 .probe-comment {
   width: 100%;
   resize: none;
-  background: color-mix(in oklab, var(--bg-surface) 60%, transparent);
+  background: color-mix(in oklab, var(--paper-raised) 60%, transparent);
   border: none;
   border-bottom: 1px solid var(--border-subtle);
   outline: none;
-  color: var(--text-primary);
+  color: var(--ink);
   font-family: var(--font-body);
   font-size: 0.88rem;
   line-height: 1.6;
@@ -267,7 +264,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .probe-comment::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   opacity: 0.7;
 }
 
@@ -285,10 +282,9 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .probe-submit__label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  letter-spacing: 0.18em;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -39,10 +39,10 @@ function select(order: ThreadOrder) {
 <style scoped>
 .sort-lens {
   display: inline-flex;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   overflow: hidden;
-  background: var(--bg-surface);
+  background: transparent;
 }
 
 .sort-lens__btn {
@@ -53,28 +53,26 @@ function select(order: ThreadOrder) {
   place-items: center;
   background: none;
   border: none;
-  color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .sort-lens__btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-raised);
+  color: var(--ink);
+  background: var(--paper-sunken);
 }
 
 .sort-lens__btn--active {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .sort-lens__btn + .sort-lens__btn {
-  border-left: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--rule);
 }
 
 @media (prefers-reduced-motion: reduce) {

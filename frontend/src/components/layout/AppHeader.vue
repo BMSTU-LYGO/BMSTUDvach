@@ -95,7 +95,7 @@ function closeMobile() {
             @click="$emit('scan')"
           >
             <NetworkIcon name="report" :size="14" />
-            <span class="scan-label">SCAN</span>
+            <span class="scan-label">Поиск</span>
           </button>
           <button
             class="fx-toggle"
@@ -149,9 +149,8 @@ function closeMobile() {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: var(--bg-raised);
-  border-bottom: 1px solid var(--border-subtle);
-  backdrop-filter: blur(12px);
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--rule);
 }
 
 .header-inner {
@@ -165,7 +164,7 @@ function closeMobile() {
 
 .brand {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-2);
   text-decoration: none;
   flex-shrink: 0;
@@ -173,18 +172,17 @@ function closeMobile() {
 
 .brand-text {
   font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
 }
 
 .brand-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .header-right {
@@ -203,38 +201,37 @@ function closeMobile() {
 }
 
 .fx-toggle {
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-secondary);
   background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   padding: var(--space-1) var(--space-2);
   min-height: 28px;
   display: inline-flex;
   align-items: center;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .fx-toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--border-medium);
+  color: var(--ink);
+  background: var(--paper-sunken);
+  border-color: var(--ink-tertiary);
 }
 
 .fx-toggle--scan {
   gap: 6px;
-  letter-spacing: 0.08em;
 }
 
 .fx-toggle--scan .scan-label {
-  font-size: 0.66rem;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .fx-toggle--sound {
@@ -243,7 +240,6 @@ function closeMobile() {
   min-width: 28px;
 }
 
-/* Expand the touch target to 44px without changing the compact visual size. */
 .fx-toggle--sound::after {
   content: '';
   position: absolute;
@@ -261,9 +257,8 @@ function closeMobile() {
 
 .fx-toggle.active {
   color: var(--accent);
-  border-color: var(--border-accent);
-  background: var(--accent-glow);
-  box-shadow: 0 0 10px var(--accent-glow);
+  border-color: var(--accent);
+  background: var(--paper-sunken);
 }
 
 .nav {
@@ -277,29 +272,29 @@ function closeMobile() {
 
 .nav-link {
   padding: var(--space-1) var(--space-3);
-  font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--ink-secondary);
   text-decoration: none;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .nav-link:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+  color: var(--ink);
+  background: var(--paper-sunken);
 }
 
 .nav-link.router-link-active {
   color: var(--accent);
-  background: var(--accent-glow);
+  background: var(--paper-sunken);
 }
 
 .nav-accent {
-  color: var(--accent-dim);
+  color: var(--accent);
 }
 
 .mobile-toggle {
@@ -320,10 +315,10 @@ function closeMobile() {
 .hamburger span {
   display: block;
   height: 2px;
-  background: var(--text-secondary);
+  background: var(--ink-secondary);
   border-radius: 1px;
   transition:
-    transform var(--duration-normal) var(--ease-out-quart),
+    transform var(--duration-normal) var(--ease-out),
     opacity var(--duration-fast);
 }
 
@@ -356,8 +351,8 @@ function closeMobile() {
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--bg-raised);
-    border-bottom: 1px solid var(--border-subtle);
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--rule);
     padding: var(--space-3);
     flex-direction: column;
     gap: var(--space-1);

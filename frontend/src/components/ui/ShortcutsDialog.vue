@@ -23,7 +23,7 @@ interface ShortcutSection {
 // Strictly what the app actually listens for.
 const SECTIONS: ShortcutSection[] = [
   {
-    title: 'ГЛОБАЛЬНО',
+    title: 'Глобально',
     rows: [
       { keys: ['⌘/Ctrl', 'K'], label: 'поиск' },
       { keys: ['/'], label: 'поиск' },
@@ -35,7 +35,7 @@ const SECTIONS: ShortcutSection[] = [
     ],
   },
   {
-    title: 'SIGNAL DOCK',
+    title: 'Signal Dock',
     rows: [
       { keys: ['⌘/Ctrl', 'Enter'], label: 'отправить' },
       { keys: ['/'], label: 'командная линза' },
@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
       data-testid="shortcuts-dialog"
     >
       <header class="shortcuts__head">
-        <span class="shortcuts__kicker">KEYMAP<span class="shortcuts__sep">/</span>REFERENCE</span>
+        <span class="shortcuts__kicker">горячие клавиши</span>
         <button
           ref="closeRef"
           type="button"
@@ -198,8 +198,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: color-mix(in oklab, var(--bg-deep) 62%, transparent);
-  backdrop-filter: blur(4px);
+  background: color-mix(in oklab, var(--paper) 62%, transparent);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out-quart);
 }
@@ -214,14 +213,10 @@ onBeforeUnmount(() => {
   max-height: min(620px, 86vh);
   display: flex;
   flex-direction: column;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(14px) saturate(130%);
-  border: 1px solid var(--border-medium);
+  background: var(--paper);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent),
-    0 24px 70px oklch(0 0 0 / 0.65),
-    0 0 48px color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   outline: none;
   transform: translateY(8px);
@@ -232,20 +227,6 @@ onBeforeUnmount(() => {
   transform: translateY(0);
 }
 
-.shortcuts::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--accent) 60%, transparent) 35%,
-    color-mix(in oklab, var(--accent) 60%, transparent) 65%,
-    transparent
-  );
-  pointer-events: none;
-}
 
 .shortcuts__head {
   display: flex;
@@ -253,21 +234,20 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
-  background: color-mix(in oklab, var(--bg-deep) 45%, transparent);
+  background: var(--paper-sunken);
 }
 
 .shortcuts__kicker {
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  letter-spacing: 0.2em;
   color: var(--accent);
 }
 
 .shortcuts__sep {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .shortcuts__close {
@@ -280,8 +260,8 @@ onBeforeUnmount(() => {
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-family: var(--font-display);
+  color: var(--ink-tertiary);
+  font-family: var(--font-body);
   font-size: 0.86rem;
   cursor: pointer;
   transition:
@@ -291,7 +271,7 @@ onBeforeUnmount(() => {
 
 .shortcuts__close:hover {
   color: var(--accent);
-  border-color: var(--border-medium);
+  border-color: var(--rule);
 }
 
 .shortcuts__close:focus-visible {
@@ -318,11 +298,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.58rem;
   font-weight: 600;
-  letter-spacing: 0.22em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .shortcuts__section-title::after {
@@ -360,12 +339,12 @@ onBeforeUnmount(() => {
 }
 
 .shortcuts__key {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
   line-height: 1.4;
-  color: var(--text-secondary);
-  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-secondary);
+  background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
+  border: 1px solid var(--rule);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   padding: 2px 6px;
@@ -375,7 +354,7 @@ onBeforeUnmount(() => {
 .shortcuts__label {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .shortcuts__foot {
@@ -384,10 +363,9 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border-subtle);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .shortcuts__hint {

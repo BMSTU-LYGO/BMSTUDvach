@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
   >
     <div class="lightbox__panel" data-testid="lightbox-panel">
       <header class="lightbox__head">
-        <span class="lightbox__kicker" aria-hidden="true">SIGNAL VIEW</span>
+        <span class="lightbox__kicker" aria-hidden="true">Просмотр</span>
         <span class="lightbox__counter" data-testid="lightbox-counter">{{ counter }}</span>
         <button
           ref="closeRef"
@@ -271,9 +271,9 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: var(--bg-overlay);
+  background: oklch(0.95 0.01 80 / 0.95);
   opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out-quart);
+  transition: opacity var(--duration-normal, 200ms) var(--ease-out-quart);
 }
 
 .lightbox--entered {
@@ -288,12 +288,12 @@ onBeforeUnmount(() => {
   max-height: calc(100vh - var(--space-8));
   padding: var(--space-4);
   overflow: hidden;
-  background: color-mix(in oklab, var(--bg-surface) 92%, transparent);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  background: var(--paper-raised, #EAE4D4);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
+  box-shadow: 0 4px 12px rgba(28, 26, 20, 0.08);
   transform: scale(0.96);
-  transition: transform var(--duration-normal) var(--ease-out-quart);
+  transition: transform var(--duration-normal, 200ms) var(--ease-out-quart);
 }
 
 .lightbox--entered .lightbox__panel {
@@ -307,17 +307,15 @@ onBeforeUnmount(() => {
 }
 
 .lightbox__kicker {
-  font-family: var(--font-display);
-  font-size: 0.64rem;
-  letter-spacing: 0.22em;
-  color: var(--accent);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
+  color: var(--ink-secondary, #5B5547);
 }
 
 .lightbox__counter {
-  font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.875rem;
+  color: var(--ink-secondary, #5B5547);
 }
 
 .lightbox__close {
@@ -328,21 +326,21 @@ onBeforeUnmount(() => {
   margin-left: auto;
   padding: 0;
   background: none;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-family: var(--font-display);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
+  color: var(--ink-secondary, #5B5547);
+  font-family: var(--font-body, 'Inter', sans-serif);
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast, 150ms) var(--ease-out-quart),
+    border-color var(--duration-fast, 150ms) var(--ease-out-quart),
+    background var(--duration-fast, 150ms) var(--ease-out-quart);
 }
 
 .lightbox__close:hover {
-  color: var(--text-primary);
-  border-color: var(--border-accent);
-  background: var(--bg-raised);
+  color: var(--ink, #1C1A14);
+  border-color: var(--ink-tertiary, #8A8273);
+  background: var(--paper-sunken, #F7F3E8);
 }
 
 .lightbox__stage {
@@ -359,33 +357,33 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   padding: 0;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  background: var(--paper-raised, #EAE4D4);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
+  color: var(--ink-secondary, #5B5547);
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast, 150ms) var(--ease-out-quart),
+    border-color var(--duration-fast, 150ms) var(--ease-out-quart),
+    background var(--duration-fast, 150ms) var(--ease-out-quart);
 }
 
 .lightbox__nav:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--border-accent);
-  background: var(--bg-surface);
+  color: var(--accent, #2F4F4E);
+  border-color: var(--ink-tertiary, #8A8273);
+  background: var(--paper-sunken, #F7F3E8);
 }
 
 .lightbox__nav:disabled {
-  color: var(--text-muted);
-  border-color: var(--border-subtle);
+  color: var(--ink-tertiary, #8A8273);
+  border-color: var(--rule, #D4CEB8);
   background: transparent;
   cursor: default;
   opacity: 0.5;
 }
 
 .lightbox__glyph {
-  font-family: var(--font-display);
+  font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 1.1rem;
   line-height: 1;
 }
@@ -405,9 +403,9 @@ onBeforeUnmount(() => {
   width: auto;
   height: auto;
   object-fit: contain;
-  background: var(--bg-deep);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: var(--paper, #F2EDE0);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
 }
 
 .lightbox__file {
@@ -417,17 +415,18 @@ onBeforeUnmount(() => {
   min-height: 200px;
   max-height: min(64vh, 640px);
   padding: var(--space-8);
-  color: var(--text-secondary);
-  border: 1px dashed var(--border-medium);
-  border-radius: var(--radius-md);
+  color: var(--ink-secondary, #5B5547);
+  border: 1px dashed var(--rule, #D4CEB8);
+  border-radius: 0;
+  text-decoration: none;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast, 150ms) var(--ease-out-quart),
+    border-color var(--duration-fast, 150ms) var(--ease-out-quart);
 }
 
 .lightbox__file:hover {
-  color: var(--accent);
-  border-color: var(--border-accent);
+  color: var(--accent, #2F4F4E);
+  border-color: var(--ink-tertiary, #8A8273);
 }
 
 .lightbox__file .lightbox__glyph {
@@ -435,9 +434,8 @@ onBeforeUnmount(() => {
 }
 
 .lightbox__file-open {
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
 }
 
 .lightbox__caption {
@@ -450,16 +448,16 @@ onBeforeUnmount(() => {
 }
 
 .lightbox__name {
-  font-family: var(--font-display);
-  font-size: 0.78rem;
-  color: var(--text-primary);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
+  color: var(--ink, #1C1A14);
   overflow-wrap: anywhere;
 }
 
 .lightbox__meta {
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  color: var(--text-muted);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary, #8A8273);
 }
 
 .lightbox__hints {
@@ -467,10 +465,9 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: var(--space-4);
   justify-content: center;
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary, #8A8273);
 }
 
 @media (prefers-reduced-motion: reduce) {

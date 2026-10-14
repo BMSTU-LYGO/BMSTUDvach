@@ -94,7 +94,7 @@ function ago(value: string): string {
 .catalog-item {
   position: relative;
   display: flex;
-  transition: opacity var(--duration-normal) var(--ease-out-quart);
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .catalog-item--hidden {
@@ -107,22 +107,20 @@ function ago(value: string): string {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   text-decoration: none;
-  color: inherit;
+  color: var(--ink);
   min-height: 148px;
   transition:
-    border-color var(--duration-fast),
-    box-shadow var(--duration-normal) var(--ease-out-quart),
-    transform var(--duration-fast) var(--ease-out-quart);
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .catalog-card:hover {
-  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--accent) 12%, transparent);
-  transform: translateY(-2px);
+  border-color: var(--ink-tertiary);
+  transform: translateY(-1px);
 }
 
 .catalog-card:focus-visible {
@@ -141,9 +139,9 @@ function ago(value: string): string {
 }
 
 .catalog-card__node {
-  font-family: var(--font-display);
-  font-size: 0.66rem;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary);
 }
 
 .catalog-card__pin {
@@ -154,30 +152,31 @@ function ago(value: string): string {
 }
 
 .catalog-card__pin-label {
-  font-family: var(--font-display);
-  font-size: 0.56rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--accent);
 }
 
 .catalog-card__lock {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   display: inline-flex;
 }
 
 .catalog-card__replies {
   margin-left: auto;
-  font-family: var(--font-display);
-  font-size: 0.74rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--accent-dim);
+  color: var(--ink-secondary);
 }
 
 .catalog-card__title {
   margin: 0;
-  font-size: 0.98rem;
-  line-height: 1.35;
-  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -186,9 +185,10 @@ function ago(value: string): string {
 
 .catalog-card__snippet {
   margin: 0;
-  font-size: 0.8rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--text-muted);
+  color: var(--ink-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -200,9 +200,9 @@ function ago(value: string): string {
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
-  font-family: var(--font-display);
-  font-size: 0.64rem;
-  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--ink-tertiary);
 }
 
 .catalog-hide {
@@ -215,14 +215,14 @@ function ago(value: string): string {
   place-items: center;
   background: none;
   border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
+  border-radius: 0;
+  color: var(--ink-tertiary);
   cursor: pointer;
   opacity: 0;
   transition:
-    color var(--duration-fast),
-    background var(--duration-fast),
-    opacity var(--duration-fast);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .catalog-item:hover .catalog-hide,
@@ -232,7 +232,7 @@ function ago(value: string): string {
 
 .catalog-hide:hover {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  background: var(--paper-sunken);
 }
 
 .catalog-hide:focus-visible {

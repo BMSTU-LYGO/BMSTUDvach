@@ -219,7 +219,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   <div v-if="open" class="scan-backdrop" @click="onBackdropClick">
     <div class="scan" role="dialog" aria-label="Поиск по сети" data-testid="scan-lens">
       <header class="scan__head">
-        <span class="scan__kicker">SCAN<span class="scan__kicker-sep">/</span>NETWORK</span>
+        <span class="scan__kicker">поиск</span>
         <input
           ref="inputRef"
           v-model="query"
@@ -258,7 +258,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
           :aria-pressed="boardFilter === null"
           @click="selectBoard(null)"
         >
-          ВСЕ
+          Все
         </button>
         <button
           v-for="board in boards"
@@ -279,9 +279,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
       <div v-if="rows.length" ref="listRef" class="scan__results" role="listbox">
         <template v-for="(row, i) in rows" :key="`${row.kind}-${row.id}`">
-          <div v-if="i === 0" class="scan__section" aria-hidden="true">ТРЕДЫ</div>
+          <div v-if="i === 0" class="scan__section" aria-hidden="true">треды</div>
           <div v-else-if="i === results.threads.length" class="scan__section" aria-hidden="true">
-            ПОСТЫ
+            посты
           </div>
           <button
             type="button"
@@ -370,8 +370,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal-backdrop);
-  background: color-mix(in oklab, var(--bg-deep) 62%, transparent);
-  backdrop-filter: blur(4px);
+  background: color-mix(in oklab, var(--paper) 62%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -392,33 +391,14 @@ function onGlobalKeydown(e: KeyboardEvent) {
   max-height: min(560px, 80vh);
   display: flex;
   flex-direction: column;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(14px) saturate(130%);
-  border: 1px solid var(--border-medium);
+  background: var(--paper);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent),
-    0 24px 70px oklch(0 0 0 / 0.65),
-    0 0 48px color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: scan-in 160ms var(--ease-out-expo);
 }
 
-/* optical edge — one hairline of light along the top of the frame */
-.scan::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--accent) 60%, transparent) 35%,
-    color-mix(in oklab, var(--accent) 60%, transparent) 65%,
-    transparent
-  );
-  pointer-events: none;
-}
 
 @keyframes scan-in {
   from {
@@ -433,22 +413,21 @@ function onGlobalKeydown(e: KeyboardEvent) {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
-  background: color-mix(in oklab, var(--bg-deep) 45%, transparent);
+  background: var(--paper-sunken);
 }
 
 .scan__kicker {
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.6rem;
-  letter-spacing: 0.2em;
   color: var(--accent);
   flex-shrink: 0;
 }
 
 .scan__kicker-sep {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .scan__input {
@@ -457,22 +436,21 @@ function onGlobalKeydown(e: KeyboardEvent) {
   background: none;
   border: none;
   outline: none;
-  color: var(--text-primary);
-  font-family: var(--font-display);
+  color: var(--ink);
+  font-family: var(--font-body);
   font-size: 1.05rem;
-  letter-spacing: -0.01em;
   min-height: 34px;
 }
 
 .scan__input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .scan__spinner {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  border: 1.5px solid var(--border-medium);
+  border: 1.5px solid var(--rule);
   border-top-color: var(--accent);
   flex-shrink: 0;
   animation: scan-spin 700ms linear infinite;
@@ -490,7 +468,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   border-radius: var(--radius-md);
   padding: 6px;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -501,7 +479,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__close:hover {
   color: var(--accent);
-  border-color: var(--border-medium);
+  border-color: var(--rule);
 }
 
 .scan__close:focus-visible {
@@ -531,14 +509,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--bg-surface);
+  background: var(--paper-raised);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-family: var(--font-display);
+  color: var(--ink-tertiary);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -552,17 +528,17 @@ function onGlobalKeydown(e: KeyboardEvent) {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--border-medium);
+  background: var(--rule);
   transition: background var(--duration-fast) var(--ease-out-quart);
 }
 
 .scan__chip:hover {
-  color: var(--text-primary);
-  border-color: var(--border-medium);
+  color: var(--ink);
+  border-color: var(--rule);
 }
 
 .scan__chip:hover::before {
-  background: var(--text-muted);
+  background: var(--ink-tertiary);
 }
 
 .scan__chip--active {
@@ -573,7 +549,6 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__chip--active::before {
   background: var(--accent);
-  box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .scan__chip:focus-visible {
@@ -592,10 +567,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3) var(--space-1);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.56rem;
-  letter-spacing: 0.22em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .scan__section::after {
@@ -626,7 +600,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 .scan-row:hover {
-  background: color-mix(in oklab, var(--text-primary) 5%, transparent);
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
 }
 
 .scan-row--active {
@@ -651,13 +625,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 .scan-row__kind--thread {
-  border: 1px solid var(--accent-dim);
+  border: 1px solid var(--ink-tertiary);
   border-radius: 2px;
   transform: rotate(45deg);
 }
 
 .scan-row__kind--post {
-  border: 1px solid var(--text-muted);
+  border: 1px solid var(--ink-tertiary);
   border-radius: 50%;
 }
 
@@ -666,8 +640,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 .scan-row--active .scan-row__kind--post {
-  border-color: var(--accent-dim);
-  background: var(--accent-dim);
+  border-color: var(--ink-tertiary);
+  background: var(--ink-tertiary);
 }
 
 .scan-row__body {
@@ -681,12 +655,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 .scan-row__snippet {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -695,10 +669,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 .scan-row__meta {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 /* notices — an empty scan and a broken one read as the same micro-caption */
@@ -721,7 +694,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   position: relative;
   width: 26px;
   height: 26px;
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--rule);
   border-radius: 50%;
 }
 
@@ -730,7 +703,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   position: absolute;
   inset: 10px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--ink-tertiary);
 }
 
 .scan__notice--error .scan__notice-mark {
@@ -743,14 +716,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__notice-text {
   font-size: 0.86rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .scan__notice-hint {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .scan__hint {
@@ -759,11 +731,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__hint-title {
   margin: 0 0 var(--space-4);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  text-transform: uppercase;
+  color: var(--ink-tertiary);
 }
 
 .scan__hint-keys {
@@ -787,7 +757,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .scan__hint-row dd {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -795,12 +765,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan kbd,
 .scan__hint kbd {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.64rem;
   line-height: 1.4;
-  color: var(--text-secondary);
-  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-secondary);
+  background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
+  border: 1px solid var(--rule);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   padding: 2px 5px;
@@ -814,10 +784,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border-subtle);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.62rem;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .scan__keys {
@@ -862,7 +831,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
   .scan__spinner {
     animation: none;
-    border-top-color: var(--border-medium);
+    border-top-color: var(--rule);
   }
 
   .scan__chip,

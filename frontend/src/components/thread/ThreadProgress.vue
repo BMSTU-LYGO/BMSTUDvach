@@ -36,7 +36,7 @@ defineProps<{
 
 .thread-progress__fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  background: var(--accent, #2F4F4E);
   transform-origin: left center;
   will-change: transform;
 }

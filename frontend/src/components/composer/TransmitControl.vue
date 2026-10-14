@@ -142,7 +142,7 @@ function hover(on: boolean) {
 }
 
 .transmit:focus-visible {
-  box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
 }
 
 .transmit--hover {
@@ -170,7 +170,7 @@ function hover(on: boolean) {
 }
 
 .transmit__track {
-  stroke: var(--border-medium);
+  stroke: var(--rule);
 }
 
 .transmit__charge {
@@ -188,7 +188,7 @@ function hover(on: boolean) {
 }
 
 .transmit__glyph {
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   transition: color 180ms;
 }
 

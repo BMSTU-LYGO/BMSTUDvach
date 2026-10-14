@@ -47,29 +47,25 @@ void props
   gap: var(--space-2);
   min-height: 44px;
   padding: 0 var(--space-6);
-  background: var(--bg-surface);
-  border: 1px dashed var(--border-medium);
-  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   color: var(--accent);
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   cursor: pointer;
   transition:
-    border-color var(--duration-fast) var(--ease-out-quart),
-    color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-normal) var(--ease-out-quart);
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .load-more__btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--text-primary);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--accent) 14%, transparent);
+  border-color: var(--ink-tertiary);
+  background: var(--paper-sunken);
 }
 
 .load-more__btn:disabled {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: progress;
 }
 
@@ -83,7 +79,7 @@ void props
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: load-more-pulse 1s var(--ease-out-quart) infinite;
+  animation: load-more-pulse 1s var(--ease-out) infinite;
 }
 
 @keyframes load-more-pulse {
@@ -102,18 +98,16 @@ void props
   gap: var(--space-3);
   min-height: 44px;
   margin: 0;
-  color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.66rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
 }
 
 .load-more__done::before,
 .load-more__done::after {
   content: '';
   width: var(--space-6);
-  border-top: 1px dashed var(--border-medium);
+  border-top: 1px solid var(--rule);
 }
 
 @media (prefers-reduced-motion: reduce) {

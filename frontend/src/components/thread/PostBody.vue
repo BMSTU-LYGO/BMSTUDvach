@@ -305,24 +305,25 @@ const signature = computed(() =>
 }
 
 .post-signature__author {
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--accent);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent, #2F4F4E);
 }
 
 .post-signature__tripcode {
-  font-family: var(--font-display);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.75rem;
-  color: var(--accent-dim);
+  color: var(--ink-tertiary, #8A8273);
 }
 
 .post-body {
-  max-width: 78ch;
+  max-width: 65ch;
   overflow-wrap: anywhere;
-  line-height: 1.65;
-  color: var(--text-primary);
-  font-family: var(--font-body);
+  line-height: 1.6;
+  color: var(--ink, #1C1A14);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 1rem;
 }
 
 .post-block:not(:last-child) {
@@ -337,71 +338,67 @@ const signature = computed(() =>
 
 .post-quote {
   padding-left: var(--space-3);
-  border-left: 2px solid color-mix(in oklab, var(--success) 60%, transparent);
-  color: color-mix(in oklab, var(--success) 88%, var(--bg-surface));
+  border-left: 3px solid var(--rule, #D4CEB8);
+  color: var(--ink-secondary, #5B5547);
+  font-style: italic;
 }
 
 .post-link {
-  color: var(--accent);
+  color: var(--accent, #2F4F4E);
   text-decoration: none;
-  border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
-  font-family: var(--font-display);
-  font-size: 0.86em;
-  border-radius: var(--radius-sm);
+  border-bottom: 1px solid transparent;
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 1em;
   transition:
-    color var(--duration-fast),
-    border-color var(--duration-fast);
+    color var(--duration-fast, 150ms),
+    border-color var(--duration-fast, 150ms);
 }
 
 .post-link:hover {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  color: var(--accent-hover, #244140);
+  text-decoration: underline;
 }
 
 .post-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent, #2F4F4E);
   outline-offset: 2px;
-  color: var(--text-primary);
-  background: color-mix(in oklab, var(--accent) 16%, transparent);
 }
 
 .post-quote .post-link:hover,
 .post-quote .post-link:focus-visible {
-  background: color-mix(in oklab, var(--success) 18%, transparent);
+  color: var(--accent-hover, #244140);
 }
 
 .post-link--dead {
-  color: var(--text-muted);
+  color: var(--ink-tertiary, #8A8273);
   border-bottom-color: transparent;
   cursor: default;
 }
 
 .post-link--dead:hover,
 .post-link--dead:focus-visible {
-  color: var(--text-muted);
-  background: none;
+  color: var(--ink-tertiary, #8A8273);
+  text-decoration: none;
 }
 
 .post-link--quoted {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
+  color: var(--ink, #1C1A14);
+  border-bottom-color: var(--accent, #2F4F4E);
   animation: post-link-quoted 900ms var(--ease-out-quart);
 }
 
 @keyframes post-link-quoted {
   0% {
-    background: color-mix(in oklab, var(--accent) 30%, transparent);
+    background: var(--paper-sunken, #F7F3E8);
   }
   100% {
-    background: color-mix(in oklab, var(--accent) 0%, transparent);
+    background: transparent;
   }
 }
 
-/* FINDPOST-01: a search hit inside the body text. */
 .post-highlight {
-  background: color-mix(in oklab, var(--accent) 42%, transparent);
-  color: var(--text-primary);
+  background: var(--paper-sunken, #F7F3E8);
+  color: var(--ink, #1C1A14);
   border-radius: 2px;
   padding: 0 1px;
 }
@@ -416,18 +413,18 @@ const signature = computed(() =>
 .post-attachment {
   padding: 0;
   overflow: hidden;
-  background: var(--bg-deep);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
+  background: var(--paper-raised, #EAE4D4);
+  border: 1px solid var(--rule, #D4CEB8);
+  border-radius: 0;
   cursor: zoom-in;
   transition:
-    border-color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    border-color var(--duration-fast, 150ms) var(--ease-out-quart),
+    box-shadow var(--duration-fast, 150ms) var(--ease-out-quart);
 }
 
 .post-attachment:hover {
-  border-color: var(--border-accent);
-  box-shadow: var(--shadow-glow);
+  border-color: var(--ink-tertiary, #8A8273);
+  box-shadow: 0 2px 8px rgba(28, 26, 20, 0.08);
 }
 
 .post-attachment__img {
@@ -440,9 +437,9 @@ const signature = computed(() =>
 .post-attachment__file {
   display: block;
   padding: var(--space-2) var(--space-3);
-  font-family: var(--font-display);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-family: var(--font-body, 'Inter', sans-serif);
+  font-size: 0.875rem;
+  color: var(--ink-secondary, #5B5547);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -453,7 +450,7 @@ const signature = computed(() =>
 
   .post-link--quoted {
     animation: none;
-    background: color-mix(in oklab, var(--accent) 20%, transparent);
+    background: var(--paper-sunken, #F7F3E8);
   }
 }
 </style>

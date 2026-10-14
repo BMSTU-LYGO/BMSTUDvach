@@ -1,42 +1,70 @@
 /* main.css — BMSTUDvach design system foundation */
+/* Арт-дирекция: «Редакционный архив» */
 
 /* === Fonts === */
 @import './fonts.css';
 
-/* === Design Tokens (OKLCH) === */
+/* === Design Tokens === */
 :root {
-  /* Backgrounds */
-  --bg-deep: oklch(0.10 0.01 260);
-  --bg-surface: oklch(0.14 0.012 260);
-  --bg-raised: oklch(0.18 0.015 260);
-  --bg-overlay: oklch(0.10 0.01 260 / 0.85);
+  /* ── Paper (backgrounds) ── */
+  --paper: #F2EDE0;
+  --paper-raised: #EAE4D4;
+  --paper-sunken: #F7F3E8;
 
-  /* Borders */
-  --border-subtle: oklch(0.25 0.02 260);
-  --border-medium: oklch(0.32 0.025 260);
-  --border-accent: oklch(0.72 0.16 65 / 0.4);
+  /* ── Ink (text) ── */
+  --ink: #1C1A14;
+  --ink-secondary: #5B5547;
+  --ink-tertiary: #8A8273;
 
-  /* Text */
-  --text-primary: oklch(0.90 0.01 80);
-  --text-secondary: oklch(0.75 0.015 260);
-  --text-muted: oklch(0.55 0.02 260);
+  /* ── Rule & Accent ── */
+  --rule: #D4CEB8;
+  --accent: #2F4F4E;
+  --accent-hover: #244140;
 
-  /* Accent — amber */
-  --accent: oklch(0.72 0.16 65);
-  --accent-dim: oklch(0.55 0.12 65);
-  --accent-glow: oklch(0.72 0.16 65 / 0.25);
-  --accent-glow-strong: oklch(0.72 0.16 65 / 0.5);
+  /* ── Semantic ── */
+  --danger: #9C2A1F;
+  --danger-dim: #7A2219;
+  --success: #3D7A5A;
 
-  /* Semantic */
-  --danger: oklch(0.55 0.20 25);
-  --danger-dim: oklch(0.45 0.15 25);
-  --success: oklch(0.65 0.18 155);
+  /* ── Legacy aliases (used in components, do not remove) ── */
+  --bg-deep: var(--paper);
+  --bg-surface: var(--paper-raised);
+  --bg-raised: var(--paper-raised);
+  --bg-overlay: rgba(242, 237, 224, 0.92);
 
-  /* Typography */
-  --font-display: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  --border-subtle: var(--rule);
+  --border-medium: var(--ink-tertiary);
+  --border-accent: rgba(47, 79, 78, 0.4);
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-secondary);
+  --text-muted: var(--ink-tertiary);
+
+  --accent-dim: var(--accent-hover);
+  --accent-glow: rgba(47, 79, 78, 0.10);
+  --accent-glow-strong: rgba(47, 79, 78, 0.20);
+
+  /* ── Typography ── */
+  --font-display: 'Cormorant Garamond', 'Georgia', 'Times New Roman', serif;
   --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
 
-  /* Spacing scale (4px base) */
+  /* ── Type scale ── */
+  --text-base: 1rem;
+  --text-sm: 0.875rem;
+  --text-lg: 1.125rem;
+
+  --text-h1: clamp(2.5rem, 5vw, 4rem);
+  --text-h2: clamp(2rem, 4vw, 3rem);
+  --text-h3: clamp(1.5rem, 3vw, 2rem);
+  --text-h4: 1.25rem;
+
+  /* ── Leading ── */
+  --leading-tight: 1.3;
+  --leading-normal: 1.6;
+  --leading-loose: 1.8;
+
+  /* ── Spacing scale (4px base) ── */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -48,19 +76,19 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* ── Radii (editorial: sharp corners) ── */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.4);
-  --shadow-lg: 0 8px 32px oklch(0 0 0 / 0.5);
-  --shadow-glow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+  /* ── Shadows (subtle, warm) ── */
+  --shadow-sm: 0 1px 2px rgba(28, 26, 20, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 26, 20, 0.08);
+  --shadow-lg: 0 8px 32px rgba(28, 26, 20, 0.12);
+  --shadow-glow: none;
 
-  /* Z-index scale */
+  /* ── Z-index scale ── */
   --z-base: 0;
   --z-raised: 10;
   --z-dropdown: 100;
@@ -71,12 +99,13 @@
   --z-toast: 500;
   --z-tooltip: 600;
 
-  /* Transitions */
-  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-out-quart: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-out-expo: cubic-bezier(0.33, 1, 0.68, 1);
   --duration-fast: 150ms;
-  --duration-normal: 300ms;
-  --duration-slow: 500ms;
+  --duration-normal: 200ms;
+  --duration-slow: 280ms;
 }
 
 /* === Reset === */
@@ -89,7 +118,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -97,10 +126,10 @@ html {
 
 body {
   font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  background: var(--bg-deep);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  background: var(--paper);
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -108,25 +137,28 @@ body {
 /* === Typography === */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
-  font-weight: 700;
-  line-height: 1.2;
+  font-weight: 600;
+  line-height: var(--leading-tight);
   text-wrap: balance;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 h1 {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: var(--text-h1);
   letter-spacing: -0.02em;
 }
 
 h2 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-size: var(--text-h2);
   letter-spacing: -0.01em;
 }
 
 h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: var(--text-h3);
+}
+
+h4 {
+  font-size: var(--text-h4);
 }
 
 p {
@@ -136,28 +168,25 @@ p {
 
 small,
 .caption {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 /* === Links === */
 a {
   color: var(--accent);
   text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out-quart);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 a:hover {
-  color: var(--text-primary);
+  color: var(--accent-hover);
 }
 
 a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 /* Keyboard focus must survive on borderless custom controls too —
@@ -183,20 +212,19 @@ select:focus-visible {
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.4;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  background: var(--bg-raised);
-  color: var(--text-primary);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .btn:hover {
-  background: oklch(0.22 0.015 260);
-  border-color: var(--border-accent);
+  background: var(--paper-sunken);
+  border-color: var(--ink-tertiary);
 }
 
 .btn:focus-visible {
@@ -205,34 +233,34 @@ select:focus-visible {
 }
 
 .btn:active {
-  transform: translateY(1px);
+  background: var(--paper-raised);
 }
 
 .btn-primary {
-  background: var(--accent-dim);
+  background: var(--accent);
   border-color: var(--accent);
-  color: oklch(0.10 0.01 260);
+  color: var(--paper);
 }
 
 .btn-primary:hover {
-  background: var(--accent);
-  box-shadow: var(--shadow-glow);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .btn-ghost:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+  color: var(--ink);
+  background: var(--paper-sunken);
 }
 
 .btn-sm {
   padding: var(--space-1) var(--space-3);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .btn-danger {
@@ -241,7 +269,7 @@ select:focus-visible {
 }
 
 .btn-danger:hover {
-  background: oklch(0.55 0.20 25 / 0.15);
+  background: rgba(156, 42, 31, 0.08);
   border-color: var(--danger);
 }
 
@@ -256,26 +284,24 @@ select {
   font-family: var(--font-body);
   font-size: 0.95rem;
   line-height: 1.5;
-  color: var(--text-primary);
-  background: var(--bg-deep);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   transition:
-    border-color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-bottom: 2px solid var(--accent);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 label {
@@ -284,12 +310,12 @@ label {
   gap: var(--space-1);
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 /* === Utility classes === */
 .text-muted {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .text-accent {
@@ -301,6 +327,10 @@ label {
 }
 
 .text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-serif {
   font-family: var(--font-display);
 }
 
@@ -311,22 +341,22 @@ label {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-deep);
+  background: var(--paper-raised);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
+  background: var(--ink-tertiary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--ink-secondary);
 }
 
 /* === Selection === */
 ::selection {
-  background: var(--accent-glow-strong);
-  color: var(--text-primary);
+  background: var(--accent);
+  color: var(--paper);
 }
 
 /* === Reduced motion === */
@@ -339,28 +369,4 @@ label {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* === CRT Effects (applied via useCRT composable) === */
-.crt-vignette::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 60%,
-    oklch(0.05 0.01 260 / 0.4) 100%
-  );
-}
-
-.crt-flicker {
-  animation: crt-flicker 0.15s infinite;
-}
-
-@keyframes crt-flicker {
-  0% { opacity: 1; }
-  50% { opacity: 0.98; }
-  100% { opacity: 1; }
 }
