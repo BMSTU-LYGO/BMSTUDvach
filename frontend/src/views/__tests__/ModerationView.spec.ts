@@ -91,7 +91,10 @@ async function mountView() {
   })
   await router.push('/moderation')
   await router.isReady()
-  return mount(ModerationView, { global: { plugins: [router] }, attachTo: document.body })
+  return mount(ModerationView, {
+    global: { plugins: [router] },
+    attachTo: document.body,
+  })
 }
 
 describe('ModerationView', () => {
@@ -152,7 +155,9 @@ describe('ModerationView', () => {
   })
 
   it('shows a Russian error on bad login', async () => {
-    vi.mocked(staffLogin).mockRejectedValue(new Error('Неверные учётные данные или нет доступа.'))
+    vi.mocked(staffLogin).mockRejectedValue(
+      new Error('Неверные учётные данные или нет доступа.'),
+    )
 
     const wrapper = await mountView()
     await flushPromises()
@@ -301,5 +306,56 @@ describe('ModerationView journal', () => {
       'действий пока не было',
     )
     expect(wrapper.find('[data-testid="moderation-log"]').exists()).toBe(false)
+  })
+})
+
+describe('ModerationView console chrome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(staffMe).mockResolvedValue({ is_staff: true, username: 'moder' })
+    vi.mocked(fetchReportQueue).mockResolvedValue(queue)
+    vi.mocked(fetchModerationLog).mockResolvedValue(log)
+  })
+
+  it('exposes the console sections as labelled landmarks', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const queueSection = wrapper.find('section[aria-labelledby="queue-title"]')
+    expect(queueSection.exists()).toBe(true)
+    expect(queueSection.find('#queue-title').text()).toContain('ОЧЕРЕДЬ ЖАЛОБ')
+
+    const journalSection = wrapper.find('section[aria-labelledby="journal-title"]')
+    expect(journalSection.exists()).toBe(true)
+    expect(journalSection.find('#journal-title').text()).toContain('ЖУРНАЛ')
+
+    const toolsSection = wrapper.find('section[aria-labelledby="tools-title"]')
+    expect(toolsSection.exists()).toBe(true)
+    expect(toolsSection.find('#tools-title').text()).toContain('БЫСТРЫЕ ДЕЙСТВИЯ')
+  })
+
+  it('tags report rows and journal rows with severity levels', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const row = wrapper.find('[data-testid="report-row"]')
+    expect(row.classes()).toContain('report--mid')
+
+    const rows = wrapper.findAll('.journal__row')
+    expect(rows[0].classes()).toContain('journal__row--danger')
+    expect(rows[1].classes()).toContain('journal__row--danger')
+  })
+
+  it('marks the target-kind switch with pressed state', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const segs = wrapper.findAll('.tools__switch button')
+    expect(segs[0].attributes('aria-pressed')).toBe('true')
+    expect(segs[1].attributes('aria-pressed')).toBe('false')
+
+    await segs[1].trigger('click')
+    expect(segs[0].attributes('aria-pressed')).toBe('false')
+    expect(segs[1].attributes('aria-pressed')).toBe('true')
   })
 })

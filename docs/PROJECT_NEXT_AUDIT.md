@@ -300,3 +300,29 @@ spectacular · build PASS · live: search?board= quiet-empty,
 Verified: frontend 310 tests · backend 170 · verify:3d 46 · ruff ·
 spectacular · build PASS · live: /announcements/ (migrated),
 search operators against the stack
+
+## Design round (STATE/GREENTEXT/HERO/MODUI/PLATINUM/OVERLAY) — done (pushed)
+- STATE-01: LoadingState «поиск сигнала» (скан-шина + пики),
+  ErrorState «обрыв связи» (code→message→retry, role=alert),
+  EmptyState «пустой узел»; reduced-motion honest; props untouched
+- GREENTEXT-01: `>`-строки как цитаты с общей левой чертой
+  (--success tint, AA-contrast), абзацы ритмуют через space-4,
+  мера 78ch + line-height 1.65, overflow-wrap anywhere, текст
+  поста копируется дословно; >>id внутри цитаты не сломана
+- HERO-01: hero — кикер-пилюля, clamp-h1 с glow, монолиния
+  метафоры, CTA; секции с индексом (01) + hairline-разделители
+  и моно-ридаутами (УЗЛЫ/СИГНАЛЫ); hover = translate, не transform
+  (тилт цел); ритм space-8; брейкпоинты 640/480
+- MODUI-01: консоль модерации как телеметрический грид — dense
+  строки очереди, журнал потоком с level-акцентом слева; тексты
+  и aria-label кнопок сохранены дословно (спеки зелёные)
+- PLATINUM-01: архив «фрагментами» с hairline-разделителями,
+  #id/teaser/time-row, dashed-нода load-more; сцена чтения:
+  dl-мета (узел/опубликована/источник), мера 70ch, body 1.7
+- OVERLAY-01: ScanLens — центрированная линза (640px, blur,
+  оптическая кромка), kbd-шорткаты, стрелки результатов с
+  accent-инсетом, честные empty/error-микро-подписи; CommandLens
+  в том же языке + новая спека (13 тестов)
+
+Verified: frontend 356 tests · backend 170 · verify:3d 46 · ruff ·
+build PASS

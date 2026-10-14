@@ -12,6 +12,9 @@ export interface LensCommand {
 /**
  * Command Lens (SIGNAL-09). Borrows the /-command UX principle from
  * Notion/Raycast — not the visuals. Real actions only.
+ *
+ * It shares the Scan Lens frame language: one surface, mono type, signal
+ * rows with one active row and kbd affordances on the edges.
  */
 const props = defineProps<{
   open: boolean
@@ -29,6 +32,16 @@ const filtered = computed(() => {
   return props.commands.filter(
     (c) => c.label.toLowerCase().includes(q) || c.id.includes(q),
   )
+})
+
+// Russian plurals: 1 команда, 2 команды, 5 команд.
+const countLabel = computed(() => {
+  const n = filtered.value.length
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return 'команда'
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'команды'
+  return 'команд'
 })
 
 watch(
@@ -54,7 +67,10 @@ function commit() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown') {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    emit('close')
+  } else if (e.key === 'ArrowDown') {
     e.preventDefault()
     move(1)
   } else if (e.key === 'ArrowUp') {
@@ -79,24 +95,46 @@ defineExpose({ onKeydown, commit })
       data-testid="command-lens"
       @keydown="onKeydown"
     >
-      <div v-if="filtered.length === 0" class="lens__empty">нет совпадений</div>
-      <button
-        v-for="(cmd, i) in filtered"
-        :key="cmd.id"
-        type="button"
-        class="lens__item"
-        :class="{ 'lens__item--active': i === active }"
-        role="option"
-        :aria-selected="i === active"
-        @click="run(cmd)"
-        @mouseenter="active = i"
-      >
-        <span class="lens__name">{{ cmd.label }}</span>
-        <span class="lens__hint">{{ cmd.hint }}</span>
-        <span class="lens__shortcut">
-          <kbd>{{ cmd.shortcut }}</kbd>
+      <div class="lens__head" aria-hidden="true">
+        <span class="lens__kicker">COMMAND<span class="lens__kicker-sep">/</span>LENS</span>
+        <span class="lens__query">
+          <span class="lens__query-prefix">/</span>{{ filter }}<span class="lens__caret"></span>
         </span>
-      </button>
+        <span class="lens__count">{{ filtered.length }}/{{ commands.length }}</span>
+      </div>
+
+      <div class="lens__list">
+        <div v-if="filtered.length === 0" class="lens__empty">
+          <span class="lens__empty-mark" aria-hidden="true"></span>
+          <span class="lens__empty-text">нет совпадений</span>
+        </div>
+        <button
+          v-for="(cmd, i) in filtered"
+          :key="cmd.id"
+          type="button"
+          class="lens__item"
+          :class="{ 'lens__item--active': i === active }"
+          role="option"
+          :aria-selected="i === active"
+          :data-command="cmd.id"
+          :aria-label="`${cmd.label} — ${cmd.hint}`"
+          @click="run(cmd)"
+          @mouseenter="active = i"
+        >
+          <span class="lens__name">{{ cmd.label }}</span>
+          <span class="lens__hint">{{ cmd.hint }}</span>
+          <span class="lens__shortcut">
+            <kbd>{{ cmd.shortcut }}</kbd>
+          </span>
+        </button>
+      </div>
+
+      <footer class="lens__foot" aria-hidden="true">
+        <span class="lens__foot-count">{{ filtered.length }} {{ countLabel }}</span>
+        <span class="lens__foot-keys">
+          <kbd>↑↓</kbd> ряд <kbd>↵</kbd> выполнить <kbd>esc</kbd> закрыть
+        </span>
+      </footer>
     </div>
   </Transition>
 </template>
@@ -107,68 +145,277 @@ defineExpose({ onKeydown, commit })
   bottom: calc(100% + 8px);
   left: 0;
   right: 0;
-  background: var(--bg-raised);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(14px) saturate(130%);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent),
+    0 18px 50px oklch(0 0 0 / 0.6),
+    0 0 40px color-mix(in oklab, var(--accent) 12%, transparent);
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  z-index: 30;
-  max-height: 260px;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+/* optical edge — the same hairline of light the scan lens carries */
+.lens::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--accent) 60%, transparent) 35%,
+    color-mix(in oklab, var(--accent) 60%, transparent) 65%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.lens__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in oklab, var(--bg-deep) 45%, transparent);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+}
+
+.lens__kicker {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.lens__kicker-sep {
+  color: var(--text-muted);
+}
+
+.lens__query {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lens__query-prefix {
+  color: var(--accent-dim);
+}
+
+.lens__caret {
+  display: inline-block;
+  width: 6px;
+  height: 11px;
+  background: var(--accent);
+  transform: translateY(1px);
+  animation: lens-caret 1.1s steps(2, start) infinite;
+}
+
+@keyframes lens-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.lens__count {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.lens__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-1);
   overflow-y: auto;
 }
 
 .lens__item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
   background: none;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-primary);
+  color: inherit;
   cursor: pointer;
   text-align: left;
   width: 100%;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.lens__item:hover {
+  background: color-mix(in oklab, var(--text-primary) 5%, transparent);
 }
 
 .lens__item--active {
-  background: var(--accent-glow);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.lens__item--active:hover {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+}
+
+.lens__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .lens__name {
-  font-size: 0.84rem;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
   font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lens__item--active .lens__name {
+  color: var(--accent);
 }
 
 .lens__hint {
   font-size: 0.72rem;
   color: var(--text-muted);
-  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lens__shortcut kbd {
   font-family: var(--font-display);
-  font-size: 0.66rem;
-  color: var(--text-muted);
+  font-size: 0.64rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
   border: 1px solid var(--border-medium);
-  border-radius: 4px;
-  padding: 1px 5px;
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  white-space: nowrap;
 }
 
 .lens__empty {
-  padding: 10px;
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  padding: var(--space-5) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
   text-align: center;
+}
+
+.lens__empty-mark {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-medium);
+  border-radius: 50%;
+}
+
+.lens__empty-mark::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.lens__empty-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.lens__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.lens__foot-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lens__foot-keys kbd {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: color-mix(in oklab, var(--bg-raised) 75%, transparent);
+  border: 1px solid var(--border-medium);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .lens {
+    max-height: 260px;
+  }
+
+  .lens__hint {
+    display: none;
+  }
+
+  .lens__item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lens__item,
+  .lens__caret {
+    transition: none;
+    animation: none;
+  }
+
+  .lens-enter-active,
+  .lens-leave-active {
+    transition: none;
+  }
 }
 
 .lens-enter-active,
 .lens-leave-active {
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition:
+    opacity 160ms var(--ease-out-quart),
+    transform 160ms var(--ease-out-expo);
 }
+
 .lens-enter-from,
 .lens-leave-to {
   opacity: 0;

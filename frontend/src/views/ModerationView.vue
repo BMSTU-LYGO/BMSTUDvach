@@ -55,6 +55,29 @@ const TARGET_LABELS: Record<string, string> = {
   report: 'жалоба',
 }
 
+/** Severity of a complaint reason — drives the row rail + glow. */
+const REASON_LEVELS: Record<string, 'high' | 'mid' | 'low'> = {
+  illegal: 'high',
+  abuse: 'high',
+  spam: 'mid',
+  offtopic: 'low',
+  other: 'low',
+}
+
+/** Severity of a journal action — destructive, restorative or neutral. */
+const ACTION_LEVELS: Record<string, 'accent' | 'danger' | 'muted'> = {
+  report_action: 'accent',
+  report_dismiss: 'muted',
+  hide_post: 'danger',
+  show_post: 'accent',
+  hide_thread: 'danger',
+  show_thread: 'accent',
+  lock_thread: 'danger',
+  unlock_thread: 'accent',
+  pin_thread: 'accent',
+  unpin_thread: 'muted',
+}
+
 const isStaff = ref(false)
 const checking = ref(true)
 const username = ref('')
@@ -72,6 +95,19 @@ const logError = ref('')
 
 const targetKind = ref<'post' | 'thread'>('post')
 const targetId = ref('')
+
+/** Telemetry padding: ids and counters always read as fixed-width digits. */
+function pad(value: number): string {
+  return String(value).padStart(3, '0')
+}
+
+function reasonLevel(reason: string): string {
+  return REASON_LEVELS[reason] ?? 'low'
+}
+
+function actionLevel(action: string): string {
+  return ACTION_LEVELS[action] ?? 'muted'
+}
 
 async function check() {
   checking.value = true
@@ -215,33 +251,59 @@ onMounted(check)
   <section class="console" data-testid="moderation-console">
     <header class="console__head">
       <span class="console__kicker">// moderation console</span>
-      <h1 class="console__title">ЖУРНАЛ МОДЕРАЦИИ</h1>
-      <p v-if="isStaff" class="console__who">сессия: {{ username || 'staff' }}</p>
+      <h1 class="console__title">МОДЕРАЦИЯ</h1>
+      <p v-if="isStaff" class="console__who">
+        <span class="console__dot" aria-hidden="true"></span>
+        сессия: {{ username || 'staff' }}
+      </p>
+      <p v-else class="console__who console__who--locked">
+        <span class="console__dot" aria-hidden="true"></span>
+        сессия: нет доступа
+      </p>
     </header>
 
     <div v-if="checking" class="console__state">проверка доступа…</div>
 
     <!-- staff gate -->
-    <form v-else-if="!isStaff" class="login" data-testid="staff-login" @submit.prevent="onLogin">
-      <p class="login__hint">Вход для персонала. Учётные данные проверяются против Staff-флага.</p>
+    <form
+      v-else-if="!isStaff"
+      class="login"
+      data-testid="staff-login"
+      @submit.prevent="onLogin"
+    >
+      <span class="login__kicker">// staff gate</span>
+      <p class="login__hint">
+        Вход для персонала. Учётные данные проверяются против Staff-флага.
+      </p>
       <label class="login__field">
         <span class="login__label">ЛОГИН</span>
         <input v-model="username" type="text" autocomplete="username" required />
       </label>
       <label class="login__field">
         <span class="login__label">ПАРОЛЬ</span>
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <input
+          v-model="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
       </label>
       <p v-if="loginError" class="login__error" role="alert">{{ loginError }}</p>
       <button type="submit" class="login__submit">ВОЙТИ</button>
     </form>
 
     <template v-else>
-      <div class="queue">
+      <!-- report queue -->
+      <section class="panel queue" aria-labelledby="queue-title">
         <div class="queue__head">
-          <h2 class="queue__title">ОЧЕРЕДЬ ЖАЛОБ</h2>
-          <button type="button" class="queue__refresh" @click="loadQueue">обновить</button>
-          <button type="button" class="queue__logout" @click="onLogout">выйти</button>
+          <h2 id="queue-title" class="queue__title">ОЧЕРЕДЬ ЖАЛОБ</h2>
+          <span class="panel__count">В ОЧЕРЕДИ: {{ pad(reports.length) }}</span>
+          <div class="queue__controls">
+            <button type="button" class="queue__refresh" @click="loadQueue">
+              обновить
+            </button>
+            <button type="button" class="queue__logout" @click="onLogout">выйти</button>
+          </div>
         </div>
 
         <p v-if="consoleError" class="queue__error" role="alert">{{ consoleError }}</p>
@@ -254,20 +316,32 @@ onMounted(check)
           v-for="report in reports"
           :key="report.id"
           class="report"
+          :class="[
+            `report--${reasonLevel(report.reason)}`,
+            { 'report--busy': busy === report.id },
+          ]"
           :data-testid="'report-row'"
         >
-          <header class="report__head">
-            <span class="report__reason">{{ REASON_LABELS[report.reason] ?? report.reason }}</span>
-            <span class="report__target">пост #{{ report.post.id }}</span>
-            <span class="report__thread">/{{ report.post.thread }}/</span>
-            <time class="report__time">
+          <div class="report__meta">
+            <span class="report__id">#{{ pad(report.id) }}</span>
+            <time class="report__time" :datetime="report.created_at">
               {{ new Date(report.created_at).toLocaleString('ru-RU') }}
             </time>
-          </header>
+          </div>
 
-          <p class="report__snippet">{{ report.post.body }}</p>
-          <p v-if="report.comment" class="report__comment">«{{ report.comment }}»</p>
-          <p v-if="report.post.is_hidden" class="report__hidden">пост уже скрыт</p>
+          <div class="report__main">
+            <header class="report__head">
+              <span class="report__reason">{{
+                REASON_LABELS[report.reason] ?? report.reason
+              }}</span>
+              <span class="report__target">пост #{{ report.post.id }}</span>
+              <span class="report__thread">/{{ report.post.thread }}/</span>
+            </header>
+
+            <p class="report__snippet">{{ report.post.body }}</p>
+            <p v-if="report.comment" class="report__comment">«{{ report.comment }}»</p>
+            <p v-if="report.post.is_hidden" class="report__hidden">пост уже скрыт</p>
+          </div>
 
           <footer class="report__actions">
             <button
@@ -296,12 +370,13 @@ onMounted(check)
             </a>
           </footer>
         </article>
-      </div>
+      </section>
 
       <!-- audit journal -->
-      <div class="journal">
+      <section class="panel journal" aria-labelledby="journal-title">
         <div class="journal__head">
-          <h2 class="journal__title">ЖУРНАЛ</h2>
+          <h2 id="journal-title" class="journal__title">ЖУРНАЛ</h2>
+          <span class="panel__count">ЗАПИСЕЙ: {{ pad(logEntries.length) }}</span>
           <button
             type="button"
             class="journal__refresh"
@@ -329,7 +404,12 @@ onMounted(check)
           aria-label="Журнал действий модерации"
           data-testid="moderation-log"
         >
-          <li v-for="entry in logEntries" :key="entry.id" class="journal__row">
+          <li
+            v-for="entry in logEntries"
+            :key="entry.id"
+            class="journal__row"
+            :class="`journal__row--${actionLevel(entry.action)}`"
+          >
             <span class="journal__actor">{{ entry.actor }}</span>
             <span class="journal__action">
               {{ ACTION_LABELS[entry.action] ?? entry.action }}
@@ -340,16 +420,17 @@ onMounted(check)
             </time>
           </li>
         </ol>
-      </div>
+      </section>
 
       <!-- quick tools -->
-      <div class="tools">
-        <h2 class="tools__title">БЫСТРЫЕ ДЕЙСТВИЯ</h2>
+      <section class="tools" aria-labelledby="tools-title">
+        <h2 id="tools-title" class="tools__title">БЫСТРЫЕ ДЕЙСТВИЯ</h2>
         <div class="tools__row">
           <div class="tools__switch" role="group" aria-label="Тип цели">
             <button
               type="button"
               :class="{ 'tools__seg--active': targetKind === 'post' }"
+              :aria-pressed="targetKind === 'post'"
               @click="targetKind = 'post'"
             >
               пост
@@ -357,14 +438,25 @@ onMounted(check)
             <button
               type="button"
               :class="{ 'tools__seg--active': targetKind === 'thread' }"
+              :aria-pressed="targetKind === 'thread'"
               @click="targetKind = 'thread'"
             >
               тред
             </button>
           </div>
-          <input v-model="targetId" type="number" min="1" placeholder="id" class="tools__id" />
-          <button type="button" class="tools__btn" @click="runTool('hide')">скрыть</button>
-          <button type="button" class="tools__btn" @click="runTool('show')">показать</button>
+          <input
+            v-model="targetId"
+            type="number"
+            min="1"
+            placeholder="id"
+            class="tools__id"
+          />
+          <button type="button" class="tools__btn" @click="runTool('hide')">
+            скрыть
+          </button>
+          <button type="button" class="tools__btn" @click="runTool('show')">
+            показать
+          </button>
           <button
             v-if="targetKind === 'thread'"
             type="button"
@@ -395,9 +487,10 @@ onMounted(check)
           <span v-if="toolStatus" class="tools__status">{{ toolStatus }}</span>
         </div>
         <p class="tools__hint">
-          <NetworkIcon name="warning" :size="12" /> действия применяются сразу и видны всем
+          <NetworkIcon name="warning" :size="12" /> действия применяются сразу и видны
+          всем
         </p>
-      </div>
+      </section>
     </template>
   </section>
 </template>
@@ -409,52 +502,121 @@ onMounted(check)
   gap: var(--space-6);
 }
 
+/* === frame: head === */
 .console__head {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .console__kicker {
   font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
   color: var(--danger);
 }
 
 .console__title {
   margin: 0;
   font-size: clamp(1.4rem, 3vw, 2rem);
+  letter-spacing: 0.04em;
 }
 
 .console__who {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-display);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.console__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px oklch(0.65 0.18 155 / 0.55);
+}
+
+.console__who--locked .console__dot {
+  background: var(--danger);
+  box-shadow: 0 0 8px oklch(0.55 0.2 25 / 0.55);
 }
 
 .console__state {
-  font-size: 0.88rem;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
 }
 
-/* staff gate */
+/* === sections: hairline-ruled panels with uppercase captions === */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panel__count {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.queue__title,
+.journal__title,
+.tools__title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  color: var(--text-secondary);
+}
+
+.queue__title::before,
+.journal__title::before,
+.tools__title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow-strong);
+}
+
+/* === staff gate === */
 .login {
-  max-width: 360px;
+  max-width: 380px;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
+}
+
+.login__kicker {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--danger);
 }
 
 .login__hint {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -467,108 +629,177 @@ onMounted(check)
 .login__label {
   font-family: var(--font-display);
   font-size: 0.6rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   color: var(--text-muted);
 }
 
 .login__field input {
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border-medium);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   outline: none;
   color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  min-height: 36px;
-  transition: border-color 200ms;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  transition:
+    border-color var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
 }
 
-.login__field input:focus {
-  border-bottom-color: var(--accent);
+.login__field input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .login__error {
   margin: 0;
-  font-size: 0.8rem;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
   color: var(--danger);
 }
 
 .login__submit {
   min-height: 44px;
-  background: none;
+  padding: 0 var(--space-4);
+  background: var(--accent);
   border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  color: var(--accent);
+  border-radius: var(--radius-sm);
+  color: oklch(0.12 0.02 260);
   font-family: var(--font-display);
-  letter-spacing: 0.1em;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
   cursor: pointer;
-  transition: background 160ms;
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
 }
 
 .login__submit:hover {
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  box-shadow: 0 0 16px var(--accent-glow-strong);
 }
 
-/* queue */
-.queue {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.queue__head {
+/* === queue === */
+.queue__head,
+.journal__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.queue__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
+.queue__controls {
+  margin-left: auto;
+  display: inline-flex;
+  gap: var(--space-2);
 }
 
 .queue__refresh,
 .queue__logout {
-  margin-left: auto;
+  min-height: 32px;
+  padding: 0 var(--space-3);
   background: none;
-  border: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  padding: 4px;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart);
 }
 
 .queue__refresh:hover,
 .queue__logout:hover {
   color: var(--accent);
+  border-color: var(--border-accent);
 }
 
 .queue__error {
   margin: 0;
-  font-size: 0.84rem;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
   color: var(--danger);
 }
 
 .queue__empty {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   color: var(--text-muted);
 }
 
+/* dense telemetry rows: meta | payload | actions, split by hairlines */
 .report {
-  padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-left: 2px solid var(--danger-dim);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--border-medium);
+  border-top: 1px solid var(--border-subtle);
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.report:first-of-type {
+  border-top: none;
+}
+
+.report:last-of-type {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.report:nth-of-type(even) {
+  background: color-mix(in oklab, var(--text-primary) 3%, transparent);
+}
+
+.report:hover {
+  background: var(--bg-raised);
+}
+
+.report--high {
+  border-left-color: var(--danger);
+}
+
+.report--mid {
+  border-left-color: var(--accent);
+}
+
+.report--low {
+  border-left-color: var(--border-medium);
+}
+
+.report--busy {
+  opacity: 0.55;
+}
+
+.report__meta {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 2px;
+  padding-right: var(--space-3);
+  border-right: 1px dashed var(--border-subtle);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.report__id {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.report__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .report__head {
@@ -580,20 +811,21 @@ onMounted(check)
 
 .report__reason {
   font-family: var(--font-display);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
   color: var(--danger);
 }
 
 .report__target {
   font-family: var(--font-display);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-secondary);
 }
 
 .report__thread,
 .report__time {
   font-family: var(--font-display);
-  font-size: 0.66rem;
+  font-size: 0.64rem;
   color: var(--text-muted);
 }
 
@@ -603,14 +835,14 @@ onMounted(check)
 
 .report__snippet {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   line-height: 1.5;
   color: var(--text-primary);
 }
 
 .report__comment {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-style: italic;
   color: var(--text-secondary);
 }
@@ -618,7 +850,8 @@ onMounted(check)
 .report__hidden {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 0.66rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
 }
 
@@ -626,20 +859,22 @@ onMounted(check)
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-1);
+  gap: var(--space-2);
+  align-self: center;
 }
 
 .report__btn {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 var(--space-3);
   background: none;
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   cursor: pointer;
-  transition: color 160ms, border-color 160ms;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart);
 }
 
 .report__btn:hover:not(:disabled) {
@@ -658,46 +893,28 @@ onMounted(check)
 }
 
 .report__link {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
 }
 
-/* audit journal */
-.journal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.journal__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.journal__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
-}
-
+/* === journal === */
 .journal__refresh {
   margin-left: auto;
-  min-height: 44px;
+  min-height: 32px;
   padding: 0 var(--space-3);
   background: none;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-family: var(--font-display);
-  font-size: 0.66rem;
-  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: color 160ms, border-color 160ms;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart);
 }
 
 .journal__refresh:hover {
@@ -707,7 +924,8 @@ onMounted(check)
 
 .journal__error {
   margin: 0;
-  font-size: 0.84rem;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
   color: var(--danger);
 }
 
@@ -720,37 +938,54 @@ onMounted(check)
 .journal__list {
   list-style: none;
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 320px;
+  max-height: 340px;
   overflow-y: auto;
 }
 
 .journal__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1.1fr) minmax(0, 0.9fr) auto;
+  gap: var(--space-3);
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: 4px 0;
+  padding: 6px var(--space-3);
   font-family: var(--font-display);
-  font-size: 0.7rem;
-  line-height: 1.5;
+  font-size: 0.68rem;
+  line-height: 1.6;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  border-left: 2px solid transparent;
   border-bottom: 1px dashed var(--border-subtle);
+  transition: background var(--duration-fast) var(--ease-out-quart);
 }
 
 .journal__row:last-child {
   border-bottom: none;
 }
 
+.journal__row:hover {
+  background: var(--bg-raised);
+}
+
+.journal__row--accent {
+  border-left-color: var(--accent);
+}
+
+.journal__row--danger {
+  border-left-color: var(--danger);
+}
+
+.journal__row--muted {
+  border-left-color: var(--border-medium);
+}
+
 .journal__actor {
   color: var(--accent);
-  min-width: 88px;
 }
 
 .journal__action {
@@ -767,20 +1002,15 @@ onMounted(check)
   white-space: nowrap;
 }
 
-/* quick tools */
+/* === quick tools === */
 .tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
-}
-
-.tools__title {
-  margin: 0 0 var(--space-3);
-  font-family: var(--font-display);
-  font-size: 0.66rem;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
 }
 
 .tools__row {
@@ -803,29 +1033,40 @@ onMounted(check)
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 0.76rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
   cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    background var(--duration-fast) var(--ease-out-quart);
 }
 
 .tools__seg--active {
   color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 .tools__id {
-  width: 90px;
+  width: 96px;
   min-height: 44px;
   padding: 0 var(--space-2);
-  background: none;
+  background: var(--bg-deep);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-display);
+  font-size: 0.8rem;
   outline: none;
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color var(--duration-fast) var(--ease-out-quart),
+    box-shadow var(--duration-fast) var(--ease-out-quart);
 }
 
-.tools__id:focus {
+.tools__id:focus-visible {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .tools__btn {
@@ -838,8 +1079,13 @@ onMounted(check)
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 0.76rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
   cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out-quart),
+    border-color var(--duration-fast) var(--ease-out-quart);
 }
 
 .tools__btn:hover {
@@ -852,23 +1098,69 @@ onMounted(check)
   border-color: var(--border-accent);
 }
 
-.tools__btn--pin:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
 .tools__status {
   font-family: var(--font-display);
   font-size: 0.7rem;
   color: var(--accent-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .tools__hint {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: var(--space-3) 0 0;
+  margin: 0;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+/* === responsive: rows fold into stacked cards === */
+@media (max-width: 720px) {
+  .report {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .report__meta {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding-right: 0;
+    border-right: none;
+  }
+
+  .report__actions {
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 560px) {
+  .journal__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .journal__time {
+    margin-left: 0;
+  }
+
+  .console__who {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report,
+  .journal__row,
+  .login__field input,
+  .login__submit,
+  .queue__refresh,
+  .queue__logout,
+  .journal__refresh,
+  .tools__switch button,
+  .tools__id,
+  .tools__btn {
+    transition: none;
+  }
 }
 </style>

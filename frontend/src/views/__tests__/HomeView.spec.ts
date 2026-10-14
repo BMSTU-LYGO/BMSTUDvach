@@ -125,8 +125,7 @@ describe('HomeView — telemetry rail', () => {
     expect(rail.exists()).toBe(true)
     expect(rail.attributes('aria-label')).toBe('Сетевая телеметрия')
 
-    const cell = (key: string) =>
-      wrapper.find(`[data-testid="telemetry-cell-${key}"]`)
+    const cell = (key: string) => wrapper.find(`[data-testid="telemetry-cell-${key}"]`)
     expect(cell('boards').text()).toBe('РАЗДЕЛЫ04')
     expect(cell('threads').text()).toBe('ТРЕДЫ013')
     expect(cell('posts').text()).toBe('СООБЩЕНИЯ063')
@@ -208,6 +207,81 @@ describe('HomeView — mentions beacon', () => {
     expect(wrapper.find('[data-testid="mentions-count"]').text()).toBe('—')
     expect(wrapper.find('[data-testid="mentions-list"]').exists()).toBe(false)
     expect(wrapper.find('.hero-cta').exists()).toBe(true)
+  })
+})
+
+describe('HomeView — page structure', () => {
+  let wrapper: Awaited<ReturnType<typeof mountHome>>
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(listRecentThreads).mockResolvedValue([])
+  })
+
+  afterEach(() => wrapper?.unmount())
+
+  it('keeps the hero hierarchy: kicker, title, subtitle, CTA', async () => {
+    wrapper = await mountHome()
+    expect(wrapper.find('.hero-kicker').text()).toContain('BMSTUD Network')
+    expect(wrapper.find('.hero-kicker').text()).toContain('МГТУ им. Н. Э. Баумана')
+    expect(wrapper.find('h1').text()).toContain('BMSTUDvach')
+    expect(wrapper.find('.hero-subtitle').text()).toContain('без регистрации')
+    expect(wrapper.find('.hero-cta').exists()).toBe(true)
+    expect(wrapper.find('.hero-alt').attributes('href')).toBe('/about')
+  })
+
+  it('names every content block with a labelled section heading', async () => {
+    wrapper = await mountHome()
+    const sections = wrapper.findAll('section[aria-labelledby]')
+    expect(sections).toHaveLength(2)
+
+    const boards = wrapper.find('#section-boards-title')
+    expect(boards.exists()).toBe(true)
+    expect(boards.text()).toBe('Разделы')
+    expect(boards.element.tagName).toBe('H2')
+
+    const recent = wrapper.find('#section-recent-title')
+    expect(recent.text()).toBe('Последние передачи')
+
+    // decorative rules and mono indexes stay out of the a11y tree
+    for (const rule of wrapper.findAll('.section-rule, .hero-rule, .label-line')) {
+      expect(rule.attributes('aria-hidden')).toBe('true')
+    }
+  })
+
+  it('keeps the decorative hero layers out of the a11y tree', async () => {
+    wrapper = await mountHome()
+    for (const selector of [
+      '.hero-grid-lines',
+      '.hero-rule',
+      '.hero-kicker__dot',
+      '.hero-kicker__sep',
+      '.hero-cta-arrow',
+    ]) {
+      const el = wrapper.find(selector)
+      expect(el.exists()).toBe(true)
+      expect(el.attributes('aria-hidden')).toBe('true')
+    }
+  })
+
+  it('points every section name at the heading that carries it', async () => {
+    wrapper = await mountHome()
+    for (const id of ['section-boards-title', 'section-recent-title']) {
+      const section = wrapper.find(`section[aria-labelledby="${id}"]`)
+      expect(section.exists()).toBe(true)
+
+      const heading = section.find('h2')
+      expect(heading.attributes('id')).toBe(id)
+      expect(heading.text().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('reads out the node and signal counts as zero-padded mono captions', async () => {
+    wrapper = await mountHome()
+    const readouts = wrapper.findAll('.label-meta')
+    expect(readouts).toHaveLength(2)
+    expect(readouts[0].text()).toBe('УЗЛЫ · 00')
+    expect(readouts[1].text()).toBe('СИГНАЛЫ · 00')
   })
 })
 

@@ -276,3 +276,105 @@ describe('PostBody — quote into the draft (QUOTE-01)', () => {
     wrapper.unmount()
   })
 })
+
+describe('PostBody — greentext', () => {
+  it('renders a line starting with > as a greentext quote', () => {
+    const wrapper = mountBody('> цитата')
+    const quote = wrapper.find('[data-testid="greentext"]')
+    expect(quote.exists()).toBe(true)
+    expect(quote.classes()).toContain('post-quote')
+    expect(quote.text()).toBe('> цитата')
+  })
+
+  it('greentexts a > buried in leading whitespace', () => {
+    const wrapper = mountBody('   > цитата с отступом')
+    expect(wrapper.find('[data-testid="greentext"]').exists()).toBe(true)
+  })
+
+  it('greentexts a lone >>42 reply line and keeps the link alive', () => {
+    const wrapper = mountBody('>>42')
+    const quote = wrapper.find('[data-testid="greentext"]')
+    expect(quote.exists()).toBe(true)
+    const link = quote.find('.post-link')
+    expect(link.attributes('href')).toBe('#post-42')
+    expect(link.text()).toBe('>>42')
+  })
+
+  it('groups consecutive greentext lines into one quote block', () => {
+    const wrapper = mountBody('> первая\n> вторая\n>>42 и\n> последняя')
+    const quotes = wrapper.findAll('[data-testid="greentext"]')
+    expect(quotes).toHaveLength(1)
+    expect(quotes[0].text()).toBe('> первая\n> вторая\n>>42 и\n> последняя')
+  })
+
+  it('separates greentext runs by a blank line', () => {
+    const wrapper = mountBody('> первая\n\n> вторая')
+    expect(wrapper.findAll('[data-testid="greentext"]')).toHaveLength(2)
+  })
+
+  it('leaves a >>id link clickable inside a greentext line', async () => {
+    const { wrapper, quotes } = mountQuoted('> цитата >>42 дальше')
+    const quote = wrapper.find('[data-testid="greentext"]')
+    const link = quote.find('.post-link')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('aria-disabled')).toBeUndefined()
+    expect(link.attributes('title')).toBe(
+      'Пост #42: клик вставит цитату >>42 в черновик, Ctrl/Cmd+клик — новая вкладка',
+    )
+
+    await link.trigger('click')
+    expect(quotes.pendingQuote).toEqual({ threadId: 7, postId: 42, token: 1 })
+    expect(wrapper.emitted('navigate')).toEqual([[42]])
+    wrapper.unmount()
+  })
+
+  it('does not treat >> in the middle of a line as greentext', () => {
+    const wrapper = mountBody('смотри >>42 это не цитата')
+    expect(wrapper.find('[data-testid="greentext"]').exists()).toBe(false)
+    expect(wrapper.findAll('.post-paragraph')).toHaveLength(1)
+    expect(wrapper.find('.post-link').text()).toBe('>>42')
+  })
+
+  it('does not treat a line that merely contains > as greentext', () => {
+    const wrapper = mountBody('не цитата > вот так')
+    expect(wrapper.find('[data-testid="greentext"]').exists()).toBe(false)
+  })
+
+  it('mixes greentext and plain lines in one post', () => {
+    const wrapper = mountBody('вступление\n> цитата\nзаключение')
+    expect(wrapper.findAll('[data-testid="greentext"]')).toHaveLength(1)
+    expect(wrapper.findAll('.post-paragraph')).toHaveLength(2)
+  })
+})
+
+describe('PostBody — reading typography', () => {
+  it('keeps paragraphs as separate blocks', () => {
+    const wrapper = mountBody('первый абзац\n\nвторой абзац')
+    expect(wrapper.findAll('.post-paragraph')).toHaveLength(2)
+    expect(wrapper.text()).toBe('первый абзац\n\nвторой абзац')
+  })
+
+  it('renders every body line as its own line block', () => {
+    const wrapper = mountBody('раз\nдва\nтри')
+    expect(wrapper.findAll('.post-line')).toHaveLength(3)
+  })
+
+  it('keeps the body text verbatim in the DOM', () => {
+    const body = '  отступ\n> цитата\n\nконец'
+    const wrapper = mountBody(body)
+    expect(wrapper.find('.post-body').element.textContent).toBe(body)
+  })
+
+  it('keeps inner indentation and padding of a line', () => {
+    const wrapper = mountBody('    код    тут')
+    const line = wrapper.find('.post-line')
+    expect(line.element.textContent).toBe('    код    тут')
+  })
+
+  it('keeps a long word inside a single line block', () => {
+    const long = 'а'.repeat(300)
+    const wrapper = mountBody(`${long} >>42`)
+    expect(wrapper.findAll('.post-line')).toHaveLength(1)
+    expect(wrapper.find('.post-body').element.textContent).toBe(`${long} >>42`)
+  })
+})
