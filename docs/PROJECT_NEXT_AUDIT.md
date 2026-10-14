@@ -356,3 +356,44 @@ build PASS
 Verified: frontend 459 tests · backend 231 · verify:3d 46 · ruff ·
 spectacular · build PASS · live (in-container): /telemetry/activity/,
 /feed/recent.xml, board rules, fingerprint 403
+
+## Visual overhaul round — Editorial Archive (done, pushed)
+
+**Арт-дирекция: «Редакционный архив»** — уровень Awwwards, без шаблонного AI/SaaS/cyberpunk вида.
+
+### Что изменилось
+- **Палитра:** тёмный киберпанк (oklch 0.10) → тёплая бумага (#F2EDE0 cream/ivory)
+- **Типографика:** mono-шрифт для заголовков → serif (Cormorant Garamond) + sans body (Inter)
+- **Акцент:** неоновый amber с glow → сдержанный deep teal (#2F4F4E)
+- **Поверхности:** glow/shadow эффекты → hairline бордеры (1px solid)
+- **Детали:** uppercase + letter-spacing → sentence case, editorial rhythm
+- **Удалено:** CRT эффекты (vignette, flicker), neon hover, backdrop-blur на модалках
+
+### Референсы (Awwwards 2024-2026)
+- Terminal Industries (SOTY 2025): тёплые нейтралы, типографика, щедрое пространство
+- Siena Film Foundation (SOTM 2025): редакционная типографика, serif + sans
+- Cartier Watches & Wonders (SOTM 2025): restrained palette, editorial layout
+
+### Изменённые компоненты (45 файлов)
+**Дизайн-система:** main.css (новые токены, палитра, типографика), fonts.css (Cormorant Garamond), package.json, index.html
+
+**Layout:** DefaultLayout.vue, AppHeader.vue (serif логотип, sans навигация, hairline бордеры), AppFooter.vue
+
+**Home + секции:** HomeView.vue (hero без GlitchText/GridPattern/паралакса, serif заголовок, асимметричная сетка), TelemetryRail.vue, MentionsBeacon.vue, WatchPanel.vue, BoardCard3D.vue
+
+**Browse:** BoardView.vue (serif заголовок, hairline бордеры), ThreadRow.vue, CatalogCard.vue, SortLens.vue, LoadMoreNode.vue, HiddenThreadsChip.vue
+
+**Reading:** ThreadView.vue (serif заголовок, editorial типографика), PostBody.vue (sans body, цитаты с left border), PostPreview.vue, ThreadProgress.vue, AttachmentLightbox.vue (paper backdrop), NewPostsDivider.vue
+
+**Composer + overlays:** SignalDock.vue (paper-raised фон, hairline бордеры, нет glow), CommandLens.vue, IdentityCapsule.vue, AttachmentRail.vue, TransmitControl.vue, SignalMeter.vue, DraftBeacon.vue, ScanLens.vue (paper фон, нет backdrop-blur), ScanHighlight.vue, ReportProbe.vue, ReasonConstellation.vue, ShortcutsDialog.vue
+
+### 3D сцена
+Оставлена как есть (адаптация — отдельная задача). 3D читает CSS-переменные, так что цвета обновятся автоматически, но фон сцены (тёмно-синий) может выглядеть несоответствующе.
+
+### Примечания
+- Скриншоты до/после не делались (нет browser-инструмента)
+- 3D сцена не адаптирована в этом раунде
+- Все тесты обновлены для sentence case вместо uppercase
+- verify:3d структурные проверки пройдены (46/46)
+
+**Результат:** сайт выглядит как редакционное издание, не как киберпанк/SaaS. Уникальный визуальный стиль, улучшенная читаемость.
