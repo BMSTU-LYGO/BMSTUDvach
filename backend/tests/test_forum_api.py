@@ -37,6 +37,28 @@ class TestBoards:
         resp = api_client.get("/api/v1/boards/hidden/")
         assert resp.status_code == 404
 
+    @pytest.mark.django_db
+    def test_board_detail_returns_rules(self, api_client, board):
+        board.rules = "Без спама.\nБез дублей."
+        board.save()
+        resp = api_client.get("/api/v1/boards/b/")
+        assert resp.status_code == 200
+        assert resp.json()["rules"] == "Без спама.\nБез дублей."
+
+    @pytest.mark.django_db
+    def test_board_detail_empty_rules(self, api_client, board):
+        resp = api_client.get("/api/v1/boards/b/")
+        assert resp.status_code == 200
+        assert resp.json()["rules"] == ""
+
+    @pytest.mark.django_db
+    def test_board_rules_change_visible_in_api(self, api_client, board):
+        from apps.forum.models import Board
+
+        Board.objects.filter(pk=board.pk).update(rules="Правило через ORM.")
+        resp = api_client.get("/api/v1/boards/b/")
+        assert resp.json()["rules"] == "Правило через ORM."
+
 
 class TestThreads:
     @pytest.mark.django_db

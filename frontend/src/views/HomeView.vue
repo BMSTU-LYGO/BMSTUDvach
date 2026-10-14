@@ -7,6 +7,7 @@ import TelemetryRail from '@/components/home/TelemetryRail.vue'
 import MentionsBeacon from '@/components/home/MentionsBeacon.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import WatchPanel from '@/components/watch/WatchPanel.vue'
+import DraftsPanel from '@/components/composer/DraftsPanel.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -211,6 +212,9 @@ function openRecent(event: MouseEvent, threadId: number) {
 
     <!-- Hairline: tracked nodes are a separate stratum -->
     <div class="section-rule" aria-hidden="true"></div>
+
+    <!-- Unfinished signals: drafts saved in this device's buffer -->
+    <DraftsPanel />
 
     <!-- Tracked nodes: your threads, with unread signal counts -->
     <WatchPanel />

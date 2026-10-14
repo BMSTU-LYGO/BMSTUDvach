@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
 import ThreadRow from '../ThreadRow.vue'
+import { __reloadHiddenThreads } from '@/composables/useHiddenThreads'
 import type { ThreadSummary } from '@/types'
+
+const STORAGE_KEY = 'bmstud-hidden-threads'
 
 const thread: ThreadSummary = {
   id: 42,
@@ -28,7 +31,22 @@ function mountRow(t = thread, showBoard = false) {
   })
 }
 
+function hiddenStored(): number[] {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  return raw ? JSON.parse(raw) : []
+}
+
+function enableReveal() {
+  localStorage.setItem('bmstud-hidden-reveal', '1')
+  window.dispatchEvent(new StorageEvent('storage', { key: 'bmstud-hidden-reveal' }))
+}
+
 describe('ThreadRow', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    __reloadHiddenThreads()
+  })
+
   it('renders the title, reply count and board slug', () => {
     const wrapper = mountRow(thread, true)
     expect(wrapper.find('[data-testid="thread-row"]').text()).toContain(
@@ -49,5 +67,47 @@ describe('ThreadRow', () => {
     expect(badge.exists()).toBe(true)
     expect(badge.attributes('title')).toBe('Закреплён')
     expect(badge.text().toLowerCase()).toContain('pin')
+  })
+
+  it('hides the thread on the hide button click without opening it', async () => {
+    const wrapper = mountRow()
+    await wrapper.find('[data-testid="thread-hide"]').trigger('click')
+
+    expect(hiddenStored()).toEqual([42])
+    expect(wrapper.emitted('open')).toBeFalsy()
+  })
+
+  it('labels the hide button and flips it to a return button when hidden', async () => {
+    const wrapper = mountRow()
+    const hide = wrapper.find('[data-testid="thread-hide"]')
+
+    expect(hide.attributes('aria-label')).toBe('Скрыть тред')
+    expect(hide.attributes('title')).toBe('Скрыть тред')
+    expect(hide.attributes('aria-pressed')).toBe('false')
+
+    await hide.trigger('click')
+    enableReveal()
+    await wrapper.vm.$nextTick()
+
+    const restore = wrapper.find('[data-testid="thread-hide"]')
+    expect(restore.attributes('aria-label')).toBe('Показать тред')
+    expect(restore.attributes('aria-pressed')).toBe('true')
+  })
+
+  it('does not render itself while hidden and reveal is off', async () => {
+    const wrapper = mountRow()
+    await wrapper.find('[data-testid="thread-hide"]').trigger('click')
+    expect(wrapper.find('[data-testid="thread-row"]').exists()).toBe(false)
+  })
+
+  it('renders hidden rows muted once reveal is on', async () => {
+    const wrapper = mountRow()
+    await wrapper.find('[data-testid="thread-hide"]').trigger('click')
+
+    enableReveal()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="thread-row"]').exists()).toBe(true)
+    expect(wrapper.find('.thread-item--hidden').exists()).toBe(true)
   })
 })

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { useRoute } from 'vue-router'
 
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
@@ -22,6 +30,11 @@ import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
 import { useReadingPosition } from '@/composables/useReadingPosition'
 import { useWatchlist } from '@/composables/useWatchlist'
+import {
+  isEditableTarget,
+  isModalOpen,
+  useThreadSearch,
+} from '@/composables/useThreadSearch'
 import { emitSceneEvent } from '@/three/sceneState'
 import { apiErrorMessage } from '@/api/client'
 import type { NewPostInput, Post, ReportReason } from '@/types'
@@ -63,6 +76,24 @@ const progress = ref(0)
 const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
 usePostReveal(postsRef, postsCount)
 
+// FINDPOST-01: in-thread search + the j/k post cursor.
+const threadPosts = computed<Post[]>(() => store.thread.thread?.posts ?? [])
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const {
+  query: searchQuery,
+  open: searchOpen,
+  matches: searchMatches,
+  activePostId: searchActivePostId,
+  label: searchLabel,
+  openSearch,
+  close: closeSearch,
+  next: searchNext,
+  prev: searchPrev,
+  cursorIndex,
+  cursorNext,
+  cursorPrev,
+} = useThreadSearch(threadPosts)
+
 const threadSeen = useThreadSeen()
 
 const threadIdValue = computed(() => store.thread.thread?.id ?? props.threadId)
@@ -89,7 +120,9 @@ const knownIds = computed(
   () => new Set((store.thread.thread?.posts ?? []).map((p) => p.id)),
 )
 const backlinks = computed(() =>
-  store.thread.thread ? collectBacklinks(store.thread.thread.posts) : new Map<number, number[]>(),
+  store.thread.thread
+    ? collectBacklinks(store.thread.thread.posts)
+    : new Map<number, number[]>(),
 )
 
 onMounted(() => {
@@ -139,6 +172,43 @@ function restoreReadingPosition() {
   if (route?.hash || window.location.hash) return
   readingPosition.restore(threadIdValue.value)
 }
+
+// --- FINDPOST-01: in-thread search + j/k cursor ---------------------------
+
+function openThreadSearch() {
+  openSearch()
+  void nextTick(() => searchInputRef.value?.focus())
+}
+
+function closeThreadSearch() {
+  closeSearch()
+}
+
+/** j/k cursor: move focus + outline to a post and bring it into view. */
+function focusCursorPost(id: number) {
+  const el = document.getElementById(`post-${id}`)
+  if (!el) return
+  document.querySelectorAll('.post-item--focused').forEach((node) => {
+    node.classList.remove('post-item--focused')
+  })
+  el.classList.add('post-item--focused')
+  el.focus({ preventScroll: true })
+  el.scrollIntoView({
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth',
+    block: 'center',
+  })
+}
+
+watch(searchActivePostId, (id) => {
+  if (id !== null) navigateToPost(id)
+})
+
+watch(cursorIndex, (index) => {
+  const post = threadPosts.value[index]
+  if (post) focusCursorPost(post.id)
+})
 
 function toggleWatch() {
   const thread = store.thread.thread
@@ -211,11 +281,17 @@ function formatTime(value: string): string {
   if (mins < 60) return `${mins} мин назад`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours} ч назад`
-  return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function handleReply(postId: number, event: Event) {
-  const source = (event.currentTarget as HTMLElement).closest<HTMLElement>('.post-item') ?? null
+  const source =
+    (event.currentTarget as HTMLElement).closest<HTMLElement>('.post-item') ?? null
   replyContext.value = { postId, source }
 }
 
@@ -244,7 +320,9 @@ function navigateToPost(id: number) {
   const el = document.getElementById(`post-${id}`)
   if (!el) return
   el.scrollIntoView({
-    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth',
     block: 'center',
   })
   el.classList.add('post-item--linked')
@@ -265,7 +343,32 @@ function hidePreview() {
 }
 
 function onWindowKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') hidePreview()
+  if (e.key === 'Escape') {
+    if (previewVisible.value) {
+      hidePreview()
+      return
+    }
+    if (searchOpen.value) closeThreadSearch()
+    return
+  }
+
+  // fields, dialogs and the lightbox keep their keys to themselves
+  if (isEditableTarget(e.target) || isModalOpen()) return
+
+  const key = e.key.toLowerCase()
+  if (key === 'f') {
+    e.preventDefault()
+    if (searchOpen.value) searchInputRef.value?.focus()
+    else openThreadSearch()
+    return
+  }
+  if (key === 'j') {
+    e.preventDefault()
+    cursorNext()
+  } else if (key === 'k') {
+    e.preventDefault()
+    cursorPrev()
+  }
 }
 
 function onScroll() {
@@ -307,13 +410,80 @@ function onScroll() {
           <span class="watch-toggle__dot" aria-hidden="true"></span>
           {{ watched ? 'отслеживается' : 'отслеживать' }}
         </button>
+        <button
+          type="button"
+          class="thread-search-toggle"
+          aria-label="Найти в треде"
+          title="Найти в треде (f)"
+          data-testid="thread-search-toggle"
+          @click="openThreadSearch"
+        >
+          Найти в треде
+        </button>
       </div>
 
-      <p v-if="store.thread.thread.is_locked" class="thread-locked">
-        ● Тред закрыт
-      </p>
+      <div
+        v-if="searchOpen"
+        class="thread-search"
+        role="search"
+        data-testid="thread-search"
+      >
+        <input
+          ref="searchInputRef"
+          v-model="searchQuery"
+          class="thread-search__input"
+          type="search"
+          placeholder="Поиск в треде"
+          aria-label="Поиск в треде"
+          data-testid="thread-search-input"
+          @keydown.escape.prevent="closeThreadSearch"
+          @keydown.enter.exact.prevent="searchNext"
+          @keydown.shift.enter.prevent="searchPrev"
+        />
+        <span
+          class="thread-search__count"
+          aria-live="polite"
+          data-testid="thread-search-count"
+          >{{ searchLabel }}</span
+        >
+        <button
+          type="button"
+          class="thread-search__nav"
+          aria-label="Предыдущее совпадение"
+          :disabled="searchMatches.length === 0"
+          data-testid="thread-search-prev"
+          @click="searchPrev"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="thread-search__nav"
+          aria-label="Следующее совпадение"
+          :disabled="searchMatches.length === 0"
+          data-testid="thread-search-next"
+          @click="searchNext"
+        >
+          ›
+        </button>
+        <button
+          type="button"
+          class="thread-search__close"
+          aria-label="Закрыть поиск"
+          data-testid="thread-search-close"
+          @click="closeThreadSearch"
+        >
+          ×
+        </button>
+      </div>
 
-      <div ref="postsRef" class="posts" :class="{ 'posts--probing': activeReportPostId !== null }">
+      <p v-if="store.thread.thread.is_locked" class="thread-locked">● Тред закрыт</p>
+
+      <div
+        ref="postsRef"
+        class="posts"
+        :class="{ 'posts--probing': activeReportPostId !== null }"
+      >
         <template v-for="(post, index) in store.thread.thread.posts" :key="post.id">
           <NewPostsDivider v-if="dividerBeforeIndex === index" :count="newPosts" />
           <article
@@ -322,7 +492,9 @@ function onScroll() {
             :class="{
               op: post.is_op,
               'post-item--probe': activeReportPostId === post.id,
+              'post-item--search-active': post.id === searchActivePostId,
             }"
+            tabindex="-1"
             data-testid="post"
           >
             <GenerativeAvatar :seed="post.id" :is-op="post.is_op" />
@@ -362,6 +534,7 @@ function onScroll() {
                 :author="post.author"
                 :tripcode="post.tripcode"
                 :attachments="post.attachments"
+                :highlight="searchQuery"
                 @navigate="navigateToPost"
                 @preview="showPreview"
                 @preview-leave="hidePreview"
@@ -504,7 +677,9 @@ function onScroll() {
   font-size: 0.64rem;
   letter-spacing: 0.06em;
   cursor: pointer;
-  transition: color 160ms, border-color 160ms;
+  transition:
+    color 160ms,
+    border-color 160ms;
 }
 
 .watch-toggle:hover {
@@ -527,6 +702,116 @@ function onScroll() {
 .watch-toggle--on .watch-toggle__dot {
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* FINDPOST-01: open the in-thread search */
+.thread-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background var(--duration-fast);
+}
+
+.thread-search-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+.thread-search-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.thread-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 520px;
+  padding: var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+}
+
+.thread-search__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+}
+
+.thread-search__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--border-accent);
+}
+
+.thread-search__count {
+  min-width: 56px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.thread-search__nav,
+.thread-search__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background var(--duration-fast);
+}
+
+.thread-search__nav:hover:not(:disabled),
+.thread-search__close:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.thread-search__nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.thread-search__nav:focus-visible,
+.thread-search__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .thread-locked {
@@ -666,7 +951,7 @@ function onScroll() {
 .btn-report:hover {
   color: var(--danger);
   border-color: var(--danger-dim);
-  background: oklch(0.55 0.20 25 / 0.1);
+  background: oklch(0.55 0.2 25 / 0.1);
 }
 
 /* anchor navigation target + temporary link highlight */
@@ -680,6 +965,18 @@ function onScroll() {
   transition:
     background 220ms var(--ease-out-quart),
     box-shadow 220ms var(--ease-out-quart);
+}
+
+/* FINDPOST-01: current search hit + j/k keyboard cursor */
+.post-item--search-active {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.post-item--focused {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
 }
 
 /* backlinks under a post */
@@ -764,6 +1061,12 @@ function onScroll() {
   .post-item:hover {
     transform: none;
     box-shadow: none;
+  }
+
+  .thread-search-toggle,
+  .thread-search__nav,
+  .thread-search__close {
+    transition: none;
   }
 }
 </style>

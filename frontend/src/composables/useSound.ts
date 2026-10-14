@@ -3,13 +3,41 @@ import { ref, watch } from 'vue'
 /**
  * Minimal ambient UI sounds via Web Audio API (no audio assets).
  * Disabled by default; the user can toggle it in the header.
+ *
+ * `soundEnabled` is a module-level singleton so the header switch and the
+ * consumers in views/3D cards all share one reactive state. Persisted to
+ * localStorage under `bmstudvach-sound`.
  */
 
 const STORAGE_KEY = 'bmstudvach-sound'
-const soundEnabled = ref(false)
+
+function readStored(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function persist(value: boolean) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, String(value))
+    }
+  } catch {
+    /* private mode etc. */
+  }
+}
+
+const soundEnabled = ref(readStored())
+
+watch(soundEnabled, persist)
+
 let audioCtx: AudioContext | null = null
 
 function ensureContext(): AudioContext | null {
+  if (!soundEnabled.value) return null
   if (!audioCtx) {
     try {
       audioCtx = new AudioContext()
@@ -49,17 +77,20 @@ function playTone(
 }
 
 export function useSound() {
-  if (typeof localStorage !== 'undefined') {
-    soundEnabled.value = localStorage.getItem(STORAGE_KEY) === 'true'
+  function setEnabled(value: boolean) {
+    soundEnabled.value = value
   }
 
-  watch(soundEnabled, (val) => {
-    localStorage.setItem(STORAGE_KEY, String(val))
-  })
+  function toggle() {
+    soundEnabled.value = !soundEnabled.value
+  }
 
   return {
     soundEnabled,
-    toggleSound: () => (soundEnabled.value = !soundEnabled.value),
+    setEnabled,
+    toggle,
+    /** Backwards-compatible alias kept for existing callers. */
+    toggleSound: toggle,
     sounds: {
       hover: () => playTone(2200, { duration: 0.03, volume: 0.015 }),
       click: () => playTone(880, { duration: 0.05, volume: 0.03 }),

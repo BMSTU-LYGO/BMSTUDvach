@@ -19,6 +19,11 @@ urlpatterns = [
     path("search/", views.SearchView.as_view(), name="search"),
     path("telemetry/", views_tel.TelemetryView.as_view(), name="telemetry"),
     path(
+        "telemetry/activity/",
+        views_tel.TelemetryActivityView.as_view(),
+        name="telemetry-activity",
+    ),
+    path(
         "threads/recent/",
         views.RecentThreadListView.as_view(),
         name="thread-recent",

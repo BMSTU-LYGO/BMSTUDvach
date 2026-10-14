@@ -7,6 +7,8 @@
       <span class="footer-sep">·</span>
       <span class="footer-text">форум МГТУ им. Н. Э. Баумана</span>
       <span class="footer-sep">·</span>
+      <RouterLink to="/stats" class="footer-link">Статистика</RouterLink>
+      <span class="footer-sep">·</span>
       <RouterLink to="/about" class="footer-link">О проекте</RouterLink>
     </div>
   </footer>

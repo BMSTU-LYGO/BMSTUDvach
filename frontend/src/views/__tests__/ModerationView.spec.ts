@@ -24,6 +24,7 @@ vi.mock('@/api/moderation', () => ({
   staffMe: vi.fn(),
   staffLogout: vi.fn(),
   fetchReportQueue: vi.fn(),
+  fetchFingerprintPosts: vi.fn(),
   fetchModerationLog: vi.fn(),
   resolveReport: vi.fn(),
   moderatePost: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('@/api/moderation', () => ({
 
 import ModerationView from '@/views/ModerationView.vue'
 import {
+  fetchFingerprintPosts,
   fetchModerationLog,
   fetchReportQueue,
   pinThread,
@@ -43,6 +45,8 @@ import {
   unpinThread,
   type ModerationLogEntry,
 } from '@/api/moderation'
+
+const FINGERPRINT = 'a'.repeat(64)
 
 const queue = {
   reports: [
@@ -58,7 +62,33 @@ const queue = {
         thread_title: 'Тред',
         is_hidden: false,
         body: 'Купите курсы со скидкой',
+        poster_fingerprint: FINGERPRINT,
       },
+    },
+  ],
+}
+
+const fingerprintPosts = {
+  fingerprint: FINGERPRINT,
+  count: 2,
+  posts: [
+    {
+      id: 42,
+      thread: 7,
+      thread_title: 'Тред',
+      body: 'Купите курсы со скидкой',
+      is_hidden: false,
+      sage: false,
+      created_at: '2026-10-01T10:00:00Z',
+    },
+    {
+      id: 43,
+      thread: 7,
+      thread_title: 'Тред',
+      body: 'Ещё одна волна спама',
+      is_hidden: true,
+      sage: true,
+      created_at: '2026-09-30T10:00:00Z',
     },
   ],
 }
@@ -357,5 +387,74 @@ describe('ModerationView console chrome', () => {
     await segs[1].trigger('click')
     expect(segs[0].attributes('aria-pressed')).toBe('false')
     expect(segs[1].attributes('aria-pressed')).toBe('true')
+  })
+})
+
+describe('ModerationView fingerprint tool', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(staffMe).mockResolvedValue({ is_staff: true, username: 'moder' })
+    vi.mocked(fetchReportQueue).mockResolvedValue(queue)
+    vi.mocked(fetchModerationLog).mockResolvedValue([])
+    vi.mocked(fetchFingerprintPosts).mockResolvedValue(fingerprintPosts)
+  })
+
+  async function mountConsole() {
+    const wrapper = await mountView()
+    await flushPromises()
+    return wrapper
+  }
+
+  it('expands a compact list of the fingerprint posts', async () => {
+    const wrapper = await mountConsole()
+    const toggle = wrapper.find('[data-testid="fingerprint-toggle"]')
+    expect(toggle.text()).toContain('Посты автора')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('[data-testid="fingerprint-panel"]').exists()).toBe(false)
+
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(fetchFingerprintPosts).toHaveBeenCalledWith(FINGERPRINT)
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    const panel = wrapper.find('[data-testid="fingerprint-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('постов: 002')
+
+    const posts = panel.findAll('[data-testid="fingerprint-post"]')
+    expect(posts).toHaveLength(2)
+    expect(posts[0].text()).toContain('#042')
+    expect(posts[0].text()).toContain('Тред')
+    expect(posts[1].text()).toContain('#043')
+    expect(posts[1].text()).toContain('скрыт')
+  })
+
+  it('closes the list on a second click', async () => {
+    const wrapper = await mountConsole()
+    const toggle = wrapper.find('[data-testid="fingerprint-toggle"]')
+
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="fingerprint-panel"]').exists()).toBe(true)
+
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="fingerprint-panel"]').exists()).toBe(false)
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+  })
+
+  it('shows an honest error when the lookup fails', async () => {
+    vi.mocked(fetchFingerprintPosts).mockRejectedValue(
+      new Error('Посты по отпечатку недоступны.'),
+    )
+    const wrapper = await mountConsole()
+
+    await wrapper.find('[data-testid="fingerprint-toggle"]').trigger('click')
+    await flushPromises()
+
+    const panel = wrapper.find('[data-testid="fingerprint-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.find('[role="alert"]').text()).toContain('Посты по отпечатку')
+    expect(panel.find('[data-testid="fingerprint-post"]').exists()).toBe(false)
   })
 })

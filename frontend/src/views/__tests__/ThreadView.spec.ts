@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
@@ -68,7 +69,7 @@ const thread: ThreadDetail = {
       thread: 1,
       body: 'открываю тред',
       is_op: true,
-    sage: false,
+      sage: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       author: 'Аноним',
@@ -80,7 +81,7 @@ const thread: ThreadDetail = {
       thread: 1,
       body: '>>1 плюсую, но >>3 уже нет',
       is_op: false,
-    sage: false,
+      sage: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       author: 'Аноним',
@@ -182,9 +183,10 @@ describe('ThreadView — thread reader', () => {
     expect(error.exists()).toBe(true)
     expect(error.text()).toContain('must not exceed 20000')
     // failure keeps the typed body
-    expect((wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement).value).toBe(
-      'ответ',
-    )
+    expect(
+      (wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement)
+        .value,
+    ).toBe('ответ')
   })
 
   it('tracks the node on demand and persists it', async () => {
@@ -402,5 +404,119 @@ describe('ThreadView — восстановление позиции чтени�
 
     expect(wrapper.findAll('[data-testid="post"]')).toHaveLength(2)
     expect(scrollTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('ThreadView — поиск в треде и cursor j/k (FINDPOST-01)', () => {
+  let wrapper: Awaited<ReturnType<typeof mountThread>> | undefined
+
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.mocked(getThread).mockResolvedValue(fourPostThread)
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  afterEach(() => {
+    wrapper?.unmount()
+    wrapper = undefined
+  })
+
+  function pressKey(key: string, target: EventTarget = window) {
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+    )
+  }
+
+  it('кнопка открывает строку поиска', async () => {
+    wrapper = await mountThread()
+    expect(wrapper.find('[data-testid="thread-search"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="thread-search-toggle"]').trigger('click')
+
+    const search = wrapper.find('[data-testid="thread-search"]')
+    expect(search.exists()).toBe(true)
+    expect(search.attributes('role')).toBe('search')
+    expect(
+      wrapper.find('[data-testid="thread-search-toggle"]').attributes('aria-label'),
+    ).toBe('Найти в треде')
+  })
+
+  it('клавиша f открывает поиск и фокусирует поле', async () => {
+    wrapper = await mountThread()
+    pressKey('f')
+    await nextTick()
+
+    const input = wrapper.find('[data-testid="thread-search-input"]').element
+    expect(wrapper.find('[data-testid="thread-search"]').exists()).toBe(true)
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('ввод запроса показывает счётчик и mark в тексте', async () => {
+    wrapper = await mountThread()
+    await wrapper.find('[data-testid="thread-search-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="thread-search-input"]').setValue('пост')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="thread-search-count"]').text()).toBe('1 / 4')
+    expect(wrapper.findAll('mark.post-highlight').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('[data-testid="post"]')[0].classes()).toContain(
+      'post-item--search-active',
+    )
+  })
+
+  it('Esc закрывает поиск и снимает подсветку', async () => {
+    wrapper = await mountThread()
+    await wrapper.find('[data-testid="thread-search-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="thread-search-input"]').setValue('пост')
+    await flushPromises()
+    expect(wrapper.findAll('mark.post-highlight').length).toBeGreaterThan(0)
+
+    pressKey('Escape')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="thread-search"]').exists()).toBe(false)
+    expect(wrapper.findAll('mark.post-highlight')).toHaveLength(0)
+  })
+
+  it('j фокусирует следующий пост и уводит фокус дальше', async () => {
+    wrapper = await mountThread()
+    pressKey('j')
+    await nextTick()
+
+    expect(wrapper.findAll('[data-testid="post"]')[0].classes()).toContain(
+      'post-item--focused',
+    )
+
+    pressKey('j')
+    await nextTick()
+
+    expect(wrapper.findAll('[data-testid="post"]')[0].classes()).not.toContain(
+      'post-item--focused',
+    )
+    expect(wrapper.findAll('[data-testid="post"]')[1].classes()).toContain(
+      'post-item--focused',
+    )
+  })
+
+  it('k ведёт к предыдущему посту, начиная с последнего', async () => {
+    wrapper = await mountThread()
+    pressKey('k')
+    await nextTick()
+
+    expect(wrapper.findAll('[data-testid="post"]')[3].classes()).toContain(
+      'post-item--focused',
+    )
+  })
+
+  it('j в поле ввода игнорируется', async () => {
+    wrapper = await mountThread()
+    await wrapper.find('[data-testid="thread-search-toggle"]').trigger('click')
+    await nextTick()
+
+    const input = wrapper.find('[data-testid="thread-search-input"]').element
+    pressKey('j', input)
+    await nextTick()
+
+    expect(wrapper.findAll('.post-item--focused')).toHaveLength(0)
   })
 })

@@ -378,3 +378,32 @@ describe('PostBody — reading typography', () => {
     expect(wrapper.find('.post-body').element.textContent).toBe(`${long} >>42`)
   })
 })
+
+describe('PostBody — подсветка поиска (FINDPOST-01)', () => {
+  it('оборачивает совпадения в mark, сохраняя текст дословно', () => {
+    const wrapper = mountBody('это тред про треды', { highlight: 'тред' })
+    const marks = wrapper.findAll('mark.post-highlight')
+    expect(marks).toHaveLength(2)
+    expect(marks.map((m) => m.text())).toEqual(['тред', 'тред'])
+    expect(wrapper.find('.post-body').element.textContent).toBe('это тред про треды')
+  })
+
+  it('подсвечивает регистронезависимо', () => {
+    const wrapper = mountBody('ТРЕД', { highlight: 'тред' })
+    expect(wrapper.findAll('mark.post-highlight')).toHaveLength(1)
+    expect(wrapper.find('mark.post-highlight').text()).toBe('ТРЕД')
+  })
+
+  it('без запроса или без совпадений mark не появляется', () => {
+    expect(mountBody('просто текст').findAll('mark.post-highlight')).toHaveLength(0)
+    expect(
+      mountBody('просто текст', { highlight: 'zzz' }).findAll('mark.post-highlight'),
+    ).toHaveLength(0)
+  })
+
+  it('не подсвечивает внутри ссылок >>id', () => {
+    const wrapper = mountBody('>>42', { highlight: '42' })
+    expect(wrapper.findAll('mark.post-highlight')).toHaveLength(0)
+    expect(wrapper.find('.post-link').text()).toBe('>>42')
+  })
+})

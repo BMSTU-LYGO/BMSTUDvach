@@ -58,6 +58,12 @@ describe('router meta', () => {
     expect(document.title).toBe('Модерация — BMSTUDvach')
   })
 
+  it('names the stats page', async () => {
+    await navigate('/stats/')
+    expect(document.title).toBe('Статистика сети — BMSTUDvach')
+    expect(descriptionContent()).toContain('Телеметрия')
+  })
+
   it('falls back to the lost node title for unknown paths', async () => {
     await navigate('/unknown-path')
     expect(document.title).toBe('Сигнал потерян — 404')

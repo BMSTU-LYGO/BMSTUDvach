@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
 import CatalogCard from '../CatalogCard.vue'
+import { __reloadHiddenThreads } from '@/composables/useHiddenThreads'
 import type { ThreadSummary } from '@/types'
+
+const STORAGE_KEY = 'bmstud-hidden-threads'
 
 const thread: ThreadSummary = {
   id: 42,
@@ -29,7 +32,22 @@ function mountCard(t = thread) {
   })
 }
 
+function hiddenStored(): number[] {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  return raw ? JSON.parse(raw) : []
+}
+
+function enableReveal() {
+  localStorage.setItem('bmstud-hidden-reveal', '1')
+  window.dispatchEvent(new StorageEvent('storage', { key: 'bmstud-hidden-reveal' }))
+}
+
 describe('CatalogCard', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    __reloadHiddenThreads()
+  })
+
   it('shows node id, title, teaser and reply count', () => {
     const wrapper = mountCard()
     expect(wrapper.text()).toContain('#42')
@@ -69,5 +87,46 @@ describe('CatalogCard', () => {
     const wrapper = mountCard({ ...thread, op_snippet: undefined })
     expect(wrapper.find('.catalog-card__snippet').exists()).toBe(false)
     expect(wrapper.text()).toContain('Как выжить на пятой паре')
+  })
+
+  it('hides the card on the hide button click without opening the thread', async () => {
+    const wrapper = mountCard()
+    await wrapper.find('[data-testid="catalog-hide"]').trigger('click')
+
+    expect(hiddenStored()).toEqual([42])
+    expect(wrapper.emitted('open')).toBeFalsy()
+  })
+
+  it('labels the hide button and flips it to a return button when hidden', async () => {
+    const wrapper = mountCard()
+    const hide = wrapper.find('[data-testid="catalog-hide"]')
+
+    expect(hide.attributes('aria-label')).toBe('Скрыть тред')
+    expect(hide.attributes('aria-pressed')).toBe('false')
+
+    await hide.trigger('click')
+    enableReveal()
+    await wrapper.vm.$nextTick()
+
+    const restore = wrapper.find('[data-testid="catalog-hide"]')
+    expect(restore.attributes('aria-label')).toBe('Показать тред')
+    expect(restore.attributes('aria-pressed')).toBe('true')
+  })
+
+  it('does not render itself while hidden and reveal is off', async () => {
+    const wrapper = mountCard()
+    await wrapper.find('[data-testid="catalog-hide"]').trigger('click')
+    expect(wrapper.find('[data-testid="catalog-card"]').exists()).toBe(false)
+  })
+
+  it('renders a hidden card muted once reveal is on', async () => {
+    const wrapper = mountCard()
+    await wrapper.find('[data-testid="catalog-hide"]').trigger('click')
+
+    enableReveal()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="catalog-card"]').exists()).toBe(true)
+    expect(wrapper.find('.catalog-item--hidden').exists()).toBe(true)
   })
 })

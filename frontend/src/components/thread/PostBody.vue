@@ -3,6 +3,8 @@ import { computed, onUnmounted, ref } from 'vue'
 
 import { parsePostLinks } from '@/composables/usePostLinks'
 import type { PostToken } from '@/composables/usePostLinks'
+import { splitHighlight } from '@/composables/useThreadSearch'
+import type { HighlightSegment } from '@/composables/useThreadSearch'
 import { useQuoteThreadId } from '@/composables/useQuoteInsert'
 import { useDraftQuoteStore } from '@/stores/draftQuote'
 import AttachmentLightbox from './AttachmentLightbox.vue'
@@ -26,6 +28,10 @@ import type { Attachment } from '@/types'
  * with a left rule, an indent and a dimmed readable green from the tokens.
  * The raw text, line breaks included, stays in the DOM: the rendered text
  * content is the post body verbatim, so copying a post keeps its shape.
+ *
+ * An optional `highlight` query wraps every case-insensitive occurrence in
+ * the text segments with `<mark>` (FINDPOST-01); text stays verbatim, so the
+ * DOM contract above is untouched.
  */
 const props = defineProps<{
   body: string
@@ -34,6 +40,7 @@ const props = defineProps<{
   tripcode?: string
   attachments?: Attachment[]
   threadId?: number
+  highlight?: string
 }>()
 
 const emit = defineEmits<{
@@ -106,6 +113,12 @@ const blocks = computed<BodyBlock[]>(() => {
 
   return out.filter((block) => block.kind !== 'gap' || block.eol.length > 0)
 })
+
+/** Text token → highlight segments; links stay links, never highlighted. */
+function highlightSegments(text: string): HighlightSegment[] {
+  if (!props.highlight) return [{ text, hit: false }]
+  return splitHighlight(text, props.highlight)
+}
 
 const attachments = computed(() => props.attachments ?? [])
 const lightboxOpen = ref(false)
@@ -214,7 +227,17 @@ const signature = computed(() =>
         <template v-for="(line, lineIndex) in block.lines" :key="lineIndex">
           <span class="post-line">
             <template v-for="(token, tokenIndex) in line.tokens" :key="tokenIndex">
-              <span v-if="token.type === 'text'">{{ token.value }}</span>
+              <span v-if="token.type === 'text'">
+                <template
+                  v-for="(segment, segmentIndex) in highlightSegments(token.value)"
+                  :key="segmentIndex"
+                >
+                  <mark v-if="segment.hit" class="post-highlight">{{
+                    segment.text
+                  }}</mark>
+                  <template v-else>{{ segment.text }}</template>
+                </template>
+              </span>
               <a
                 v-else
                 class="post-link"
@@ -373,6 +396,14 @@ const signature = computed(() =>
   100% {
     background: color-mix(in oklab, var(--accent) 0%, transparent);
   }
+}
+
+/* FINDPOST-01: a search hit inside the body text. */
+.post-highlight {
+  background: color-mix(in oklab, var(--accent) 42%, transparent);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .post-attachments {

@@ -17,7 +17,24 @@ export interface QueuedReport {
     thread_title: string
     is_hidden: boolean
     body: string
+    poster_fingerprint: string
   }
+}
+
+export interface FingerprintPost {
+  id: number
+  thread: number
+  thread_title: string
+  body: string
+  is_hidden: boolean
+  sage: boolean
+  created_at: string
+}
+
+export interface FingerprintPosts {
+  fingerprint: string
+  count: number
+  posts: FingerprintPost[]
 }
 
 export interface ThreadState {
@@ -56,6 +73,12 @@ export function staffLogout(): Promise<unknown> {
 
 export function fetchReportQueue(status = 'new'): Promise<{ reports: QueuedReport[] }> {
   return request<{ reports: QueuedReport[] }>(`${BASE}/reports/?status=${status}`)
+}
+
+export function fetchFingerprintPosts(fingerprint: string): Promise<FingerprintPosts> {
+  return request<FingerprintPosts>(
+    `${BASE}/fingerprints/${encodeURIComponent(fingerprint)}/posts/`,
+  )
 }
 
 export function fetchModerationLog(): Promise<ModerationLogEntry[]> {

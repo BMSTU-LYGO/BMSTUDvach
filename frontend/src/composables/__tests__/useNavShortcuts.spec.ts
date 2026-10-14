@@ -23,11 +23,12 @@ const NavProbe = defineComponent({
     },
   },
   setup(props) {
-    useNavShortcuts({ onOpenSearch: props.onOpenSearch })
+    const { shortcutsOpen } = useNavShortcuts({ onOpenSearch: props.onOpenSearch })
     return () =>
       h('div', [
         h('input', { 'data-testid': 'field' }),
         h('textarea', { 'data-testid': 'area' }),
+        h('span', { 'data-testid': 'shortcuts-open' }, String(shortcutsOpen.value)),
       ])
   },
 })
@@ -289,6 +290,58 @@ describe('useNavShortcuts scan shortcut', () => {
     expect(listener).toHaveBeenCalledTimes(1)
     expect(openScan).not.toHaveBeenCalled()
     window.removeEventListener('bmstudvach:open-scan', listener)
+    wrapper.unmount()
+  })
+})
+
+describe('useNavShortcuts cheat-sheet (? — SHORTCUTS-01)', () => {
+  function shortcutsOpen(wrapper: ReturnType<typeof mount>) {
+    return wrapper.find('[data-testid="shortcuts-open"]').text()
+  }
+
+  it('opens the shortcuts dialog on ?', async () => {
+    const { wrapper } = await mountNav('/moderation')
+    expect(shortcutsOpen(wrapper)).toBe('false')
+    press('?')
+    await Promise.resolve()
+    expect(shortcutsOpen(wrapper)).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('ignores ? typed into an input', async () => {
+    const { wrapper } = await mountNav('/moderation')
+    const field = wrapper.find<HTMLInputElement>('[data-testid="field"]')
+    field.element.focus()
+    expect(document.activeElement).toBe(field.element)
+
+    press('?')
+    await Promise.resolve()
+    expect(shortcutsOpen(wrapper)).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('ignores ? typed into a contenteditable', async () => {
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    document.body.appendChild(editable)
+    editable.focus()
+
+    const { wrapper } = await mountNav('/moderation')
+    press('?')
+    await Promise.resolve()
+    expect(shortcutsOpen(wrapper)).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('ignores ? while a modal dialog is already open', async () => {
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.appendChild(dialog)
+
+    const { wrapper } = await mountNav('/moderation')
+    press('?')
+    await Promise.resolve()
+    expect(shortcutsOpen(wrapper)).toBe('false')
     wrapper.unmount()
   })
 })

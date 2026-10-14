@@ -326,3 +326,33 @@ search operators against the stack
 
 Verified: frontend 356 tests · backend 170 · verify:3d 46 · ruff ·
 build PASS
+
+## Services round (RULES/FEED/MODFINGER/HIDE/SHORTCUTS/FINDPOST/SOUND/STATS/DRAFTS/A11Y) — done (pushed)
+- RULES-01: Board.rules (migration 0004) + seed rules; «ПРАВИЛА
+  РАЗДЕЛА» collapsible block under the board title (line-clamp 3)
+- FEED-01: RSS 2.0 feeds — /feed/recent.xml, /feed/board/<slug>.xml,
+  /feed/thread/<id>.xml (visible only, absolute links, guids);
+  <link rel=alternate> in index.html; 12 tests
+- MODFINGER-01: staff GET /moderation/fingerprints/<64hex>/posts/
+  (visible+hidden, cap 50, regex-validated); fingerprint now exposed
+  in the report queue; «Посты автора» expandable panel in the console
+- HIDE-01: local thread hiding (bmstud-hidden-threads) with reveal
+  mode; rows/cards self-hide; HiddenThreadsChip in the board header
+- SHORTCUTS-01: «?» help dialog (focus trap, Esc, scroll-lock) with
+  the real shortcut table; wired through useNavShortcuts → App.vue
+- FINDPOST-01: in-thread find (f / button, counter N/M, <mark>
+  highlight via optional PostBody prop) + j/k post cursor with
+  editable/modal guards
+- SOUND-01: sound toggle in the header (aria-pressed, persisted
+  bmstudvach-sound); useSound singleton, no AudioContext when off
+- STATS-01: GET /telemetry/activity/?days=7|30 (TruncDate series,
+  zero-filled, fallback 7) + /stats page: summary cells, CSS bar
+  chart with sr-only data table, 7/30 switch; footer link
+- DRAFTS-01: «НЕЗАКОНЧЕННЫЕ СИГНАЛЫ» panel on Home (listDrafts/
+  discardDraft over draft:signal-<id> keys) with resume links
+- A11Y-01: SkipLink «Перейти к содержимому» + main#main-content
+  (tabindex=-1, aria-label)
+
+Verified: frontend 459 tests · backend 231 · verify:3d 46 · ruff ·
+spectacular · build PASS · live (in-container): /telemetry/activity/,
+/feed/recent.xml, board rules, fingerprint 403

@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import { apiErrorMessage } from '@/api/client'
 import {
+  fetchFingerprintPosts,
   fetchModerationLog,
   fetchReportQueue,
   moderatePost,
@@ -14,6 +15,7 @@ import {
   staffLogout,
   staffMe,
   unpinThread,
+  type FingerprintPost,
   type ModerationLogEntry,
   type QueuedReport,
   type ThreadState,
@@ -88,6 +90,14 @@ const reports = ref<QueuedReport[]>([])
 const loading = ref(false)
 const busy = ref<number | null>(null)
 const consoleError = ref('')
+
+/** Poster-fingerprint drill-down: one report row expanded at a time. */
+const fpOpenFor = ref<number | null>(null)
+const fpLoading = ref(false)
+const fpError = ref('')
+const fpFingerprint = ref('')
+const fpCount = ref(0)
+const fpPosts = ref<FingerprintPost[]>([])
 
 const logEntries = ref<ModerationLogEntry[]>([])
 const logLoading = ref(false)
@@ -190,6 +200,34 @@ async function act(report: QueuedReport, action: 'dismiss' | 'action') {
     consoleError.value = apiErrorMessage(err, 'Не удалось применить действие.')
   } finally {
     busy.value = null
+  }
+}
+
+/** Toggle the inline list of every post left with a report's fingerprint. */
+async function toggleFingerprint(report: QueuedReport) {
+  if (fpOpenFor.value === report.id) {
+    fpOpenFor.value = null
+    return
+  }
+  const fingerprint = report.post.poster_fingerprint
+  fpOpenFor.value = report.id
+  fpLoading.value = true
+  fpError.value = ''
+  fpFingerprint.value = fingerprint
+  fpCount.value = 0
+  fpPosts.value = []
+  try {
+    const data = await fetchFingerprintPosts(fingerprint)
+    if (fpOpenFor.value !== report.id) return
+    fpFingerprint.value = data.fingerprint
+    fpCount.value = data.count
+    fpPosts.value = data.posts
+  } catch (err) {
+    if (fpOpenFor.value === report.id) {
+      fpError.value = apiErrorMessage(err, 'Посты по отпечатку недоступны.')
+    }
+  } finally {
+    if (fpOpenFor.value === report.id) fpLoading.value = false
   }
 }
 
@@ -360,6 +398,16 @@ onMounted(check)
             >
               отклонить
             </button>
+            <button
+              type="button"
+              class="report__btn report__btn--fingerprint"
+              data-testid="fingerprint-toggle"
+              :aria-expanded="fpOpenFor === report.id"
+              :aria-controls="`fingerprint-panel-${report.id}`"
+              @click="toggleFingerprint(report)"
+            >
+              Посты автора
+            </button>
             <a
               class="report__link"
               :href="`/threads/${report.post.thread}#post-${report.post.id}`"
@@ -369,6 +417,54 @@ onMounted(check)
               открыть в треде ↗
             </a>
           </footer>
+
+          <div
+            v-if="fpOpenFor === report.id"
+            :id="`fingerprint-panel-${report.id}`"
+            class="fingerprint"
+            data-testid="fingerprint-panel"
+          >
+            <p class="fingerprint__bar">
+              <span class="fingerprint__label">отпечаток</span>
+              <code class="fingerprint__hash">{{ fpFingerprint }}</code>
+              <span class="fingerprint__count">постов: {{ pad(fpCount) }}</span>
+            </p>
+            <p v-if="fpLoading" class="fingerprint__state">загрузка постов…</p>
+            <p v-else-if="fpError" class="fingerprint__error" role="alert">
+              {{ fpError }}
+            </p>
+            <p
+              v-else-if="!fpPosts.length"
+              class="fingerprint__empty"
+              data-testid="fingerprint-empty"
+            >
+              у этого отпечатка больше нет постов
+            </p>
+            <ul v-else class="fingerprint__list">
+              <li
+                v-for="item in fpPosts"
+                :key="item.id"
+                class="fingerprint__post"
+                data-testid="fingerprint-post"
+              >
+                <div class="fingerprint__meta">
+                  <span class="fingerprint__id">#{{ pad(item.id) }}</span>
+                  <span class="fingerprint__thread">{{ item.thread_title }}</span>
+                  <span
+                    v-if="item.is_hidden"
+                    class="fingerprint__flag fingerprint__flag--hidden"
+                  >
+                    скрыт
+                  </span>
+                  <span v-if="item.sage" class="fingerprint__flag">sage</span>
+                  <time class="fingerprint__time" :datetime="item.created_at">
+                    {{ new Date(item.created_at).toLocaleString('ru-RU') }}
+                  </time>
+                </div>
+                <p class="fingerprint__body">{{ item.body }}</p>
+              </li>
+            </ul>
+          </div>
         </article>
       </section>
 
@@ -897,6 +993,150 @@ onMounted(check)
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px dotted color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.report__btn--fingerprint {
+  min-height: 44px;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.report__btn--fingerprint:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* === fingerprint drill-down: full-width panel under a report row === */
+.fingerprint {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-deep);
+}
+
+.fingerprint__bar {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.fingerprint__label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.fingerprint__hash {
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.fingerprint__count {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fingerprint__state,
+.fingerprint__empty {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.fingerprint__error {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  color: var(--danger);
+}
+
+.fingerprint__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.fingerprint__post {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border-bottom: 1px dashed var(--border-subtle);
+}
+
+.fingerprint__post:last-child {
+  border-bottom: none;
+}
+
+.fingerprint__meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fingerprint__id {
+  color: var(--accent-dim);
+}
+
+.fingerprint__thread {
+  color: var(--text-secondary);
+}
+
+.fingerprint__flag {
+  padding: 1px 6px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.fingerprint__flag--hidden {
+  color: var(--danger);
+  border-color: var(--danger-dim);
+}
+
+.fingerprint__time {
+  margin-left: auto;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.fingerprint__body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-primary);
 }
 
 /* === journal === */

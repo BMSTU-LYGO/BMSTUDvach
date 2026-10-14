@@ -137,10 +137,23 @@ POST   /api/v1/threads/{id}/posts/    # Create reply
 GET    /api/v1/posts/{id}/            # Post detail
 GET    /api/v1/posts/mentions/        # Replies to your tripcoded posts (?trip=)
 POST   /api/v1/posts/{id}/reports/    # Report a post
+GET    /api/v1/telemetry/             # Network summary (visible-only aggregates)
+GET    /api/v1/telemetry/activity/    # Activity series (?days=7|30)
 GET    /api/v1/platinum/              # Published platinum stories (?search=)
 GET    /api/v1/platinum/{id}/         # Platinum story detail
 POST   /api/v1/platinum/generate/     # Dev: generate via fake LLM (staff)
 ```
+
+Syndication (server-rendered, no SPA needed):
+
+```
+GET    /feed/recent.xml               # Latest threads across boards (RSS 2.0)
+GET    /feed/board/{slug}.xml         # One board's threads
+GET    /feed/thread/{id}.xml          # One thread's posts
+```
+
+Web pages: `/` home, `/boards/{slug}/` board, `/threads/{id}/` thread,
+`/platinum/` archive, `/stats/` network statistics, `/about/`, `/moderation/` (staff).
 
 ## Tests & Lint
 

@@ -21,6 +21,7 @@ export type NetworkIconName =
   | 'mute'
   | 'sage'
   | 'eye'
+  | 'eyeOff'
 </script>
 
 <script setup lang="ts">
@@ -175,6 +176,14 @@ withDefaults(
     <template v-else-if="name === 'eye'">
       <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
       <circle cx="12" cy="12" r="2.8" />
+    </template>
+
+    <!-- eyeOff: hidden from view -->
+    <template v-else-if="name === 'eyeOff'">
+      <path d="M4.5 7.5C3.2 9 2.5 12 2.5 12s3.5 6.5 9.5 6.5c1.6 0 3-.4 4.2-1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="M8.5 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15 15 0 0 1-2.7 3.4" />
+      <path d="M3.5 3.5 20.5 20.5" />
     </template>
   </svg>
 </template>

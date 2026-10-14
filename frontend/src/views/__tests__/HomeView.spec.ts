@@ -6,6 +6,10 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
   return {
+    get length() {
+      return Object.keys(store).length
+    },
+    key: (i: number) => Object.keys(store)[i] ?? null,
     getItem: (key: string) => store[key] ?? null,
     setItem: (key: string, value: string) => {
       store[key] = value
@@ -282,6 +286,33 @@ describe('HomeView — page structure', () => {
     expect(readouts).toHaveLength(2)
     expect(readouts[0].text()).toBe('УЗЛЫ · 00')
     expect(readouts[1].text()).toBe('СИГНАЛЫ · 00')
+  })
+})
+
+describe('HomeView — drafts panel', () => {
+  let wrapper: Awaited<ReturnType<typeof mountHome>>
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorageMock.clear()
+    vi.mocked(listRecentThreads).mockResolvedValue([])
+    localStorageMock.setItem(
+      'draft:signal-7',
+      JSON.stringify({ body: 'недописанный сигнал', files: [], timestamp: Date.now() }),
+    )
+  })
+
+  afterEach(() => {
+    wrapper?.unmount()
+    localStorageMock.clear()
+  })
+
+  it('renders the drafts panel from stored buffers', async () => {
+    wrapper = await mountHome()
+    const panel = wrapper.find('[data-testid="drafts-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('НЕЗАКОНЧЕННЫЕ СИГНАЛЫ')
+    expect(wrapper.find('[data-testid="draft-row-7"]').text()).toContain('#7')
   })
 })
 

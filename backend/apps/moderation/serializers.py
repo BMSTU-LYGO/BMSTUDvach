@@ -39,6 +39,27 @@ class ModerationPostSerializer(serializers.Serializer):
     thread_title = serializers.CharField()
     is_hidden = serializers.BooleanField()
     body = serializers.CharField()
+    poster_fingerprint = serializers.CharField()
+
+
+class FingerprintPostSerializer(serializers.Serializer):
+    """One post from a poster-fingerprint history (staff-only view)."""
+
+    id = serializers.IntegerField()
+    thread = serializers.IntegerField()
+    thread_title = serializers.CharField()
+    body = serializers.CharField()
+    is_hidden = serializers.BooleanField()
+    sage = serializers.BooleanField()
+    created_at = serializers.DateTimeField()
+
+
+class FingerprintPostsSerializer(serializers.Serializer):
+    """Posts sharing one poster fingerprint, newest first."""
+
+    fingerprint = serializers.CharField()
+    count = serializers.IntegerField()
+    posts = FingerprintPostSerializer(many=True)
 
 
 class ThreadStateSerializer(serializers.Serializer):

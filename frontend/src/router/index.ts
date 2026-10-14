@@ -145,6 +145,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'stats',
+        name: 'stats',
+        component: () => import('@/views/StatsView.vue'),
+        meta: {
+          scene: 'home',
+          title: 'Статистика сети — BMSTUDvach',
+          description:
+            'Телеметрия сети BMSTUDvach: сводка по разделам, тредам, сообщениям и вложениям и суточная серия активности за 7 или 30 дней.',
+        },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'not-found',
         component: () => import('@/views/NotFoundView.vue'),

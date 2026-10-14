@@ -30,6 +30,7 @@ class BoardSerializer(serializers.ModelSerializer):
             "slug",
             "name",
             "description",
+            "rules",
             "is_active",
             "order",
             "thread_count",

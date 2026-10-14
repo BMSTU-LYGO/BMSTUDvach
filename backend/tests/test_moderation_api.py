@@ -1,6 +1,9 @@
 import pytest
+from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.forum.models import Post
 from apps.moderation.models import ModerationLog
+from apps.moderation.views import FingerprintPostsView
 
 
 def login_staff(api_client, django_user_model):
@@ -264,3 +267,101 @@ class TestModerationLog:
         resp = api_client.post(f"/api/v1/moderation/threads/{thread.id}/explode/")
         assert resp.status_code == 400
         assert not ModerationLog.objects.exists()
+
+
+class TestFingerprintPosts:
+    """The moderator tool that groups posts by their poster fingerprint."""
+
+    FP = "a" * 64
+
+    @pytest.mark.django_db
+    def test_staff_sees_posts_for_a_valid_fingerprint(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        login_staff(api_client, django_user_model)
+        thread, op = thread_with_op
+        op.poster_fingerprint = self.FP
+        op.save(update_fields=["poster_fingerprint"])
+        newer = Post.objects.create(
+            thread=thread, body="второй спам", poster_fingerprint=self.FP
+        )
+        Post.objects.create(
+            thread=thread, body="чужой отпечаток", poster_fingerprint="b" * 64
+        )
+
+        resp = api_client.get(f"/api/v1/moderation/fingerprints/{self.FP}/posts/")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fingerprint"] == self.FP
+        assert data["count"] == 2
+        # newest first
+        assert [p["id"] for p in data["posts"]] == [newer.id, op.id]
+        assert set(data["posts"][0]) == {
+            "id",
+            "thread",
+            "thread_title",
+            "body",
+            "is_hidden",
+            "sage",
+            "created_at",
+        }
+        assert data["posts"][0]["thread_title"] == thread.title
+
+    @pytest.mark.django_db
+    def test_hidden_posts_are_included(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        login_staff(api_client, django_user_model)
+        thread, op = thread_with_op
+        op.poster_fingerprint = self.FP
+        op.is_hidden = True
+        op.save(update_fields=["poster_fingerprint", "is_hidden"])
+
+        resp = api_client.get(f"/api/v1/moderation/fingerprints/{self.FP}/posts/")
+        posts = resp.json()["posts"]
+        assert [p["id"] for p in posts] == [op.id]
+        assert posts[0]["is_hidden"] is True
+
+    @pytest.mark.django_db
+    def test_body_is_truncated_to_200(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        login_staff(api_client, django_user_model)
+        thread, _ = thread_with_op
+        Post.objects.create(thread=thread, body="x" * 500, poster_fingerprint=self.FP)
+
+        resp = api_client.get(f"/api/v1/moderation/fingerprints/{self.FP}/posts/")
+        assert len(resp.json()["posts"][0]["body"]) == 200
+
+    @pytest.mark.django_db
+    def test_invalid_fingerprint_is_rejected(self, api_client, django_user_model):
+        login_staff(api_client, django_user_model)
+        for bad in ("zzz", "a" * 63, "g" * 64, "a" * 65):
+            resp = api_client.get(f"/api/v1/moderation/fingerprints/{bad}/posts/")
+            assert resp.status_code == 400, bad
+
+    @pytest.mark.django_db
+    def test_empty_fingerprint_is_rejected(self, api_client, django_user_model):
+        user = login_staff(api_client, django_user_model)
+        request = APIRequestFactory().get("/")
+        force_authenticate(request, user=user)
+        resp = FingerprintPostsView.as_view()(request, fingerprint="")
+        assert resp.status_code == 400
+
+    @pytest.mark.django_db
+    def test_requires_staff(self, api_client):
+        url = f"/api/v1/moderation/fingerprints/{self.FP}/posts/"
+        assert api_client.get(url).status_code in (401, 403)
+
+    @pytest.mark.django_db
+    def test_report_queue_exposes_poster_fingerprint(
+        self, api_client, django_user_model, thread_with_op
+    ):
+        login_staff(api_client, django_user_model)
+        _, op = thread_with_op
+        op.poster_fingerprint = self.FP
+        op.save(update_fields=["poster_fingerprint"])
+        api_client.post(f"/api/v1/posts/{op.id}/reports/", {"reason": "spam"})
+
+        reports = api_client.get("/api/v1/moderation/reports/").json()["reports"]
+        assert reports[0]["post"]["poster_fingerprint"] == self.FP

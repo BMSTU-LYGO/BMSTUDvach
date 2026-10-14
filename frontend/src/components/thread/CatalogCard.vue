@@ -1,13 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ThreadSummary } from '@/types'
 import NetworkIcon from '../composer/NetworkIcon.vue'
+import { useHiddenThreads } from '@/composables/useHiddenThreads'
 
 /**
  * Catalog view of a board — threads as cluster nodes. Each card carries
  * the node id, state glyphs, the signal count and the OP teaser.
+ *
+ * The card owns its own hide toggle (HIDE-01): hidden and not revealed →
+ * it decides not to render itself. The hide button stops propagation so
+ * it never opens the thread.
  */
 const props = defineProps<{ thread: ThreadSummary }>()
 const emit = defineEmits<{ open: [event: MouseEvent, threadId: number] }>()
+
+const { isHidden, hide, unhide, revealHidden } = useHiddenThreads()
+
+const hidden = computed(() => isHidden(props.thread.id))
+const visible = computed(() => !hidden.value || revealHidden.value)
+
+function toggleHidden() {
+  if (hidden.value) unhide(props.thread.id)
+  else hide(props.thread.id)
+}
 
 function ago(value: string): string {
   const d = new Date(value)
@@ -19,48 +35,75 @@ function ago(value: string): string {
   if (hours < 24) return `${hours} ч`
   return `${Math.floor(hours / 24)} д`
 }
-
-void props
 </script>
 
 <template>
-  <RouterLink
-    :to="`/threads/${thread.id}`"
-    class="catalog-card"
-    :class="{ 'catalog-card--pinned': thread.is_pinned }"
-    data-testid="catalog-card"
-    @click="emit('open', $event, thread.id)"
-  >
-    <div class="catalog-card__head">
-      <span class="catalog-card__node">#{{ thread.id }}</span>
-      <span
-        v-if="thread.is_pinned"
-        class="catalog-card__pin"
-        data-testid="pin-badge"
-        title="Закреплён"
-      >
-        <NetworkIcon name="pin" :size="12" />
-        <span class="catalog-card__pin-label">pin</span>
-      </span>
-      <span v-if="thread.is_locked" class="catalog-card__lock" title="Закрыт">
-        <NetworkIcon name="lock" :size="12" />
-      </span>
-      <span class="catalog-card__replies" title="Ответов">{{ thread.reply_count }}</span>
-    </div>
+  <div v-if="visible" class="catalog-item" :class="{ 'catalog-item--hidden': hidden }">
+    <RouterLink
+      :to="`/threads/${thread.id}`"
+      class="catalog-card"
+      :class="{ 'catalog-card--pinned': thread.is_pinned }"
+      data-testid="catalog-card"
+      @click="emit('open', $event, thread.id)"
+    >
+      <div class="catalog-card__head">
+        <span class="catalog-card__node">#{{ thread.id }}</span>
+        <span
+          v-if="thread.is_pinned"
+          class="catalog-card__pin"
+          data-testid="pin-badge"
+          title="Закреплён"
+        >
+          <NetworkIcon name="pin" :size="12" />
+          <span class="catalog-card__pin-label">pin</span>
+        </span>
+        <span v-if="thread.is_locked" class="catalog-card__lock" title="Закрыт">
+          <NetworkIcon name="lock" :size="12" />
+        </span>
+        <span class="catalog-card__replies" title="Ответов">{{
+          thread.reply_count
+        }}</span>
+      </div>
 
-    <h3 class="catalog-card__title">{{ thread.title }}</h3>
-    <p v-if="thread.op_snippet" class="catalog-card__snippet">{{ thread.op_snippet }}</p>
+      <h3 class="catalog-card__title">{{ thread.title }}</h3>
+      <p v-if="thread.op_snippet" class="catalog-card__snippet">
+        {{ thread.op_snippet }}
+      </p>
 
-    <footer class="catalog-card__foot">
-      <span>/{{ thread.board }}/</span>
-      <span>{{ ago(thread.bumped_at) }}</span>
-    </footer>
-  </RouterLink>
+      <footer class="catalog-card__foot">
+        <span>/{{ thread.board }}/</span>
+        <span>{{ ago(thread.bumped_at) }}</span>
+      </footer>
+    </RouterLink>
+
+    <button
+      type="button"
+      class="catalog-hide"
+      :aria-label="hidden ? 'Показать тред' : 'Скрыть тред'"
+      :title="hidden ? 'Показать тред' : 'Скрыть тред'"
+      :aria-pressed="hidden"
+      data-testid="catalog-hide"
+      @click.stop.prevent="toggleHidden"
+    >
+      <NetworkIcon :name="hidden ? 'eye' : 'eyeOff'" :size="14" />
+    </button>
+  </div>
 </template>
 
 <style scoped>
+.catalog-item {
+  position: relative;
+  display: flex;
+  transition: opacity var(--duration-normal) var(--ease-out-quart);
+}
+
+.catalog-item--hidden {
+  opacity: 0.5;
+}
+
 .catalog-card {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
@@ -160,5 +203,50 @@ void props
   font-family: var(--font-display);
   font-size: 0.64rem;
   color: var(--text-muted);
+}
+
+.catalog-hide {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    color var(--duration-fast),
+    background var(--duration-fast),
+    opacity var(--duration-fast);
+}
+
+.catalog-item:hover .catalog-hide,
+.catalog-hide:focus-visible {
+  opacity: 1;
+}
+
+.catalog-hide:hover {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+.catalog-hide:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-card:hover {
+    transform: none;
+  }
+
+  .catalog-item {
+    transition: none;
+  }
 }
 </style>

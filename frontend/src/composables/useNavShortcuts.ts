@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 /**
@@ -8,6 +8,12 @@ import { useRoute, useRouter } from 'vue-router'
  * scanner. Pure sequence matching lives in `matchNavSequence` so the table
  * is testable without a DOM; the composable only adds the router, the
  * prefix window and the guards that keep typing and modals untouched.
+ *
+ * SHORTCUTS-01 — `?` toggles the shortcut cheat-sheet. The dialog itself is
+ * owned by the host (App.vue) and bound to the `shortcutsOpen` ref this
+ * composable exposes: pressing `?` flips it to `true`, the host renders the
+ * dialog. The same guards apply — `?` never fires from a field or while a
+ * modal layer is already in the DOM.
  */
 
 export type NavAction =
@@ -65,6 +71,9 @@ export function useNavShortcuts(options: NavShortcutsOptions = {}) {
   const router = useRouter()
   const route = useRoute()
 
+  /** SHORTCUTS-01 — host-owned cheat-sheet visibility, flipped by `?`. */
+  const shortcutsOpen = ref(false)
+
   let lastThreadPath: string | null = null
   watch(
     () => route.path,
@@ -121,7 +130,7 @@ export function useNavShortcuts(options: NavShortcutsOptions = {}) {
 
   function isNavKey(key: string): boolean {
     if (prefixArmed) return true
-    return key === '/' || key.toLowerCase() === NAV_PREFIX_KEY
+    return key === '/' || key === '?' || key.toLowerCase() === NAV_PREFIX_KEY
   }
 
   function onKeydown(event: KeyboardEvent): void {
@@ -144,6 +153,12 @@ export function useNavShortcuts(options: NavShortcutsOptions = {}) {
       return
     }
 
+    if (event.key === '?') {
+      event.preventDefault()
+      shortcutsOpen.value = true
+      return
+    }
+
     event.preventDefault()
     armPrefix()
   }
@@ -160,5 +175,5 @@ export function useNavShortcuts(options: NavShortcutsOptions = {}) {
   onMounted(start)
   onBeforeUnmount(stop)
 
-  return { start, stop }
+  return { start, stop, shortcutsOpen }
 }

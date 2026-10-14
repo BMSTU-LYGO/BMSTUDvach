@@ -18,6 +18,7 @@ vi.mock('@/composables/usePageMorph', () => ({
 
 vi.mock('@/api/boards', () => ({
   listBoards: vi.fn().mockResolvedValue([]),
+  getBoard: vi.fn(),
 }))
 vi.mock('@/api/posts', () => ({
   createPost: vi.fn(),
@@ -31,9 +32,10 @@ vi.mock('@/api/threads', () => ({
 }))
 
 import BoardView from '@/views/BoardView.vue'
+import { getBoard } from '@/api/boards'
 import { listThreads } from '@/api/threads'
 import { useForumStore } from '@/stores/forum'
-import type { Paginated, ThreadSummary } from '@/types'
+import type { Board, Paginated, ThreadSummary } from '@/types'
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
@@ -63,6 +65,21 @@ function thread(id: number, title: string, isPinned = false): ThreadSummary {
     updated_at: '2026-10-01T10:00:00Z',
     bumped_at: '2026-10-10T10:00:00Z',
     reply_count: id,
+  }
+}
+
+function board(rules: string): Board {
+  return {
+    id: 1,
+    slug: 'b',
+    name: 'Разное',
+    description: 'Обо всё',
+    rules,
+    is_active: true,
+    order: 0,
+    thread_count: 2,
+    created_at: '2026-10-01T10:00:00Z',
+    updated_at: '2026-10-01T10:00:00Z',
   }
 }
 
@@ -117,6 +134,7 @@ describe('BoardView — paginated thread feed', () => {
   beforeEach(() => {
     localStorage.clear()
     servePages()
+    vi.mocked(getBoard).mockResolvedValue(board(''))
   })
 
   afterEach(() => {
@@ -250,5 +268,46 @@ describe('BoardView — paginated thread feed', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="error"]').exists()).toBe(true)
+  })
+})
+
+describe('BoardView — board rules', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    servePages()
+    vi.mocked(getBoard).mockResolvedValue(board(''))
+  })
+
+  afterEach(() => {
+    vi.mocked(listThreads).mockReset()
+    vi.mocked(getBoard).mockReset()
+  })
+
+  it('renders the rules block when the board has rules', async () => {
+    vi.mocked(getBoard).mockResolvedValue(board('Без спама.\nБез дублей.'))
+    const { wrapper } = await mountBoard()
+
+    const block = wrapper.find('[data-testid="board-rules"]')
+    expect(block.exists()).toBe(true)
+    expect(block.text()).toContain('ПРАВИЛА РАЗДЕЛА')
+    expect(block.text()).toContain('Без спама.')
+  })
+
+  it('hides the rules block when the board has none', async () => {
+    const { wrapper } = await mountBoard()
+
+    expect(wrapper.find('[data-testid="board-rules"]').exists()).toBe(false)
+  })
+
+  it('collapses rules longer than three lines behind an aria-expanded toggle', async () => {
+    vi.mocked(getBoard).mockResolvedValue(board('раз\nдва\nтри\nчетыре'))
+    const { wrapper } = await mountBoard()
+
+    const toggle = wrapper.find('[data-testid="board-rules-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
   })
 })

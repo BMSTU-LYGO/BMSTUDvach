@@ -148,3 +148,108 @@ class TestTelemetry:
             "busiest_board",
             "generated_at",
         }
+
+
+class TestTelemetryActivity:
+    @pytest.mark.django_db
+    def test_seven_day_window_is_fixed_length_and_ordered(self, api_client, board):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.forum.models import Post, Thread
+
+        live = Thread.objects.create(board=board, title="Сегодняшний тред")
+        Post.objects.create(thread=live, body="op", is_op=True)
+
+        resp = api_client.get("/api/v1/telemetry/activity/")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["days"] == 7
+        assert len(data["points"]) == 7
+
+        dates = [point["date"] for point in data["points"]]
+        today = timezone.localdate()
+        assert dates == sorted(dates)
+        assert dates[-1] == today.isoformat()
+        assert dates[0] == (today - timedelta(days=6)).isoformat()
+
+        # days without content read as honest zeros
+        today_point = data["points"][-1]
+        assert today_point["posts"] == 1
+        assert today_point["threads"] == 1
+        for point in data["points"][:-1]:
+            assert point["posts"] == 0
+            assert point["threads"] == 0
+
+    @pytest.mark.django_db
+    def test_posts_bucket_into_their_own_days(self, api_client, board):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.forum.models import Post, Thread
+
+        today = timezone.localdate()
+        thread = Thread.objects.create(board=board, title="Тред")
+        Post.objects.create(thread=thread, body="сегодня", is_op=True)
+        yesterday = Post.objects.create(thread=thread, body="вчера")
+        older = Post.objects.create(thread=thread, body="позавчера")
+
+        Post.objects.filter(pk=yesterday.id).update(
+            created_at=timezone.now() - timedelta(days=1)
+        )
+        Post.objects.filter(pk=older.id).update(
+            created_at=timezone.now() - timedelta(days=3)
+        )
+
+        resp = api_client.get("/api/v1/telemetry/activity/?days=7")
+        points = {point["date"]: point for point in resp.json()["points"]}
+        assert points[today.isoformat()]["posts"] == 1
+        assert points[(today - timedelta(days=1)).isoformat()]["posts"] == 1
+        assert points[(today - timedelta(days=3)).isoformat()]["posts"] == 1
+
+    @pytest.mark.django_db
+    def test_hidden_and_inactive_content_not_counted(self, api_client, board):
+        from apps.forum.models import Board, Post, Thread
+
+        live = Thread.objects.create(board=board, title="Живой")
+        Post.objects.create(thread=live, body="op", is_op=True)
+        Post.objects.create(thread=live, body="видимый ответ")
+
+        hidden_thread = Thread.objects.create(
+            board=board, title="Скрытый тред", is_hidden=True
+        )
+        Post.objects.create(thread=hidden_thread, body="op", is_op=True)
+        Post.objects.create(thread=live, body="скрытый ответ", is_hidden=True)
+
+        inactive = Board.objects.create(slug="dead", name="Мёртвый", is_active=False)
+        dead = Thread.objects.create(board=inactive, title="Тред мертвеца")
+        Post.objects.create(thread=dead, body="op", is_op=True)
+
+        resp = api_client.get("/api/v1/telemetry/activity/?days=7")
+        today = resp.json()["points"][-1]
+        assert today["threads"] == 1
+        assert today["posts"] == 2
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("raw", ["abc", "0", "-3", "31", "7.5", ""])
+    def test_invalid_days_falls_back_to_seven(self, api_client, board, raw):
+        resp = api_client.get(f"/api/v1/telemetry/activity/?days={raw}")
+        assert resp.status_code == 200
+        assert resp.json()["days"] == 7
+        assert len(resp.json()["points"]) == 7
+
+    @pytest.mark.django_db
+    def test_thirty_day_window(self, api_client, board):
+        resp = api_client.get("/api/v1/telemetry/activity/?days=30")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["days"] == 30
+        assert len(data["points"]) == 30
+
+    @pytest.mark.django_db
+    def test_activity_is_public(self, api_client):
+        resp = api_client.get("/api/v1/telemetry/activity/")
+        assert resp.status_code == 200
+        assert set(resp.json()) == {"days", "points"}

@@ -8,6 +8,7 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from apps.common.views import health
+from apps.forum.feeds import BoardThreadsFeed, LatestThreadsFeed, ThreadPostsFeed
 from apps.forum.sitemap import BoardSitemap, ThreadSitemap, robots_txt
 
 urlpatterns = [
@@ -34,6 +35,13 @@ urlpatterns = [
         name="django.contrib.sitemaps.views.section",
     ),
     path("robots.txt", robots_txt, name="robots_txt"),
+    path("feed/recent.xml", LatestThreadsFeed(), name="feed_recent"),
+    path(
+        "feed/board/<slug:slug>.xml",
+        BoardThreadsFeed(),
+        name="feed_board",
+    ),
+    path("feed/thread/<int:pk>.xml", ThreadPostsFeed(), name="feed_thread"),
 ]
 
 # Development only — production must serve media from a real web server.

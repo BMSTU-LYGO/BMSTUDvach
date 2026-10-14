@@ -3,6 +3,8 @@ export interface Board {
   slug: string
   name: string
   description: string
+  /** Короткие правила раздела; может быть пустым. */
+  rules?: string
   is_active: boolean
   order: number
   thread_count: number

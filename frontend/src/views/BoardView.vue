@@ -6,6 +6,7 @@ import LoadMoreNode from '@/components/thread/LoadMoreNode.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import CatalogCard from '@/components/thread/CatalogCard.vue'
 import SortLens from '@/components/thread/SortLens.vue'
+import HiddenThreadsChip from '@/components/thread/HiddenThreadsChip.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -16,8 +17,9 @@ import { captureMorph, playMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
 import { emitSceneEvent } from '@/three/sceneState'
 import { apiErrorMessage } from '@/api/client'
+import { getBoard } from '@/api/boards'
 import type { ThreadOrder } from '@/api/threads'
-import type { NewThreadInput } from '@/types'
+import type { Board, NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
 
@@ -26,6 +28,29 @@ const sectionRef = ref<HTMLElement | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
 const launchBtnRef = ref<HTMLElement | null>(null)
 const bayRef = ref<InstanceType<typeof LaunchBay> | null>(null)
+
+// board rules — a short imageboard-style notice under the /slug/ title
+const board = ref<Board | null>(null)
+const rulesText = computed(() => board.value?.rules?.trim() ?? '')
+const showRules = computed(() => rulesText.value.length > 0)
+
+const RULES_COLLAPSE_LINES = 3
+const RULES_COLLAPSE_LENGTH = 220
+const rulesExpanded = ref(false)
+const rulesCollapsible = computed(
+  () =>
+    rulesText.value.split('\n').length > RULES_COLLAPSE_LINES ||
+    rulesText.value.length > RULES_COLLAPSE_LENGTH,
+)
+
+async function loadBoard() {
+  try {
+    board.value = await getBoard(props.boardSlug)
+  } catch {
+    // rules are an enhancement — a failed fetch simply hides the block
+    board.value = null
+  }
+}
 
 useScrollReveal(sectionRef, '.thread-row')
 
@@ -83,6 +108,7 @@ onMounted(async () => {
   await nextTick()
   playMorph(titleRef.value, `board:${props.boardSlug}`)
   void store.fetchThreads(props.boardSlug, threadOrder.value)
+  void loadBoard()
 })
 
 // "+ Новый тред" morphs into the Launch Bay stage (SIGNAL-13).
@@ -133,6 +159,7 @@ function captureRow(event: MouseEvent, threadId: number) {
       <h1 ref="titleRef" class="board-title text-mono">/{{ boardSlug }}/</h1>
       <div class="board-header__actions">
         <SortLens :model-value="threadOrder" @change="setThreadOrder" />
+        <HiddenThreadsChip />
         <div class="view-switch" role="group" aria-label="Вид разделы">
           <button
             type="button"
@@ -160,6 +187,30 @@ function captureRow(event: MouseEvent, threadId: number) {
           <span class="launch-trigger__label">Новый тред</span>
         </button>
       </div>
+    </div>
+
+    <div v-if="showRules" class="board-rules" data-testid="board-rules">
+      <div class="board-rules__head">
+        <span class="board-rules__label text-mono">ПРАВИЛА РАЗДЕЛА</span>
+        <button
+          v-if="rulesCollapsible"
+          type="button"
+          class="board-rules__toggle"
+          data-testid="board-rules-toggle"
+          aria-controls="board-rules-text"
+          :aria-expanded="rulesExpanded"
+          @click="rulesExpanded = !rulesExpanded"
+        >
+          {{ rulesExpanded ? 'свернуть' : 'показать' }}
+        </button>
+      </div>
+      <p
+        id="board-rules-text"
+        class="board-rules__text"
+        :class="{ 'board-rules__text--clamped': rulesCollapsible && !rulesExpanded }"
+      >
+        {{ rulesText }}
+      </p>
     </div>
 
     <LaunchBay
@@ -236,6 +287,60 @@ function captureRow(event: MouseEvent, threadId: number) {
   color: var(--accent);
   margin: 0;
   text-shadow: 0 0 30px var(--accent-glow);
+}
+
+/* department rules — a thin accent-dim rail, not a card */
+.board-rules {
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--accent-dim);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in oklab, var(--bg-surface) 70%, transparent);
+}
+
+.board-rules__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.board-rules__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--accent-dim);
+}
+
+.board-rules__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  transition: color var(--duration-fast);
+}
+
+.board-rules__toggle:hover {
+  color: var(--accent);
+}
+
+.board-rules__text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.board-rules__text--clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 /* Launch trigger — node, not a generic primary button */

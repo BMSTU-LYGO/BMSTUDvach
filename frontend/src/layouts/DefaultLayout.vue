@@ -7,6 +7,7 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 import ScanLens from '@/components/scan/ScanLens.vue'
 import AnnouncementBanner from '@/components/ui/AnnouncementBanner.vue'
 import OfflineBadge from '@/components/ui/OfflineBadge.vue'
+import SkipLink from '@/components/ui/SkipLink.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
 import { usePwa } from '@/composables/usePwa'
 import { playWarp, warpKindFor } from '@/three/warps'
@@ -54,12 +55,17 @@ onMounted(() => void registerPwa())
 
 <template>
   <div class="layout">
-    <a href="#main-content" class="skip-link">Перейти к содержимому</a>
+    <SkipLink />
     <AmbientField />
     <AppHeader @scan="scanOpen = true" />
     <AnnouncementBanner />
     <OfflineBadge :online="online" />
-    <main id="main-content" class="content">
+    <main
+      id="main-content"
+      class="content"
+      tabindex="-1"
+      aria-label="Основное содержимое"
+    >
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">
           <component :is="Component" />
@@ -73,23 +79,6 @@ onMounted(() => void registerPwa())
 </template>
 
 <style scoped>
-.skip-link {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  z-index: 10000;
-  padding: var(--space-2) var(--space-4);
-  background: var(--accent);
-  color: oklch(0.1 0.01 260);
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: 0 0 var(--radius-md) 0;
-}
-
-.skip-link:focus {
-  left: 0;
-}
-
 .layout {
   min-height: 100vh;
   display: flex;

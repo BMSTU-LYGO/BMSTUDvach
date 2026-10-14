@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from django.contrib.auth import authenticate, login
 from django.db.models import Q
 from django.http import Http404
@@ -15,6 +17,7 @@ from apps.forum.models import Post, Thread
 from apps.moderation.models import Announcement, ModerationLog, Report
 from apps.moderation.serializers import (
     AnnouncementSerializer,
+    FingerprintPostsSerializer,
     ModerationLogSerializer,
     ModerationPostSerializer,
     PublicAnnouncementSerializer,
@@ -147,11 +150,61 @@ class ReportQueueView(generics.ListAPIView):
                     "thread_title": report.post.thread.title,
                     "is_hidden": report.post.is_hidden,
                     "body": report.post.body[:200],
+                    "poster_fingerprint": report.post.poster_fingerprint,
                 },
             }
             for report in reports
         ]
         return Response({"reports": data})
+
+
+# A fingerprint is a hex-encoded SHA-256 digest (see common.utils.client_fingerprint)
+# and the model stores at most 64 hex characters.
+_FINGERPRINT_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+
+
+class FingerprintPostsView(APIView):
+    """Posts left with the same fingerprint — the moderation anti-spam view.
+
+    Unlike the public thread payload this deliberately includes hidden posts,
+    so a moderator can spot a multi-posting / spam wave in one place. The
+    fingerprint itself is never exposed anywhere public.
+    """
+
+    permission_classes = [StaffOnly]
+
+    @extend_schema(
+        responses={200: FingerprintPostsSerializer, 400: None},
+    )
+    def get(self, request, fingerprint):
+        fingerprint = (fingerprint or "").strip()
+        if not _FINGERPRINT_RE.fullmatch(fingerprint):
+            return Response(
+                {"detail": "Некорректный отпечаток."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        queryset = Post.objects.filter(poster_fingerprint=fingerprint)
+        posts = list(
+            queryset.select_related("thread").order_by("-created_at", "-id")[:50]
+        )
+        payload = {
+            "fingerprint": fingerprint,
+            "count": queryset.count(),
+            "posts": [
+                {
+                    "id": post.id,
+                    "thread": post.thread_id,
+                    "thread_title": post.thread.title,
+                    "body": post.body[:200],
+                    "is_hidden": post.is_hidden,
+                    "sage": post.sage,
+                    "created_at": post.created_at,
+                }
+                for post in posts
+            ],
+        }
+        return Response(FingerprintPostsSerializer(payload).data)
 
 
 def _live_announcements():

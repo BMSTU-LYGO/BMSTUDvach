@@ -26,6 +26,11 @@ class Board(TimeStampedModel):
     slug = models.SlugField(max_length=32, unique=True, validators=[slug_validator])
     name = models.CharField(max_length=128)
     description = models.CharField(max_length=255, blank=True)
+    rules = models.TextField(
+        blank=True,
+        default="",
+        help_text="Короткие правила раздела («имиджборд-классика»), показываются на странице раздела.",
+    )
     is_active = models.BooleanField(default=True)
     order = models.PositiveSmallIntegerField(default=0)
 

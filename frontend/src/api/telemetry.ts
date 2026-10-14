@@ -25,3 +25,21 @@ export interface Telemetry {
 export function getTelemetry(): Promise<Telemetry> {
   return request<Telemetry>('/telemetry/')
 }
+
+/** Одна точка суточной серии активности. */
+export interface TelemetryActivityPoint {
+  date: string
+  posts: number
+  threads: number
+}
+
+/** Суточная серия активности за окно `days` (1..30). */
+export interface TelemetryActivity {
+  days: number
+  points: TelemetryActivityPoint[]
+}
+
+/** Серия активности по дням для графика на странице статистики. */
+export function getTelemetryActivity(days = 7): Promise<TelemetryActivity> {
+  return request<TelemetryActivity>(`/telemetry/activity/?days=${days}`)
+}

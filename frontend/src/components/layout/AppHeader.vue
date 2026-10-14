@@ -116,9 +116,10 @@ function closeMobile() {
             CRT
           </button>
           <button
-            class="fx-toggle"
+            class="fx-toggle fx-toggle--sound"
             :class="{ active: soundEnabled }"
             :aria-pressed="soundEnabled"
+            :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'"
             :title="soundEnabled ? 'Звук включён' : 'Звук выключен'"
             @click="toggleSound"
           >
@@ -234,6 +235,23 @@ function closeMobile() {
 
 .fx-toggle--scan .scan-label {
   font-size: 0.66rem;
+}
+
+.fx-toggle--sound {
+  position: relative;
+  justify-content: center;
+  min-width: 28px;
+}
+
+/* Expand the touch target to 44px without changing the compact visual size. */
+.fx-toggle--sound::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
 }
 
 .fx-toggle:focus-visible {
