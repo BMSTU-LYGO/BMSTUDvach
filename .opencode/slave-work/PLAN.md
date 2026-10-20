@@ -118,20 +118,17 @@ empty state — с полным сохранением удобства чтен
       ядро-хранилище, ambient dust, режим `empty` (нет историй — голые кольца + dust +
       медленный breath-дрейф); `update(dt, snap)`, `setStories(refs)`, `presence`
       fade-in; dispose по конвенции network.ts. Юнит-смоук на fake-three объекте.
-      | Файлы: `src/three/archive/space.ts` (new), `src/three/archive/__tests__/space.spec.ts` (new) | deps: P1-T1, P1-T2 | size: L
-- [ ] P2-T2. Камера и указатель в `archive/space.ts` — camera rig: idle-orbit,
-      `focusStory(id)` → плавный travel к фрагменту (dolly + look-at, easing easeInOutCubic,
-      reduced-motion = мгновенно), `releaseFocus()`, raycast hover через `setPointer` →
-      `pointerStoryId`, drag-orbit мышью/пальцем (без OrbitControls-зависимости),
-      `openStory(id)` возвращает стартовую позу для кинематографичного открытия.
-      | Файлы: `src/three/archive/space.ts`, `src/three/archive/__tests__/space.spec.ts` | deps: P2-T1 | size: M
+      | Файлы: `src/three/archive/space.ts` (new), `src/three/archive/__tests__/space.spec.ts` (new) | deps: P1-T1, P1-T2, P1-T3 | size: L (включает камеру+указатель из P2-T2)
+- [ ] P2-T2. (ОБЪЕДИНЕНА В P2-T1 — один владелец файла `archive/space.ts`; камера/pointer
+      делаются в рамках P2-T1 по её же спецификации ниже.)
+      | Файлы: — | deps: — | size: —
 - [ ] P2-T3. Канвас `src/components/three/ArchiveSpaceCanvas.vue` — тонкая обёртка над
       `useThreeScene`: build → `buildArchiveSpace`, watch `sceneState.archiveStories/
       focusedStory` → `setStories/focusStory`, слушатель `onSceneEvent`
       (`archive-focus`/`archive-open`/`archive-clear`), pointermove/pointerdown →
       `setPointer`/hover → `focusStory`+`emitSceneEvent`, `aria-hidden` канвас,
       DOM-fallback слой при quality `off`/нет WebGL; `pointer-events` только на канвасе.
-      | Файлы: `src/components/three/ArchiveSpaceCanvas.vue` (new), `src/components/three/__tests__/ArchiveSpaceCanvas.spec.ts` (new) | deps: P2-T2, P1-T3 | size: M
+      | Файлы: `src/components/three/ArchiveSpaceCanvas.vue` (new), `src/components/three/__tests__/ArchiveSpaceCanvas.spec.ts` (new) | deps: P2-T1, P1-T3 | size: M
 - [ ] P2-T4. Роут-свитч в `AmbientField.vue` — на режиме сцены `platinum` рендерить
       `ArchiveSpaceCanvas` (defineAsyncComponent) ВМЕСТО `NetworkCanvas` (освободить слот
       контекста; `MAX_ACTIVE_CONTEXTS` не поднимать), при `quality=off` прежний
@@ -157,12 +154,17 @@ empty state — с полным сохранением удобства чтен
       сохранение markup/typography и всех `data-testid`; mobile: 3D-слой не мешает чтению
       (canvas `pointer-events:auto` только в своей зоне).
       | Файлы: `src/views/PlatinumView.vue`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P2-T4, P1-T3 | size: L
-- [ ] P3-T2. Empty/loading/error-хореография архива — «красивый empty state»: при
-      `stories.length === 0` сцена уходит в empty-режим (голые кольца + dust + подпись),
-      DOM-часть — editorial-панель с `platinum-empty` (текст про пустые орбиты),
-      skeleton-свечение колец во время загрузки, при ошибке — «архив молчит» без
-      обелиска; всё с `prefersReducedMotion` и без layout shift.
-      | Файлы: `src/views/PlatinumView.vue`, `src/components/platinum/ArchiveEmpty.vue` (new), `src/components/platinum/__tests__/ArchiveEmpty.spec.ts` (new) | deps: P3-T1 | size: M
+- [ ] P3-T2a. Компонент `src/components/platinum/ArchiveEmpty.vue` — editorial-панель
+      пустого/молчащего архива (props: `mode: 'empty'|'search'|'error'|'loading'`,
+      `query`, `total`; слот для действия; mono-подпись + serif-строка, один amber
+      акцент, без layout shift, reduced-motion safe, `data-testid="archive-empty"` +
+      сохранение внешнего `platinum-empty` через consumer). Юнит-тесты.
+      | Файлы: `src/components/platinum/ArchiveEmpty.vue` (new), `src/components/platinum/__tests__/ArchiveEmpty.spec.ts` (new) | deps: none | size: S
+- [ ] P3-T2b. Empty/loading/error-хореография в `PlatinumView.vue` — подключить
+      `ArchiveEmpty` (P3-T2a), сценовая часть: при пустом наборе сцена уходит в
+      empty-режим (голые кольца + dust + halo), skeleton-свечение колец при загрузке,
+      «архив молчит» при ошибке; без layout shift, с `prefersReducedMotion`.
+      | Файлы: `src/views/PlatinumView.vue`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P3-T1, P3-T2a | size: M
 - [ ] P3-T3. Сценарий перехода `platinum↔story` — в `scenarios.ts` новый сценарий
       `archive-reveal` (из `platinum` в `platinum` c открытой историей: shared-элемент —
       фрагмент, камера не «перескакивает»), подключить в `transitionDirector`/`useRouteScene`
@@ -173,7 +175,7 @@ empty state — с полным сохранением удобства чтен
       многоступенчатый: затемнение орбит, raise title, measure-типографика как сейчас),
       кнопка/жест «назад в архив» снимает `selectStory`; при reduced-motion — мгновенный
       финальный кадр; чтение (70ch, ритм параграфов, `platinum-story`) НЕ трогать.
-      | Файлы: `src/views/PlatinumStoryView.vue`, `src/views/__tests__/PlatinumStoryView.spec.ts` | deps: P3-T2, P3-T3 | size: M
+      | Файлы: `src/views/PlatinumStoryView.vue`, `src/views/__tests__/PlatinumStoryView.spec.ts` | deps: P3-T2b, P3-T3 | size: M
 
 ### Фаза 4 — Перф, a11y, guard'ы, документация
 
@@ -203,6 +205,7 @@ empty state — с полным сохранением удобства чтен
 
 - 2026-10-20 16:14 старт; baseline `4e0b301` закоммичен и запушен; smoke OK (task engine, minimax-m3.1-flash-free)
 - 2026-10-20 16:14 батч 1 запущен: P1-T1, P1-T2, P1-T3 (параллельно, разные файлы)
-- 2026-10-20 17:56 батч 1 DONE + верификация зелёная (verify:3d 46/46, lint 0, build OK, test 55 файлов/701 тестов). Engine переключён на cli (Task-движок не гарантировал модель: в сессии был резолвился старый slug). FOLLOWUPS из отчётов учтены в P2/P3.
+- 2026-10-20 17:56 батч 1 DONE + верификация зелёная (verify:3d 46/46, lint 0, build OK, test 55 файлов/701 тестов). Engine переключён на cli (`opencode run --model opencode-go/minimax-m3.1-flash-free`), коммит `af9d70f` запушен. FOLLOWUPS из отчётов учтены в P2/P3. P2-T2 объединена в P2-T1, P3-T2 разделена на P3-T2a/P3-T2b.
+- 2026-10-20 18:05 батч 2 запущен: P2-T1 (сцена+камера, L), P3-T2a (ArchiveEmpty) — разные файлы, параллельно
 
 ## Проблемы / заблокировано
