@@ -112,7 +112,7 @@ empty state — с полным сохранением удобства чтен
 
 ### Фаза 2 — Самостоятельная сцена Archive Space
 
-- [ ] P2-T1. Сборка сцены `src/three/archive/space.ts` — `buildArchiveSpace(three, quality):
+- [x] P2-T1. Сборка сцены `src/three/archive/space.ts` — `buildArchiveSpace(three, quality):
       ArchiveSpaceController`: граф сцены из layout (P1-T1) + материалов (P1-T2):
       орбиты-кольца, фрагменты-пластинки (по одной на историю, `userData.storyId`),
       ядро-хранилище, ambient dust, режим `empty` (нет историй — голые кольца + dust +
@@ -124,14 +124,14 @@ empty state — с полным сохранением удобства чтен
       raycast hover `setPointer`/`pointerStoryId`, `orbitBy` drag, `openStory`),
       без OrbitControls; reduced-motion = мгновенный travel.
       | Файлы: `src/three/archive/space.ts`, `src/three/archive/__tests__/space.spec.ts` | deps: P2-T1 | size: M
-- [ ] P2-T3. Канвас `src/components/three/ArchiveSpaceCanvas.vue` — тонкая обёртка над
+- [x] P2-T3. Канвас `src/components/three/ArchiveSpaceCanvas.vue` — тонкая обёртка над
       `useThreeScene`: build → `buildArchiveSpace`, watch `sceneState.archiveStories/
       focusedStory` → `setStories/focusStory`, слушатель `onSceneEvent`
       (`archive-focus`/`archive-open`/`archive-clear`), pointermove/pointerdown →
       `setPointer`/hover → `focusStory`+`emitSceneEvent`, `aria-hidden` канвас,
       DOM-fallback слой при quality `off`/нет WebGL; `pointer-events` только на канвасе.
       | Файлы: `src/components/three/ArchiveSpaceCanvas.vue` (new), `src/components/three/__tests__/ArchiveSpaceCanvas.spec.ts` (new) | deps: P2-T1, P1-T3 | size: M
-- [ ] P2-T4. Роут-свитч в `AmbientField.vue` — на режиме сцены `platinum` рендерить
+- [x] P2-T4. Роут-свитч в `AmbientField.vue` — на режиме сцены `platinum` рендерить
       `ArchiveSpaceCanvas` (defineAsyncComponent) ВМЕСТО `NetworkCanvas` (освободить слот
       контекста; `MAX_ACTIVE_CONTEXTS` не поднимать), при `quality=off` прежний
       `ParticleField`; тесты обновить. `NetworkCanvas.vue` НЕ менять.
@@ -156,23 +156,23 @@ empty state — с полным сохранением удобства чтен
       сохранение markup/typography и всех `data-testid`; mobile: 3D-слой не мешает чтению
       (canvas `pointer-events:auto` только в своей зоне).
       | Файлы: `src/views/PlatinumView.vue`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P2-T4, P1-T3 | size: L
-- [ ] P3-T2a. Компонент `src/components/platinum/ArchiveEmpty.vue` — editorial-панель
+- [x] P3-T2a. Компонент `src/components/platinum/ArchiveEmpty.vue` — editorial-панель
       пустого/молчащего архива (props: `mode: 'empty'|'search'|'error'|'loading'`,
       `query`, `total`; слот для действия; mono-подпись + serif-строка, один amber
       акцент, без layout shift, reduced-motion safe, `data-testid="archive-empty"` +
       сохранение внешнего `platinum-empty` через consumer). Юнит-тесты.
       | Файлы: `src/components/platinum/ArchiveEmpty.vue` (new), `src/components/platinum/__tests__/ArchiveEmpty.spec.ts` (new) | deps: none | size: S
-- [ ] P3-T2b. Empty/loading/error-хореография в `PlatinumView.vue` — подключить
+- [x] P3-T2b. Empty/loading/error-хореография в `PlatinumView.vue` — подключить
       `ArchiveEmpty` (P3-T2a), сценовая часть: при пустом наборе сцена уходит в
       empty-режим (голые кольца + dust + halo), skeleton-свечение колец при загрузке,
       «архив молчит» при ошибке; без layout shift, с `prefersReducedMotion`.
       | Файлы: `src/views/PlatinumView.vue`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P3-T1, P3-T2a | size: M
-- [ ] P3-T3. Сценарий перехода `platinum↔story` — в `scenarios.ts` новый сценарий
+- [x] P3-T3. Сценарий перехода `platinum↔story` — в `scenarios.ts` новый сценарий
       `archive-reveal` (из `platinum` в `platinum` c открытой историей: shared-элемент —
       фрагмент, камера не «перескакивает»), подключить в `transitionDirector`/`useRouteScene`
       без изменения длительностей остальных; уважать reduced-motion.
       | Файлы: `src/three/scenarios.ts`, `src/composables/useRouteScene.ts`, `src/three/__tests__/scenarios.spec.ts` (new/обновить) | deps: P3-T1 | size: M
-- [ ] P3-T4. Открытие истории (`PlatinumStoryView.vue`) — кинематографичный вход:
+- [x] P3-T4. Открытие истории (`PlatinumStoryView.vue`) — кинематографичный вход:
       camera-focus на «свой» фрагмент + разворот читаемого слоя (GSAP `story-in` →
       многоступенчатый: затемнение орбит, raise title, measure-типографика как сейчас),
       кнопка/жест «назад в архив» снимает `selectStory`; при reduced-motion — мгновенный
@@ -211,5 +211,8 @@ empty state — с полным сохранением удобства чтен
 - 2026-10-20 18:05 батч 2: P2-T1 (граф сцены) + P3-T2a (ArchiveEmpty) — DONE, зелёные (verify:3d 46/46, 742 теста), коммит `7e80dba`. Первая попытка P2-T1 упала без отчёта (оборвался на чтении network.ts) — повтор со скоупом «только граф, без камеры» прошёл.
 - 2026-10-20 18:47 батч 3: P2-T1b (camera rig + raycast) + P3-T1 (список↔фрагмент) — DONE, зелёные (764 теста), коммит `58d0ff7`.
 - 2026-10-20 18:55 батч 4 запущен: P2-T3 (ArchiveSpaceCanvas), P3-T2b (хореография состояний), P3-T3 (story-reveal переход) — файлы не пересекаются
+- 2026-10-20 19:17 батч 4 DONE + коммит `eab056d`; батч 5 (P2-T4 AmbientField, P3-T4 PlatinumStoryView) — отчёты записаны, сессия прервалась до верификации
+- 2026-10-21 21:30 батч 5 верифицирован главным агентом (verify:3d 46/46, lint 0, build OK, test 60 файлов/826 тестов) → коммит ниже. Пользователь выбрал «продолжить существующий план»: сначала закрыть Фазу 4 (P2-T5, P4-T1..T4), затем отдельной волной — новая цель (глобальная motion design полировка)
+- 2026-10-21 21:30 Гейты Фазы 0 подтверждены в этой сессии: каталоги ✅, slug `opencode-go/minimax-m3.1-flash-free` ✅ (`opencode models`), smoke CLI ✅ (SMOKE_OK, модель в логе, 0 ошибок). Зависшие процессы прошлых раундов (P2-T2, A-T1, A-T2) убиты
 
 ## Проблемы / заблокировано
