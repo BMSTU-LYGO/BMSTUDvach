@@ -66,7 +66,42 @@ type ThreeModule = typeof import('three')
  * - **The low tier keeps the composition.** Same rings, same plates, same
  *   core — only the segments, the motes of the dust and the noise samples
  *   of the shaders are cheaper.
+ *
+ * ## The states of the page
+ *
+ * The scene is not only a background of a list: it has to say the same
+ * thing as the panel of the archive. While the vault is asked for its
+ * fragments, while the line breaks and while the archive is simply
+ * silent, the space keeps its own voice:
+ *
+ * - **loading** — the rings wake up one after another, the way an
+ *   instrument finds a signal. A wave of light, never a blinking.
+ * - **error** — the light leaves, the dust settles, the rings stay as
+ *   faded paper. The clock of the shaders stops: the space holds its
+ *   last frame instead of worrying.
+ * - **empty** — a slow drift, no dust, a halo that barely glows.
+ *
+ * The state is told to the scene with `setPhase`; the frame applies it.
+ * The change of a state is always a fade of the light, never a cut.
  */
+
+/**
+ * The state of the page the archive space mirrors.
+ *
+ * The panel of the archive already knows three quiet states: the vault is
+ * being asked, the line broke and the archive is simply silent. The scene
+ * has to say the same thing — in its own voice, with the light, the rings
+ * and the dust instead of with words.
+ *
+ * - `loading` — the instrument looks for the signal: the rings wake up one
+ *   after another, the space holds its breath.
+ * - `ready` — the archive is open: the rings turn, the dust drifts.
+ * - `error` — the line broke: the light leaves, the dust settles, the
+ *   rings stay as faded paper. Nothing blinks, nothing panics.
+ * - `empty` — the archive is silent: a slow drift, no dust, a halo that
+ *   barely glows.
+ */
+export type ArchiveSpacePhase = 'loading' | 'ready' | 'error' | 'empty'
 
 /** A snapshot of the archive state the scene has to reflect. */
 export interface ArchiveSpaceSnapshot {
@@ -98,6 +133,14 @@ export interface ArchiveSpaceController {
   camera: PerspectiveCamera
   /** Replace the stories of the archive — rings and plates are rebuilt. */
   setStories(stories: ArchiveStoryRef[]): void
+  /**
+   * Tell the scene which state of the page it mirrors.
+   *
+   * The method is optional in the contract: a scene that knows nothing
+   * about phases simply keeps the ready state. The phase is a scene-level
+   * state (like the focus) — it survives until it is changed again.
+   */
+  setPhase?(phase: ArchiveSpacePhase): void
   /** Advance the scene by `dt` seconds. */
   update(dt: number, snap: ArchiveSpaceSnapshot): void
   /** Release every geometry, material and object the scene owns. */
@@ -174,6 +217,86 @@ const FRAGMENT_DRIFT = 0.35
  */
 const EMPTY_DRIFT = 0.45
 
+/* --- the choreography of the states ------------------------------------- */
+
+/** The states the scene knows — anything else is ignored. */
+const PHASES: ArchiveSpacePhase[] = ['loading', 'ready', 'error', 'empty']
+/**
+ * How fast the light of a state settles (per second).
+ *
+ * The change of a state is a fade, never a cut: the light leaves and
+ * comes back at the pace of the paper, not at the pace of a lamp.
+ */
+const PHASE_RATE = 6
+/**
+ * The light every state keeps.
+ *
+ * - `ready` — the full light of a living archive.
+ * - `loading` — a little less: the instrument is still looking.
+ * - `error` — almost none: the light left, the rings stay as paper.
+ * - `empty` — a quiet half: the archive is silent, not broken.
+ */
+const PHASE_LEVEL: Record<ArchiveSpacePhase, number> = {
+  loading: 0.9,
+  ready: 1,
+  error: 0.14,
+  empty: 0.62,
+}
+/**
+ * How much of its speed a ring keeps in every state.
+ *
+ * The rings of a silent archive are almost still, and the rings of a
+ * broken line stop completely — the space is not supposed to worry.
+ */
+const PHASE_SPIN: Record<ArchiveSpacePhase, number> = {
+  loading: 0.35,
+  ready: 1,
+  error: 0,
+  empty: 0.15,
+}
+/**
+ * How fast the camera drifts in every state.
+ *
+ * The camera is the reader's point of view: it slows down while the
+ * archive is looking for something, it stops when the line breaks.
+ */
+const PHASE_ORBIT: Record<ArchiveSpacePhase, number> = {
+  loading: 0.25,
+  ready: 1,
+  error: 0,
+  empty: 0.6,
+}
+/**
+ * The light of the halo of a silent archive.
+ *
+ * An empty archive is a lit void — but a void, not a lamp: the halo
+ * barely glows, it does not announce itself.
+ */
+const HALO_EMPTY_LEVEL = 0.4
+/**
+ * The pause between two rings of the loading choreography (seconds).
+ *
+ * The rings wake up one after another: the instrument listens to the
+ * orbits one by one, the way a radio finds a station.
+ */
+const RING_WAKE_STAGGER = 0.55
+/** How long one ring takes to wake up (seconds). */
+const RING_WAKE_RAMP = 1.4
+/**
+ * The light a ring keeps before its turn.
+ *
+ * The rings never go out completely: a whisper of light stays on them, so
+ * the sequence reads as a wave of light and not as a blinking.
+ */
+const RING_WAKE_FLOOR = 0.18
+/**
+ * The wake clock of an archive that was never asked for anything.
+ *
+ * The rings of such an archive are simply awake — the sequence of the
+ * loading state has nothing to stage.
+ */
+const WAKE_CLOCK_IDLE = Number.POSITIVE_INFINITY
+
 /** Idle orbit of the camera: radius and height of the platinum preset. */
 const ORBIT_RADIUS = 12.5
 const ORBIT_HEIGHT = 2.2
@@ -215,6 +338,12 @@ interface RingNode {
   spin: number
   /** Direction of the rotation. */
   dir: number
+  /** Index of the ring — the order the rings wake up in. */
+  index: number
+  /** The light of the ring when it is fully awake. */
+  baseOpacity: number
+  /** The light of the ring right now. */
+  opacity: number
 }
 
 /** One story plate of the archive. */
@@ -256,6 +385,17 @@ function lerp(a: number, b: number, t: number): number {
 /** Clamp a number into a range. */
 function clamp(x: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, x))
+}
+
+/**
+ * The smooth ramp between the edges of a value.
+ *
+ * The choreography of the states uses it instead of a linear ramp: a
+ * light that grows follows the paper, it does not switch on.
+ */
+function smoothstep(t: number): number {
+  const x = clamp(t, 0, 1)
+  return x * x * (3 - 2 * x)
 }
 
 /**
@@ -425,6 +565,35 @@ export function buildArchiveSpace(
   let dustPresence = 0
   let disposed = false
 
+  // --- the choreography of the states ------------------------------------
+  /**
+   * The state of the page the scene mirrors right now.
+   *
+   * The scene starts in the ready state: the archive is open as long as
+   * nobody says otherwise.
+   */
+  let phase: ArchiveSpacePhase = 'ready'
+  /**
+   * The light of the current state.
+   *
+   * It follows the target of the state instead of jumping to it — the
+   * change of a state is a fade of the paper, never a cut.
+   */
+  let phaseLevel = PHASE_LEVEL.ready
+  /**
+   * The seconds since the archive was asked for its fragments.
+   *
+   * The loading choreography counts on it: the rings wake up one after
+   * another, and the wave of light finishes even when the fragments
+   * arrive before the sequence is over.
+   */
+  let wakeClock = WAKE_CLOCK_IDLE
+  /**
+   * The light of the halo of an empty archive — the halo is lit while the
+   * archive is silent, and it goes out as soon as fragments arrive.
+   */
+  let haloBase = 1
+
   // --- the camera rig ----------------------------------------------------
   /**
    * The idle orbit of the camera. It starts at the platinum preset of the
@@ -517,7 +686,20 @@ export function buildArchiveSpace(
     }
     const mesh = new three.LineSegments(geometry, material)
     mesh.name = `archive-ring-${index}`
-    const node: RingNode = { mesh, geometry, material, spin: 0, dir: 1 }
+    // The light of the ring at rest — the choreography of the states only
+    // moves it between this value and the whisper of a ring that waits for
+    // its turn.
+    const baseOpacity = Number(material.uniforms.uOpacity.value) || 0
+    const node: RingNode = {
+      mesh,
+      geometry,
+      material,
+      spin: 0,
+      dir: 1,
+      index,
+      baseOpacity,
+      opacity: baseOpacity,
+    }
     ringPool[index] = node
     return node
   }
@@ -614,8 +796,29 @@ export function buildArchiveSpace(
       fragmentIndex.set(placement.id, node)
     }
 
-    // An empty archive is a lit, breathing space — not a void.
-    haloDim.value = layoutStories.length === 0 ? 1 : 0
+    // An empty archive is a lit, breathing space — not a void. The halo
+    // owns its light: the state of the page decides how much of it stays
+    // (the state itself is applied in the frame).
+    haloBase = layoutStories.length === 0 ? 1 : 0
+    haloDim.value = haloBase
+  }
+
+  /**
+   * Tell the scene which state of the page it mirrors.
+   *
+   * The state is a scene-level value: it stays until it is changed again,
+   * and the frame applies it — the light fades, the rings answer, the
+   * dust settles. A state the scene does not know is ignored.
+   */
+  function setPhase(next: ArchiveSpacePhase): void {
+    if (disposed) return
+    if (!PHASES.includes(next)) return
+    if (next === phase) return
+    phase = next
+    // The archive is asked for its fragments: the wave of light starts
+    // over. The wave finishes on its own — the fragments may arrive
+    // before the last ring is awake.
+    if (next === 'loading') wakeClock = 0
   }
 
   // --- the camera --------------------------------------------------------
@@ -922,8 +1125,11 @@ export function buildArchiveSpace(
     }
     if (reducedMotion) return
     // The idle orbit: the archive turns around the camera. An archive
-    // without stories drifts slower — a lit void, not a show.
-    orbit.phase += step * ORBIT_SPEED * (fragments.length ? 1 : EMPTY_DRIFT)
+    // without stories drifts slower — a lit void, not a show. The state of
+    // the page slows the drift down further (and stops it on a broken
+    // line): the camera is the reader's point of view, it does not hurry.
+    orbit.phase +=
+      step * ORBIT_SPEED * (fragments.length ? 1 : EMPTY_DRIFT) * PHASE_ORBIT[phase]
     idlePose(pose)
     applyPose(pose)
   }
@@ -935,20 +1141,40 @@ export function buildArchiveSpace(
    * the orbits turn around the core, the halo breathes and the camera
    * either orbits, holds a focus or travels between the two. The loops walk
    * the arrays by index — an iterator would be garbage of its own.
+   *
+   * The state of the page is applied here as well: the light of the scene
+   * follows it, the rings wake up one after another while the archive is
+   * asked, and a broken line stops the whole space.
    */
   function update(dt: number, snap: ArchiveSpaceSnapshot): void {
     if (disposed) return
     const step = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.1) : 0
     reducedMotion = opts.reducedMotion === true || snap.reducedMotion === true
+    // A broken line stops the scene: the light leaves, the dust settles
+    // and the clock of the shaders stops with them. Nothing blinks — the
+    // space simply holds its last, faded frame.
+    const still = phase === 'error'
     // Under reduced motion the clock of the shaders stops: the archive keeps
     // its last frame instead of breathing — the static equivalent of every
     // animation of the scene.
-    if (!reducedMotion) elapsed += step
+    if (!reducedMotion && !still) {
+      elapsed += step
+      wakeClock += step
+    }
 
     // The presence fades the archive in from the very first frame.
     presence += (1 - presence) * Math.min(1, step * 2)
+
+    // The light of the state follows its target instead of jumping to it:
+    // the change of a state is a fade, never a cut. Under reduced motion
+    // the state is applied at once — the static frame of every state.
+    const level = PHASE_LEVEL[phase]
+    phaseLevel = reducedMotion
+      ? level
+      : phaseLevel + (level - phaseLevel) * Math.min(1, step * PHASE_RATE)
+
     uniforms.uTime.value = elapsed
-    uniforms.uDim.value = presence
+    uniforms.uDim.value = presence * phaseLevel
     uniforms.uFocus.value = snap.focusedStory != null ? FOCUS_AMOUNT : 0
     // The presence scales the archive as a whole — the plates keep their own
     // scale factor untouched.
@@ -961,10 +1187,32 @@ export function buildArchiveSpace(
       focusId = snap.focusedStory
     }
 
+    // The rings: while the archive is asked for its fragments they wake up
+    // one after another — the instrument listens to the orbits one by one.
+    // The wave of light finishes even when the fragments arrive early.
+    // A ring never goes out completely, so the sequence reads as a wave of
+    // light and not as a blinking.
+    const staging = phase === 'loading' || phase === 'ready'
+    for (let i = 0; i < rings.length; i++) {
+      const ring = rings[i]
+      const staged =
+        staging && !reducedMotion
+          ? RING_WAKE_FLOOR +
+            (1 - RING_WAKE_FLOOR) *
+              smoothstep((wakeClock - ring.index * RING_WAKE_STAGGER) / RING_WAKE_RAMP)
+          : 1
+      const target = ring.baseOpacity * staged
+      ring.opacity = reducedMotion
+        ? target
+        : ring.opacity + (target - ring.opacity) * Math.min(1, step * PHASE_RATE)
+      ring.material.uniforms.uOpacity.value = ring.opacity
+    }
+
     if (!reducedMotion) {
+      const spin = PHASE_SPIN[phase]
       for (let i = 0; i < rings.length; i++) {
         const ring = rings[i]
-        ring.mesh.rotation.z += step * ring.spin * ring.dir
+        ring.mesh.rotation.z += step * ring.spin * ring.dir * spin
       }
       for (let i = 0; i < fragments.length; i++) {
         const fragment = fragments[i]
@@ -973,6 +1221,15 @@ export function buildArchiveSpace(
       }
       haloMesh.scale.setScalar(1 + Math.sin(elapsed * 0.9) * 0.04)
     }
+
+    // The halo owns the light of an empty archive: it burns while the
+    // instrument looks for a signal, it barely glows when the archive is
+    // silent and it goes out when the line breaks.
+    const haloTarget =
+      phase === 'error' ? 0 : haloBase * (phase === 'empty' ? HALO_EMPTY_LEVEL : 1)
+    haloDim.value = reducedMotion
+      ? haloTarget
+      : haloDim.value + (haloTarget - haloDim.value) * Math.min(1, step * PHASE_RATE)
 
     // The point the archive gazes at follows the focused plate: the amber
     // of the archive lights the sheet the reader is on, not the whole
@@ -983,8 +1240,9 @@ export function buildArchiveSpace(
     else focusPoint.set(0, 0, 0)
 
     // An archive without stories keeps no dust: the space is a lit void
-    // that drifts slowly, not a swarm of motes around nothing.
-    const dustTarget = fragments.length ? 1 : 0
+    // that drifts slowly, not a swarm of motes around nothing. A broken
+    // line settles the motes as well — the light leaves, the dust rests.
+    const dustTarget = phase === 'error' ? 0 : fragments.length ? 1 : 0
     dustPresence += (dustTarget - dustPresence) * Math.min(1, step * 2)
     dustMaterial.uniforms.uDust.value = dustPresence
 
@@ -1042,6 +1300,12 @@ export function buildArchiveSpace(
     pendingHover = null
     pendingHoverCount = 0
     pointerDirty = true
+
+    // The choreography keeps no resources either — it is only a state.
+    phase = 'ready'
+    phaseLevel = PHASE_LEVEL.ready
+    wakeClock = WAKE_CLOCK_IDLE
+    haloBase = 0
   }
 
   // The archive starts empty: three bare orbits and the lit halo.
@@ -1051,6 +1315,7 @@ export function buildArchiveSpace(
     scene,
     camera,
     setStories,
+    setPhase,
     update,
     dispose,
     focus,

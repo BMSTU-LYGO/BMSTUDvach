@@ -2,13 +2,19 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import NotFoundState from '@/components/NotFoundState.vue'
 import { emitSceneEvent } from '@/three/sceneState'
 import { useSound } from '@/composables/useSound'
 
 /**
- * 404 — an interactive WebGL 'LOST NODE'. The route meta switches the
- * persistent network scene into 'error' mode: the node tumbles, chases the
- * pointer, and the "return" action fires a rescue ping through the graph.
+ * 404 — «СИГНАЛ ПОТЕРЯН». The route meta switches the persistent network
+ * scene into 'error' mode: the node tumbles, chases the pointer, and the
+ * "return" action fires a rescue ping through the graph.
+ *
+ * The page speaks the same language as every other state of the product:
+ * one instrument frame with its own graphic (the trace of a cut-out
+ * fragment), a mono caption and one calm line of body copy. No glow, no
+ * drifting headline — the lost node is already on the screen behind.
  */
 
 const router = useRouter()
@@ -29,20 +35,26 @@ function returnHome() {
 </script>
 
 <template>
-  <section class="lost-node" data-testid="not-found">
-    <p class="lost-kicker">// signal lost</p>
-    <h1 class="lost-title">LOST NODE</h1>
-    <p class="lost-text">
-      Этот узел отключён от графа. Он крутится в пустоте и тянется к
-      курсору — но маршрута сюда не существует.
+  <section class="lost-node" data-testid="not-found-view">
+    <header class="lost-node__head">
+      <span class="lost-node__kicker">// 404</span>
+      <h1 class="lost-node__title">СИГНАЛ ПОТЕРЯН</h1>
+    </header>
+
+    <NotFoundState
+      variant="lost"
+      title="FRAGMENT LOST"
+      message="Фрагмента по этому адресу нет: страница вырезана из сети, но след остался в бумаге."
+      :action-label="searching ? 'поиск маршрута…' : 'вернуться в сеть'"
+      :action-disabled="searching"
+      :on-action="returnHome"
+    />
+
+    <p class="lost-node__alt">
+      <RouterLink class="lost-node__link" to="/stats">
+        открыть статистику сети
+      </RouterLink>
     </p>
-    <button
-      class="btn btn-primary lost-btn"
-      :disabled="searching"
-      @click="returnHome"
-    >
-      {{ searching ? 'поиск маршрута…' : 'вернуться в сеть' }}
-    </button>
   </section>
 </template>
 
@@ -52,58 +64,64 @@ function returnHome() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-5);
+  gap: var(--space-6);
   min-height: 55vh;
+  padding: var(--space-6) 0;
   text-align: center;
 }
 
-.lost-kicker {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.8rem;
-  letter-spacing: 0.12em;
+/* === Заголовок: редакционный, без неона и без дрейфа === */
+.lost-node__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lost-node__kicker {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
-.lost-title {
+.lost-node__title {
   margin: 0;
-  font-size: clamp(3rem, 10vw, 6.5rem);
-  letter-spacing: 0.06em;
-  color: var(--text-primary);
-  text-shadow: 0 0 40px var(--accent-glow);
-  animation: nodeDrift 6s ease-in-out infinite;
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  letter-spacing: 0.04em;
+  color: var(--ink);
 }
 
-@keyframes nodeDrift {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0.001deg);
-  }
-  50% {
-    transform: translateY(-8px) rotate(-0.4deg);
-  }
-}
-
-.lost-text {
-  max-width: 44ch;
-  color: var(--text-secondary);
-  line-height: 1.6;
+/* === Запасной выход: тихая ссылка, не второй прибор === */
+.lost-node__alt {
   margin: 0;
 }
 
-.lost-btn {
-  margin-top: var(--space-2);
+.lost-node__link {
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  color: var(--ink-secondary);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 2px;
+  transition:
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
-.lost-btn:disabled {
-  opacity: 0.6;
-  cursor: progress;
+.lost-node__link:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.lost-node__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lost-title {
-    animation: none;
+  .lost-node__link {
+    transition: none;
   }
 }
 </style>

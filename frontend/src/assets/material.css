@@ -1,0 +1,181 @@
+/* material.css — единый язык материальных реакций поверхностей.
+   Арт-дирекция: «Редакционный архив». Поверхность здесь — это бумага:
+   она не растёт и не прыгает, она отзывается на свет, темнеет под пальцем
+   и впитывает чернила. Поэтому здесь нет масштабирования и нет «анимации всего
+   подряд»: реакция меняет только тень, кромку, цвет или сдвиг поверхности на 1px. */
+
+:root {
+  /* ── Тень ──
+     Тень бумаги почти не читается как тень: она сообщает, что лист лежит
+     поверх стола, и держит интерфейс плоским, а не «карточным». */
+  --material-shadow-1: 0 1px 2px rgba(28, 26, 20, 0.05);
+  --material-shadow-2: 0 6px 16px rgba(28, 26, 20, 0.09);
+
+  /* Вдавленная тень: под нажатием лист уходит в стол — тень сжимается
+     и появляется внутренний край, как у настоящей бумаги под пальцем. */
+  --material-shadow-press:
+    inset 0 1px 2px rgba(28, 26, 20, 0.12), 0 1px 1px rgba(28, 26, 20, 0.07);
+
+  /* ── Кромка ── */
+  --material-edge: var(--rule);
+  /* Кромка на подъёме ловит свет и на миг светлеет — поэтому смешана с бумагой. */
+  --material-edge-lit: color-mix(in oklab, var(--rule) 45%, var(--paper));
+  /* Кромка под пальцем уходит в тень — поэтому смешана с приглушёнными чернилами. */
+  --material-edge-pressed: color-mix(in oklab, var(--rule) 60%, var(--ink-tertiary));
+
+  /* ── Глубина нажатия ──
+     Насколько поверхность уходит в бумагу. Один пиксель — потому что
+     «впитаться» должно тихо: палец прикоснулся, а не ударил. */
+  --material-press-delta: 1px;
+
+  /* ── Чернила ──
+     Акцентный след на полях: тот же цвет, что и печатный акцент архива. */
+  --material-ink: var(--accent);
+
+  /* Свет, который ловит кромка со стороны курсора. */
+  --material-light: rgba(255, 252, 240, 0.55);
+}
+
+/* === Поверхность ===
+   Бумага: мягкая тень, волосяная кромка, прямые углы. */
+.surface-paper {
+  position: relative;
+  background-color: var(--paper);
+  border: 1px solid var(--material-edge);
+  /* Радиусы в проекте нулевые: скруглённая бумага — это уже пластик, а не лист. */
+  border-radius: 0;
+  box-shadow: var(--material-shadow-1);
+}
+
+/* === Подъём: наведение и фокус ===
+   Бумага приподнимается: тень растёт, кромка ловит свет. Геометрия не меняется —
+   ни масштаба, ни сдвига: увеличенный элемент выглядел бы как плитка в мобильном
+   приложении, а не как лист, который подняли за уголок. */
+.react-lift:hover,
+.react-lift:focus-visible {
+  border-color: var(--material-edge-lit);
+  box-shadow: var(--material-shadow-2);
+}
+
+/* Крупные поверхности (панели, секции) не пересчитывают тень каждый кадр —
+   такая анимация перерисовывает всю панель. Им достаточно света на кромке. */
+.react-lift--quiet:hover,
+.react-lift--quiet:focus-visible {
+  border-color: var(--material-edge-lit);
+  box-shadow: var(--material-shadow-1);
+}
+
+/* === Нажатие ===
+   «Чернила впитались»: палец прижал лист к столу — тень сжалась, кромка
+   потемнела. */
+.react-press:active {
+  box-shadow: var(--material-shadow-press);
+  border-color: var(--material-edge-pressed);
+}
+
+/* === Свет по кромке ===
+   Кромка ловит свет со стороны курсора. Координаты приходят готовыми:
+   `--mx/--my` (в процентах) выставляет usePointerLight, поэтому сам слой
+   не слушает мышь и ничего не знает об указателе. */
+.react-edge {
+  position: relative;
+  /* Собственный контекст наложения: слой света не должен уехать под фон
+     страницы и не должен перекрывать текст поверхности. */
+  isolation: isolate;
+}
+
+.react-edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Свет лежит над бумагой, но под содержимым: текст остаётся читаемым. */
+  z-index: -1;
+  opacity: 0;
+  /* Без значений `--mx/--my` градиент невалиден и света просто нет:
+     когда указатель не отслеживается, статичное пятно в центре было бы враньём.
+     Радиус пятна задаёт примитив (`--m-light-radius`), запасной — наш. */
+  background: radial-gradient(
+    circle var(--m-light-radius, 120px) at var(--mx) var(--my),
+    var(--material-light),
+    transparent 70%
+  );
+}
+
+/* Свет существует только там, где есть настоящий указатель. */
+@media (hover: hover) and (pointer: fine) {
+  .react-edge:hover::before {
+    opacity: 1;
+  }
+}
+
+/* === Чернильный акцент ===
+   Тонкая линия проявляется от левого края — как след пера, прошедшего по строке. */
+.react-ink {
+  position: relative;
+}
+
+.react-ink::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  pointer-events: none;
+  background-color: var(--material-ink);
+  /* Масштабируется ЛИНИЯ, а не элемент: подчёркивание вырастает от края,
+     а блок с текстом не меняет размер и не разъезжается с соседями. */
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.react-ink:hover::after,
+.react-ink:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* === Движение ===
+   Всё, что двигается, живёт под `no-preference`: при выключенной анимации
+   остаются только состояния — тень и кромка меняются мгновенно, ничего не прыгает. */
+@media (prefers-reduced-motion: no-preference) {
+  .react-lift {
+    transition:
+      border-color var(--motion-hover),
+      box-shadow var(--motion-hover);
+  }
+
+  /* У тихой поверхности анимируется только кромка — тень остаётся на месте. */
+  .react-lift--quiet {
+    transition: border-color var(--motion-hover);
+  }
+
+  .react-press {
+    transition:
+      transform var(--motion-press),
+      box-shadow var(--motion-press),
+      border-color var(--motion-press);
+  }
+
+  /* Палец вдавливает лист: сдвиг в один пиксель, а не «уезжающая» кнопка. */
+  .react-press:active {
+    transform: translateY(var(--material-press-delta));
+  }
+
+  /* `transition` не складывается, поэтому сочетание подъёма и нажатия объявлено
+     явно — иначе одна из реакций потеряла бы свой тайминг. */
+  .react-lift.react-press {
+    transition:
+      transform var(--motion-press),
+      box-shadow var(--motion-press),
+      border-color var(--motion-press);
+  }
+
+  .react-edge::before {
+    transition: opacity var(--motion-hover);
+  }
+
+  .react-ink::after {
+    transition: transform var(--motion-hover);
+  }
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ArchiveEmpty from '@/components/platinum/ArchiveEmpty.vue'
@@ -14,6 +14,7 @@ import {
   setStoryCount,
   type ArchiveStoryRef,
 } from '@/three/sceneState'
+import type { ArchiveSpacePhase } from '@/three/archive/space'
 import { ringsFor } from '@/three/archive/layout'
 import { prefersReducedMotion } from '@/composables/useGsap'
 import { apiErrorMessage } from '@/api/client'
@@ -85,6 +86,47 @@ function setSpace3D(enabled: boolean) {
 function toggleSpace() {
   setSpace3D(!space3D.value)
 }
+
+/* === The state of the archive: the panel and the space say the same ===== */
+
+/**
+ * The state the space has to mirror.
+ *
+ * The view knows three quiet states of the archive — the vault is being
+ * asked, the line broke and the archive is simply silent. The space has
+ * to say the same thing in its own voice: the light, the rings and the
+ * dust instead of words.
+ */
+const archivePhase = computed<ArchiveSpacePhase>(() => {
+  if (loading.value) return 'loading'
+  if (error.value) return 'error'
+  if (!stories.value.length) return 'empty'
+  return 'ready'
+})
+
+/**
+ * The state travels to the space through the window: the view and the
+ * canvas live in different component trees. The same two names are kept
+ * in `components/three/ArchiveSpaceCanvas.vue`.
+ */
+const ARCHIVE_PHASE_EVENT = 'bmstudvach:archive-phase'
+const ARCHIVE_PHASE_REQUEST_EVENT = 'bmstudvach:archive-phase-request'
+
+/** Tell the space which state the page is in. */
+function publishPhase(phase: ArchiveSpacePhase) {
+  window.dispatchEvent(new CustomEvent(ARCHIVE_PHASE_EVENT, { detail: { phase } }))
+}
+
+/**
+ * The space asked for the state: it may mount after the view, and it has
+ * to know what the archive is doing right now.
+ */
+function onPhaseRequest() {
+  publishPhase(archivePhase.value)
+}
+
+// The state is published on every change — the space follows the page.
+watch(archivePhase, (phase) => publishPhase(phase), { immediate: true })
 
 /** Publication year of a story (null = undated or unparsable date). */
 function yearOf(value: string | null): number | null {
@@ -356,6 +398,7 @@ watch(
 let offScene: (() => void) | null = null
 
 onMounted(() => {
+  window.addEventListener(ARCHIVE_PHASE_REQUEST_EVENT, onPhaseRequest)
   offScene = onSceneEvent((ev) => {
     // A fragment was clicked in 3D: the archive opens the story.
     if (ev.type !== 'archive-open') return
@@ -366,8 +409,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener(ARCHIVE_PHASE_REQUEST_EVENT, onPhaseRequest)
   offScene?.()
   offScene = null
+  // The list is gone — the space returns to its ordinary voice (the story
+  // stage of the archive stands alone now).
+  publishPhase('ready')
 })
 </script>
 

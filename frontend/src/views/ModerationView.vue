@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
-import { apiErrorMessage } from '@/api/client'
+import NotFoundState from '@/components/NotFoundState.vue'
+import { ApiRequestError, apiErrorMessage } from '@/api/client'
 import {
   fetchFingerprintPosts,
   fetchModerationLog,
@@ -82,6 +83,8 @@ const ACTION_LEVELS: Record<string, 'accent' | 'danger' | 'muted'> = {
 
 const isStaff = ref(false)
 const checking = ref(true)
+/** Проверка доступа сорвалась (сеть/сервер) — это не «нет сессии». */
+const accessFailed = ref(false)
 const username = ref('')
 const password = ref('')
 const loginError = ref('')
@@ -119,16 +122,23 @@ function actionLevel(action: string): string {
   return ACTION_LEVELS[action] ?? 'muted'
 }
 
+/** 401/403 — это не сбой, а «сессии нет»: гейт всё равно нужно показать. */
+function isAuthError(err: unknown): boolean {
+  return err instanceof ApiRequestError && (err.status === 401 || err.status === 403)
+}
+
 async function check() {
   checking.value = true
+  accessFailed.value = false
   try {
     const me = await staffMe()
     isStaff.value = me.is_staff
     if (me.is_staff) {
       await Promise.all([loadQueue(), loadLog()])
     }
-  } catch {
+  } catch (err) {
     isStaff.value = false
+    accessFailed.value = !isAuthError(err)
   } finally {
     checking.value = false
   }
@@ -168,6 +178,7 @@ function logTarget(entry: ModerationLogEntry): string {
 
 async function onLogin() {
   loginError.value = ''
+  accessFailed.value = false
   try {
     await staffLogin(username.value, password.value)
     isStaff.value = true
@@ -286,7 +297,11 @@ onMounted(check)
 </script>
 
 <template>
-  <section class="console" data-testid="moderation-console">
+  <section
+    class="console"
+    :class="{ 'console--locked': !isStaff && !checking }"
+    data-testid="moderation-console"
+  >
     <header class="console__head">
       <span class="console__kicker">// moderation console</span>
       <h1 class="console__title">МОДЕРАЦИЯ</h1>
@@ -301,6 +316,16 @@ onMounted(check)
     </header>
 
     <div v-if="checking" class="console__state">проверка доступа…</div>
+
+    <!-- доступ закрыт: проверка сорвалась — вежливо, без «красной стены» -->
+    <NotFoundState
+      v-else-if="accessFailed"
+      variant="sealed"
+      title="ACCESS SEALED"
+      message="Проверка доступа не прошла: консоль осталась закрытой."
+      action-label="проверить снова"
+      :on-action="check"
+    />
 
     <!-- staff gate -->
     <form
@@ -608,11 +633,17 @@ onMounted(check)
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* === Знак консоли: красный живёт только у staff-сессии ===
+   Закрытая консоль — не красная стена: знак и точка сессии гаснут. */
 .console__kicker {
   font-family: var(--font-display);
   font-size: 0.66rem;
   letter-spacing: 0.2em;
   color: var(--danger);
+}
+
+.console--locked .console__kicker {
+  color: var(--ink-tertiary);
 }
 
 .console__title {
@@ -638,12 +669,11 @@ onMounted(check)
   height: 7px;
   border-radius: 50%;
   background: var(--success);
-  box-shadow: 0 0 8px oklch(0.65 0.18 155 / 0.55);
 }
 
+/* Сессии нет — это не тревога, а факт: точка просто гаснет. */
 .console__who--locked .console__dot {
-  background: var(--danger);
-  box-shadow: 0 0 8px oklch(0.55 0.2 25 / 0.55);
+  background: var(--ink-tertiary);
 }
 
 .console__state {

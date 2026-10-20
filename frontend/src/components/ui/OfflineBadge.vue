@@ -10,12 +10,16 @@ defineProps<{ online: boolean }>()
     aria-live="polite"
     data-testid="offline-badge"
   >
-    <span class="offline-badge__dot" aria-hidden="true"></span>
+    <span class="offline-badge__mark" aria-hidden="true"></span>
     <span class="offline-badge__label">НЕТ СВЯЗИ</span>
   </div>
 </template>
 
 <style scoped>
+/* === Метка оффлайна: язык состояний ===
+   Та же бумага, та же волосяная рамка, та же моно-подпись и одна чернильная
+   метка. Без мигания: потеря связи — факт, а не тревога, поэтому метка
+   стоит спокойно и ничего не требует внимания. */
 .offline-badge {
   position: fixed;
   bottom: var(--space-4);
@@ -24,56 +28,28 @@ defineProps<{ online: boolean }>()
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--danger);
-  background: var(--bg-overlay);
-  border: 1px solid var(--danger-dim);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
+  color: var(--ink-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-sm);
   pointer-events: none;
 }
 
-.offline-badge__dot {
+/* Метка — чернильный квадрат: знак, а не лампочка. */
+.offline-badge__mark {
   width: 6px;
   height: 6px;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--danger);
-  animation: offline-pulse 1.6s ease-in-out infinite;
+  background: var(--ink);
 }
 
 .offline-badge__label {
   line-height: 1.4;
-}
-
-@keyframes offline-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 8px var(--danger);
-  }
-  50% {
-    opacity: 0.35;
-    box-shadow: none;
-  }
-}
-
-/* Reduced motion: a calm static signal instead of a pulsing one. */
-@media (prefers-reduced-motion: reduce) {
-  .offline-badge__dot {
-    animation: none;
-    opacity: 1;
-    box-shadow: none;
-  }
-
-  .offline-badge {
-    border-style: solid;
-  }
 }
 </style>

@@ -117,7 +117,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       токены живут в `main.css`. Добавить в `motion.css` базовые классы-хелперы: `.motion-press`,
       `.motion-reveal` (появление без FOUC: стартовое состояние + финальный кадр), `.motion-quiet`.
       | Файлы: `src/assets/motion.css` (new), `src/assets/main.css`, `src/main.ts`, `src/views/HomeView.vue` | deps: none | size: M
-- [ ] M-T2. Motion-примитивы — `src/composables/useMotion.ts` (new). Экспортируемые хуки:
+- [x] M-T2. Motion-примитивы — `src/composables/useMotion.ts` (new). Экспортируемые хуки:
       `usePointerLight(el, opts)` — реактивное освещение: пишет в CSS custom properties `--mx/--my` (в %),
       обновление через rAF-throttle, без аллокаций в кадре, отключено при reduced-motion/тач-устройстве;
       `useMagnetic(el, opts)` — magnetic interaction: элемент смещается к курсору (порог + радиус + сила),
@@ -126,7 +126,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       `useMotionEnabled()` — единая проверка «можно ли двигать» (reduced-motion + тач + `useQuality3D`).
       Обязательно: подписки снимаются в `onUnmounted`, никаких глобальных слушателей без разбора.
       | Файлы: `src/composables/useMotion.ts` (new), `src/composables/__tests__/useMotion.spec.ts` (new) | deps: M-T1 | size: M
-- [ ] M-T3. Kinetic typography — `src/components/ui/KineticText.vue` (new) + тест. Кинетический текст
+- [x] M-T3. Kinetic typography — `src/components/ui/KineticText.vue` (new) + тест. Кинетический текст
       как МАСКА: строка/слово выезжает из-под «бумажной» маски (clip/overflow) с лёгким смещением и
       blur-остатком; props: `text`, `mode: 'lines'|'words'`, `delay`, `stagger`, `as` (тег), `ease`.
       A11y: на контейнере `aria-label` с полным текстом, визуальные куски `aria-hidden`, без дублей для скринридера.
@@ -136,7 +136,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 
 ### Фаза 2 — Материальные реакции и реактивное освещение (DOM)
 
-- [ ] M-T4. Material layer — `src/assets/material.css` (new) + импорт в `src/main.ts`. Единый язык
+- [x] M-T4. Material layer — `src/assets/material.css` (new) + импорт в `src/main.ts`. Единый язык
       реакций поверхностей: `.surface-paper` (бумага: очень мягкая тень + 1px кромка `--rule`),
       `.react-lift` (наведение: тень растёт, кромка светлеет, сдвиг 0 — БЕЗ scale),
       `.react-press` (нажатие: элемент «впитывается» — тень сжимается, кромка темнеет, 1px вниз),
@@ -199,14 +199,14 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       `error` (сверься по файлам) и существующие пропсы (`label`, `message`, `on-retry`).
       Плюс: состояния должны честно показывать прогресс/повтор, а не «серый текст».
       | Файлы: `src/components/LoadingState.vue`, `src/components/ErrorState.vue`, `src/components/EmptyState.vue`, `src/components/__tests__/States.spec.ts` | deps: M-T1, M-T4 | size: M
-- [ ] M-T11. Новые состояния — `src/components/NotFoundState.vue` (new) + подключение в
+- [x] M-T11. Новые состояния — `src/components/NotFoundState.vue` (new) + подключение в
       `src/views/NotFoundView.vue`, `src/views/ModerationView.vue`, `src/views/StatsView.vue`.
       Что делать: (а) «оригинальное» 404-состояние в том же языке (след потерянного фрагмента);
       (б) оффлайн-состояние — если есть `components/ui/OfflineBadge.vue`, привести к тому же языку;
       (в) состояние «доступ закрыт» для модерации — вежливое, без страха.
       Все состояния — без layout shift, reduced-motion safe, с `role="status"`/`aria-live` там, где уместно.
       | Файлы: `src/components/NotFoundState.vue` (new), `src/views/NotFoundView.vue`, `src/views/ModerationView.vue`, `src/views/StatsView.vue`, `src/components/ui/OfflineBadge.vue` | deps: M-T10 | size: M
-- [ ] M-T12. 3D-хореография состояний — `src/three/archive/space.ts`, `src/components/three/ArchiveSpaceCanvas.vue`,
+- [x] M-T12. 3D-хореография состояний — `src/three/archive/space.ts`, `src/components/three/ArchiveSpaceCanvas.vue`,
       `src/views/PlatinumView.vue`. Что делать: сцена должна одинаково говорить «загружаю / ошибка / пусто»:
       (а) loading — кольца светятся по очереди (мягкое ожидание), (б) error — сцена «гаснет»/остаётся
       статичной, (в) empty — медленный дрейф без пыли. Не ломать `buildArchiveSpace` API и сигнатуры
@@ -261,5 +261,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 - 2026-10-20 21:30 батч 1 запущен: M-T1 (motion-токены), M-T8 (shader-акценты архива), M-T9 (shader-акценты сети/переходов), M-T10 (единый язык состояний) — файлы не пересекаются
 - 2026-10-20 23:58 батч 1 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 61 файлов/952 теста) → коммит ниже. `format:check` падает и на baseline (82 исходных файла, включая main.css с uppercase-hex конвенцией) — регрессии нет
 - 2026-10-20 23:58 батч 2 запущен: M-T2 (useMotion), M-T3 (KineticText), M-T4 (material.css), M-T11 (NotFound/оффлайн-состояния), M-T12 (3D-хореография состояний) — файлы не пересекаются
+- 2026-10-21 00:22 батч 2 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 теста) → коммит ниже
+- 2026-10-21 00:22 батч 3 запущен: M-T5 (главная/карточки/шапка), M-T6 (тред/композер), M-T7 (launch/report/scan/watch/служебные вью) — файлы не пересекаются
 
 ## Проблемы / заблокировано

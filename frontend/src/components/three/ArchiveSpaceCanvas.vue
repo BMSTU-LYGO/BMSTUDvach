@@ -15,7 +15,11 @@ import {
   type ThreeBuildResult,
   type ThreeContext,
 } from '@/composables/useThreeScene'
-import { buildArchiveSpace, type ArchiveSpaceController } from '@/three/archive/space'
+import {
+  buildArchiveSpace,
+  type ArchiveSpaceController,
+  type ArchiveSpacePhase,
+} from '@/three/archive/space'
 import {
   emitSceneEvent,
   focusStory,
@@ -78,14 +82,41 @@ const SPACE_LABEL = 'Архивное пространство: кольца э�
  */
 function onArchive3D(event: Event) {
   const detail = (event as CustomEvent<{ enabled?: unknown }>).detail
-  const next =
-    typeof detail?.enabled === 'boolean' ? detail.enabled : readArchive3D()
+  const next = typeof detail?.enabled === 'boolean' ? detail.enabled : readArchive3D()
   enabled.value = next
   try {
     localStorage.setItem(ARCHIVE_3D_STORAGE_KEY, next ? 'on' : 'off')
   } catch {
     // blocked storage — the choice lives only as long as the page
   }
+}
+
+/* === The state of the page: the space says it in its own voice ========== */
+
+/**
+ * The state of the page the space mirrors.
+ *
+ * The view knows whether the vault is being asked, whether the line broke
+ * and whether the archive is simply silent. The two live in different
+ * component trees, so the state travels through the window — the same way
+ * the register of the archive (3D or text only) travels.
+ */
+const ARCHIVE_PHASE_EVENT = 'bmstudvach:archive-phase'
+const ARCHIVE_PHASE_REQUEST_EVENT = 'bmstudvach:archive-phase-request'
+
+/** The states the space knows — anything else is left alone. */
+const ARCHIVE_PHASES: ArchiveSpacePhase[] = ['loading', 'ready', 'error', 'empty']
+
+/** The state of the page the space mirrors right now. */
+const phase = ref<ArchiveSpacePhase>('ready')
+
+/** The view told the space which state the page is in. */
+function onArchivePhase(event: Event) {
+  const detail = (event as CustomEvent<{ phase?: unknown }>).detail
+  if (typeof detail?.phase !== 'string') return
+  const next = detail.phase as ArchiveSpacePhase
+  if (!ARCHIVE_PHASES.includes(next)) return
+  phase.value = next
 }
 
 /* === The session: the canvas and the WebGL context it holds ============ */
@@ -111,6 +142,8 @@ let offEvents: (() => void) | null = null
 /** Stops the watchers of the story set and of the focus. */
 let stopStoriesWatch: (() => void) | null = null
 let stopFocusWatch: (() => void) | null = null
+/** Stops the watcher of the state of the page. */
+let stopPhaseWatch: (() => void) | null = null
 /** Releases everything the build owns — called on dispose and on unmount. */
 let teardown: (() => void) | null = null
 
@@ -223,6 +256,11 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   space = archive
   archive.setStories(sceneState.archiveStories)
 
+  // The scene is told which state the page is in: the space has to say
+  // "loading / broken / silent" in its own voice — with the light, the
+  // rings and the dust, not with words.
+  archive.setPhase?.(phase.value)
+
   offEvents = onSceneEvent((ev) => {
     if (ev.type === 'archive-focus') {
       archive.focus(ev.target)
@@ -251,6 +289,12 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     },
   ).stop
 
+  // The state of the page follows the view: the scene changes its voice
+  // with it — the rings wake up, the light leaves or the space goes quiet.
+  stopPhaseWatch = watch(phase, (next) => {
+    space?.setPhase?.(next)
+  }).stop
+
   teardown = () => {
     offEvents?.()
     offEvents = null
@@ -258,6 +302,8 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     stopStoriesWatch = null
     stopFocusWatch?.()
     stopFocusWatch = null
+    stopPhaseWatch?.()
+    stopPhaseWatch = null
     archive.dispose()
     space = null
   }
@@ -303,6 +349,10 @@ onMounted(() => {
   window.addEventListener('pointerup', onPointerUp, { passive: true })
   window.addEventListener('pointercancel', onPointerUp, { passive: true })
   window.addEventListener(ARCHIVE_3D_EVENT, onArchive3D)
+  window.addEventListener(ARCHIVE_PHASE_EVENT, onArchivePhase)
+  // The space may mount after the view: ask who holds the state of the
+  // page — the view answers with the state it is in right now.
+  window.dispatchEvent(new CustomEvent(ARCHIVE_PHASE_REQUEST_EVENT))
 })
 
 onUnmounted(() => {
@@ -310,6 +360,7 @@ onUnmounted(() => {
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
   window.removeEventListener(ARCHIVE_3D_EVENT, onArchive3D)
+  window.removeEventListener(ARCHIVE_PHASE_EVENT, onArchivePhase)
   teardown?.()
   teardown = null
 })

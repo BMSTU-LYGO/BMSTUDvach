@@ -10,7 +10,11 @@ import type {
   Vector3,
 } from 'three'
 
-import { buildArchiveSpace, type ArchiveSpaceSnapshot } from '@/three/archive/space'
+import {
+  buildArchiveSpace,
+  type ArchiveSpacePhase,
+  type ArchiveSpaceSnapshot,
+} from '@/three/archive/space'
 import type { ArchiveStoryRef } from '@/three/sceneState'
 
 /**
@@ -985,6 +989,236 @@ describe('archive space: the pointer', () => {
       expect(space.pointerStoryId()).toBeNull()
     } finally {
       space.dispose()
+    }
+  })
+})
+
+describe('archive space: the choreography of the states', () => {
+  /** The light of a ring right now. */
+  function lightOf(ring: LineSegments): number {
+    return (ring.material as ShaderMaterial).uniforms.uOpacity.value
+  }
+
+  /** The light of the halo right now. */
+  function haloOf(root: Object3D): number {
+    const halo = root.getObjectByName('archive-halo') as Mesh
+    return (halo.material as ShaderMaterial).uniforms.uDim.value
+  }
+
+  it('wakes the rings up one after another while the archive is asked', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([])
+      space.setPhase?.('loading')
+
+      // Half a second in: the first ring has found the signal, the last
+      // one is still waiting for its turn.
+      for (let i = 0; i < 30; i++) space.update(1 / FPS, snap())
+      const rings = orbits(space.scene) as LineSegments[]
+      expect(rings.length).toBeGreaterThan(1)
+      expect(lightOf(rings[0])).toBeGreaterThan(lightOf(rings[rings.length - 1]))
+
+      // The wave of light never switches a ring off — it is a sequence,
+      // not a blinking.
+      for (const ring of rings) {
+        expect(lightOf(ring)).toBeGreaterThan(0)
+      }
+
+      // After a few seconds every ring is awake.
+      for (let i = 0; i < 200; i++) space.update(1 / FPS, snap())
+      for (const ring of rings) {
+        expect(lightOf(ring)).toBeGreaterThan(0.5)
+      }
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('takes the light away when the line breaks', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+      const plate = plates(space.scene)[0] as Mesh
+      const material = plate.material as ShaderMaterial
+      expect(material.uniforms.uDim.value).toBeGreaterThan(0.9)
+
+      space.setPhase?.('error')
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+
+      // The light left: the archive is faded paper now — quiet, not dark.
+      expect(material.uniforms.uDim.value).toBeLessThan(0.2)
+      expect(material.uniforms.uDim.value).toBeGreaterThan(0)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('stops the whole space when the line breaks', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      for (let i = 0; i < 30; i++) space.update(1 / FPS, snap())
+      const dust = space.scene.getObjectByName('archive-dust') as Points
+      const dustMaterial = dust.material as ShaderMaterial
+      const ring = orbits(space.scene)[0] as LineSegments
+      const time = dustMaterial.uniforms.uTime.value
+
+      space.setPhase?.('error')
+      const still = ring.rotation.z
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+
+      // The clock of the shaders stands still: the dust settles, the rings
+      // stop turning, the space holds its last frame.
+      expect(dustMaterial.uniforms.uTime.value).toBe(time)
+      expect(dustMaterial.uniforms.uDust.value).toBeLessThan(0.05)
+      expect(ring.rotation.z).toBe(still)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('keeps a silent archive quiet', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([])
+      space.setPhase?.('empty')
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+
+      // The halo barely glows — the archive is silent, not broken.
+      expect(haloOf(space.scene)).toBeLessThan(0.5)
+      expect(haloOf(space.scene)).toBeGreaterThan(0.2)
+
+      // No dust at all in a silent archive.
+      const dust = space.scene.getObjectByName('archive-dust') as Points
+      expect((dust.material as ShaderMaterial).uniforms.uDust.value).toBeLessThan(0.05)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('barely turns the rings of a silent archive', () => {
+    const quiet = buildArchiveSpace(three, 'low')
+    const loud = buildArchiveSpace(three, 'low')
+    try {
+      for (const space of [quiet, loud]) space.setStories([])
+      quiet.setPhase?.('empty')
+      for (let i = 0; i < 5; i++) {
+        quiet.update(1 / FPS, snap())
+        loud.update(1 / FPS, snap())
+      }
+      const quietRing = orbits(quiet.scene)[0] as LineSegments
+      const loudRing = orbits(loud.scene)[0] as LineSegments
+      const beforeQuiet = quietRing.rotation.z
+      const beforeLoud = loudRing.rotation.z
+
+      for (let i = 0; i < 60; i++) {
+        quiet.update(1 / FPS, snap())
+        loud.update(1 / FPS, snap())
+      }
+
+      const driftQuiet = Math.abs(quietRing.rotation.z - beforeQuiet)
+      const driftLoud = Math.abs(loudRing.rotation.z - beforeLoud)
+      expect(driftQuiet).toBeGreaterThan(0)
+      expect(driftQuiet).toBeLessThan(driftLoud)
+    } finally {
+      quiet.dispose()
+      loud.dispose()
+    }
+  })
+
+  it('keeps the uniform contract through the changes of the state', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      const plate = plates(space.scene)[0] as Mesh
+      const material = plate.material as ShaderMaterial
+
+      for (const phase of ['loading', 'ready', 'error', 'empty', 'ready'] as const) {
+        space.setPhase?.(phase)
+        for (let i = 0; i < 20; i++) space.update(1 / FPS, snap({ focusedStory: 1 }))
+
+        expect(Number.isFinite(material.uniforms.uTime.value)).toBe(true)
+        expect(material.uniforms.uDim.value).toBeGreaterThanOrEqual(0)
+        expect(material.uniforms.uDim.value).toBeLessThanOrEqual(1)
+        // The accent of the archive survives every state.
+        expect(material.uniforms.uFocus.value).toBeGreaterThan(0)
+      }
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('ignores a state it does not know', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.setPhase?.('unknown' as unknown as ArchiveSpacePhase)
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+      const plate = plates(space.scene)[0] as Mesh
+      const material = plate.material as ShaderMaterial
+      // The scene kept the ready state.
+      expect(material.uniforms.uDim.value).toBeGreaterThan(0.9)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('shows the static frame of a state under reduced motion', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([])
+      space.setPhase?.('loading')
+      space.update(1 / FPS, snap({ reducedMotion: true }))
+
+      // The final frame of the sequence: every ring is awake at once.
+      for (const ring of orbits(space.scene) as LineSegments[]) {
+        expect(lightOf(ring)).toBeGreaterThan(0.5)
+      }
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('adds nothing to the scene while the states change', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      const before = countObjects(space.scene)
+
+      for (const phase of ['loading', 'error', 'empty', 'ready'] as const) {
+        space.setPhase?.(phase)
+        for (let i = 0; i < 30; i++) space.update(1 / FPS, snap())
+      }
+
+      expect(countObjects(space.scene)).toBe(before)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('gives everything back after a change of the state', () => {
+    const geometrySpy = vi.spyOn(three.BufferGeometry.prototype, 'dispose')
+    const materialSpy = vi.spyOn(three.Material.prototype, 'dispose')
+    try {
+      const space = buildArchiveSpace(three, 'low')
+      space.setStories([story(1)])
+      space.setPhase?.('error')
+      space.update(1 / FPS, snap())
+      geometrySpy.mockClear()
+      materialSpy.mockClear()
+
+      space.dispose()
+
+      expect(geometrySpy).toHaveBeenCalledTimes(7)
+      expect(materialSpy).toHaveBeenCalledTimes(7)
+
+      // A state after the disposal changes nothing and breaks nothing.
+      expect(() => space.setPhase?.('ready')).not.toThrow()
+      expect(() => space.update(1 / FPS, snap())).not.toThrow()
+    } finally {
+      geometrySpy.mockRestore()
+      materialSpy.mockRestore()
     }
   })
 })

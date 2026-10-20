@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
+import NotFoundState from '@/components/NotFoundState.vue'
 import {
   getTelemetry,
   getTelemetryActivity,
@@ -176,8 +177,8 @@ function barTitle(point: TelemetryActivityPoint): string {
       <span class="stats__kicker">// network telemetry</span>
       <h1 class="stats__title">СТАТИСТИКА СЕТИ</h1>
       <p class="stats__lead">
-        Публичная телеметрия BMSTUDvach: сколько видно узлов, тредов и сигналов и
-        как сеть жила последние дни.
+        Публичная телеметрия BMSTUDvach: сколько видно узлов, тредов и сигналов и как
+        сеть жила последние дни.
       </p>
     </header>
 
@@ -188,6 +189,12 @@ function barTitle(point: TelemetryActivityPoint): string {
         v-else-if="summaryFailed"
         message="Сводка сети недоступна."
         :on-retry="loadSummary"
+      />
+      <NotFoundState
+        v-else-if="!telemetry"
+        variant="quiet"
+        title="NO READINGS"
+        message="Сводки сети пока нет: прибор ждёт первую отчётность."
       />
       <dl v-else class="cells">
         <div
@@ -235,8 +242,14 @@ function barTitle(point: TelemetryActivityPoint): string {
         message="Серия активности недоступна."
         :on-retry="loadActivity"
       />
+      <NotFoundState
+        v-else-if="!activity || !points.length"
+        variant="quiet"
+        title="NO READINGS"
+        message="За это окно ещё не накоплено ни одного показания — сеть молчит."
+      />
 
-      <div v-else-if="activity" class="chart" data-testid="activity-chart">
+      <div v-else class="chart" data-testid="activity-chart">
         <ul class="chart__data">
           <li v-for="point in points" :key="point.date">
             {{ fullDate(point.date) }}: сообщений {{ point.posts }}, тредов
@@ -261,7 +274,9 @@ function barTitle(point: TelemetryActivityPoint): string {
                 :style="{ height: barPercent(point.threads) }"
               ></span>
             </div>
-            <span class="chart__label">{{ showLabel(index) ? shortDate(point.date) : '' }}</span>
+            <span class="chart__label">{{
+              showLabel(index) ? shortDate(point.date) : ''
+            }}</span>
           </div>
         </div>
       </div>

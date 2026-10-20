@@ -29,7 +29,11 @@ vi.mock('@/api/platinum', () => ({
 
 import PlatinumView from '@/views/PlatinumView.vue'
 import PlatinumStoryView from '@/views/PlatinumStoryView.vue'
-import { getPlatinumStory, listPlatinumStories, type PlatinumStory } from '@/api/platinum'
+import {
+  getPlatinumStory,
+  listPlatinumStories,
+  type PlatinumStory,
+} from '@/api/platinum'
 import {
   emitSceneEvent,
   onSceneEvent,
@@ -650,9 +654,9 @@ describe('PlatinumView — the register of the archive: 3D or text alone (P4-T1)
 
     const { wrapper } = await mountArchive()
 
-    expect(wrapper.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed')).toBe(
-      'false',
-    )
+    expect(
+      wrapper.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed'),
+    ).toBe('false')
   })
 
   it('tells the space about the register of the archive', async () => {
@@ -703,7 +707,10 @@ describe('PlatinumView — the way through the archive (P4-T3)', () => {
     })
     await router.push('/platinum')
     await router.isReady()
-    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [router] } })
+    const wrapper = mount(
+      { template: '<router-view />' },
+      { global: { plugins: [router] } },
+    )
     await flushPromises()
     await flushPromises()
     return { wrapper, router }
@@ -720,7 +727,11 @@ describe('PlatinumView — the way through the archive (P4-T3)', () => {
     vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
     vi.mocked(getPlatinumStory).mockImplementation(() =>
       Promise.resolve(
-        story(2, 'Смена на проходной', 'Дежурный по корпусу наблюдает, как гаснет свет.'),
+        story(
+          2,
+          'Смена на проходной',
+          'Дежурный по корпусу наблюдает, как гаснет свет.',
+        ),
       ),
     )
 
@@ -845,8 +856,98 @@ describe('PlatinumView — the way through the archive (P4-T3)', () => {
 
     // The archive is opened again — the reader's choice is still there.
     const { wrapper: again } = await mountArchive()
-    expect(again.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed')).toBe(
-      'false',
+    expect(
+      again.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed'),
+    ).toBe('false')
+  })
+})
+
+describe('PlatinumView — the state of the space (M-T12)', () => {
+  beforeEach(() => {
+    vi.mocked(listPlatinumStories).mockReset()
+  })
+
+  /**
+   * The states the view publishes to the space.
+   *
+   * The view and the canvas live in different component trees, so the
+   * state travels through the window — the tests listen to the same
+   * channel the canvas listens to.
+   */
+  function collectPhases(): { phases: string[]; stop: () => void } {
+    const phases: string[] = []
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<{ phase?: unknown }>).detail
+      phases.push(String(detail?.phase))
+    }
+    window.addEventListener('bmstudvach:archive-phase', listener)
+    return {
+      phases,
+      stop: () => window.removeEventListener('bmstudvach:archive-phase', listener),
+    }
+  }
+
+  it('tells the space that the vault is being asked', async () => {
+    // The vault never answers: the archive stays in its syncing register.
+    vi.mocked(listPlatinumStories).mockImplementation(
+      () => new Promise<Paginated<PlatinumStory>>(() => {}),
     )
+    const { phases, stop } = collectPhases()
+    await mountArchive()
+    stop()
+
+    expect(phases[0]).toBe('loading')
+    expect(phases[phases.length - 1]).toBe('loading')
+  })
+
+  it('tells the space that the archive is open', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { phases, stop } = collectPhases()
+    await mountArchive()
+    stop()
+
+    expect(phases).toContain('ready')
+  })
+
+  it('tells the space that the archive is silent', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    const { phases, stop } = collectPhases()
+    await mountArchive()
+    stop()
+
+    expect(phases).toContain('empty')
+  })
+
+  it('tells the space that the line broke', async () => {
+    vi.mocked(listPlatinumStories).mockRejectedValue(new Error('сеть недоступна'))
+    const { phases, stop } = collectPhases()
+    await mountArchive()
+    stop()
+
+    expect(phases).toContain('error')
+  })
+
+  it('answers the space when it asks for the state', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    await mountArchive()
+
+    // The canvas may mount after the view: it asks, the view answers.
+    const { phases, stop } = collectPhases()
+    window.dispatchEvent(new CustomEvent('bmstudvach:archive-phase-request'))
+    stop()
+
+    expect(phases).toContain('ready')
+  })
+
+  it('keeps the panel of the archive in step with the state', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    const { wrapper } = await mountArchive()
+
+    // The panel of the archive and the state of the space speak the same
+    // language: the silent archive shows the silent panel.
+    const panel = wrapper.find('[data-testid="archive-empty"]')
+    expect(panel.classes()).toContain('archive-empty--empty')
+    expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(0)
   })
 })
