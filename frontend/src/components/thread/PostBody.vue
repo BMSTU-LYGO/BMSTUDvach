@@ -247,7 +247,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
               </span>
               <a
                 v-else
-                class="post-link"
+                class="post-link react-ink"
                 :class="{
                   'post-link--dead': !knownIds.has(token.id),
                   'post-link--quoted': quotedId === token.id,
@@ -279,7 +279,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
       v-for="(attachment, index) in attachments"
       :key="attachment.id"
       type="button"
-      class="post-attachment"
+      class="post-attachment react-lift react-press"
       :data-testid="`post-attachment-${index}`"
       :aria-label="`Открыть вложение ${attachment.original_name || index + 1}`"
       @click="openLightbox(index)"
@@ -331,7 +331,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   max-width: 65ch;
   overflow-wrap: anywhere;
   line-height: 1.6;
-  color: var(--ink, #1C1A14);
+  color: var(--ink, #1c1a14);
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 1rem;
 }
@@ -346,33 +346,32 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   text-wrap: pretty;
 }
 
+/* Цитата — только чтение: у цитат нет появления и нет реакции,
+   иначе цитируемое перестаёт быть тихим. */
 .post-quote {
   padding-left: var(--space-4);
-  border-left: 4px solid var(--rule, #D4CEB8);
+  border-left: 4px solid var(--rule, #d4ceb8);
   background: rgba(247, 243, 232, 0.3);
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   font-style: italic;
 }
 
+/* Ссылка на пост: чтение, а не украшение. Чернильный след проступает
+   от левого края — сама бумага отмечает, куда ведёт ссылка. */
 .post-link {
-  color: var(--accent, #2F4F4E);
+  color: var(--accent, #2f4f4e);
   text-decoration: none;
-  border-bottom: 1px solid transparent;
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 1em;
-  transition:
-    background var(--duration-fast, 150ms),
-    color var(--duration-fast, 150ms);
+  transition: color var(--motion-hover);
 }
 
 .post-link:hover {
   color: var(--accent-hover, #244140);
-  text-decoration: underline;
-  background: var(--paper-sunken, #F7F3E8);
 }
 
 .post-link:focus-visible {
-  outline: 2px solid var(--accent, #2F4F4E);
+  outline: 2px solid var(--accent, #2f4f4e);
   outline-offset: 2px;
 }
 
@@ -381,28 +380,29 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   color: var(--accent-hover, #244140);
 }
 
+/* Мёртвая ссылка — не след: её некуда вести, чернил не будет. */
 .post-link--dead {
-  color: var(--ink-tertiary, #8A8273);
-  border-bottom-color: transparent;
+  color: var(--ink-tertiary, #8a8273);
   cursor: default;
+}
+
+.post-link--dead::after {
+  display: none;
 }
 
 .post-link--dead:hover,
 .post-link--dead:focus-visible {
-  color: var(--ink-tertiary, #8A8273);
-  text-decoration: none;
-  background: transparent;
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .post-link--quoted {
-  color: var(--ink, #1C1A14);
-  border-bottom-color: var(--accent, #2F4F4E);
-  animation: post-link-quoted 900ms var(--ease-out-quart);
+  color: var(--ink, #1c1a14);
+  animation: post-link-quoted var(--motion-cinematic);
 }
 
 @keyframes post-link-quoted {
   0% {
-    background: var(--paper-sunken, #F7F3E8);
+    background: var(--paper-sunken, #f7f3e8);
   }
   100% {
     background: transparent;
@@ -410,8 +410,8 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
 }
 
 .post-highlight {
-  background: var(--paper-sunken, #F7F3E8);
-  color: var(--ink, #1C1A14);
+  background: var(--paper-sunken, #f7f3e8);
+  color: var(--ink, #1c1a14);
   border-radius: 2px;
   padding: 0 1px;
 }
@@ -429,6 +429,8 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   margin-top: var(--space-3);
 }
 
+/* Вложение — лист бумаги: кромка ловит свет, нажатие вдавливает плитку.
+   Материальный слой (react-lift/react-press) задаёт и подъём, и вмятину. */
 .post-attachment {
   display: flex;
   flex-direction: column;
@@ -438,18 +440,10 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   padding: 0;
   overflow: hidden;
   text-align: left;
-  background: var(--paper-raised, #EAE4D4);
-  border: 1px solid var(--rule, #D4CEB8);
+  background: var(--paper-raised, #eae4d4);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
   cursor: zoom-in;
-  transition:
-    border-color var(--duration-fast, 150ms) var(--ease-out-quart),
-    box-shadow var(--duration-fast, 150ms) var(--ease-out-quart);
-}
-
-.post-attachment:hover {
-  border-color: var(--ink-tertiary, #8A8273);
-  box-shadow: 0 2px 8px rgba(28, 26, 20, 0.08);
 }
 
 .post-attachment__img {
@@ -468,11 +462,11 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .post-attachment__name {
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   overflow-wrap: anywhere;
 }
 
@@ -487,7 +481,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   display: grid;
   place-items: center;
   flex: none;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
 }
 
 .post-attachment__file-text {
@@ -498,18 +492,17 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .post-link,
-  .post-attachment {
+  .post-link {
     transition: none;
   }
 
   .post-link--quoted {
     animation: none;
-    background: var(--paper-sunken, #F7F3E8);
+    background: var(--paper-sunken, #f7f3e8);
   }
 }
 </style>

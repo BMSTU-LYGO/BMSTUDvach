@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
+import { usePress } from '@/composables/useMotion'
 import NetworkIcon from './NetworkIcon.vue'
 
 /**
@@ -8,11 +9,14 @@ import NetworkIcon from './NetworkIcon.vue'
  *
  * Idle      : thin ring
  * Ready     : ring charges (amber)
- * Hover     : outer orbit
- * Press     : ring contracts
+ * Hover     : outer orbit (the instrument shows its second ring)
+ * Press     : the ink is absorbed — the ring darkens and the sheet sinks
  * Submitting: progress travels around the circumference
- * Success   : pulse burst (parent drives via successToken)
+ * Success   : the wash spreads once over the paper
  * Error     : ring breaks briefly
+ *
+ * Nothing here changes size: the node is an instrument, and instruments do
+ * not grow under the finger. Reactions are light, edge and ink.
  */
 const props = defineProps<{
   disabled?: boolean
@@ -28,7 +32,13 @@ const el = ref<HTMLElement | null>(null)
 const r = 17
 const C = 2 * Math.PI * r
 
-const phase = ref<'idle' | 'hover' | 'press' | 'submitting' | 'error'>('idle')
+// «Чернила впитались»: состояние нажатия ставится примитивом, а не
+// вручную — так нажатие мышью и нажатие клавиши читаются одинаково.
+usePress(el)
+
+const phase = ref<'idle' | 'hover' | 'submitting' | 'error'>('idle')
+/** The pointer is over the node: the orbit must survive a click. */
+const hovering = ref(false)
 const showSuccess = ref(false)
 
 const progress = computed(() => (props.submitting ? 0.62 : props.ready ? 0.9 : 0.22))
@@ -37,7 +47,7 @@ const dashOffset = computed(() => C * (1 - progress.value))
 function startError() {
   phase.value = 'error'
   window.setTimeout(() => {
-    if (!props.submitting) phase.value = 'idle'
+    if (!props.submitting) phase.value = hovering.value ? 'hover' : 'idle'
   }, 300)
 }
 
@@ -60,25 +70,35 @@ watch(
   },
 )
 
+/**
+ * The transmission itself.
+ *
+ * The press REACTION (ink absorbed) is the primitive's job — `usePress`
+ * puts `data-pressed` on the node for both mouse and keyboard — so this
+ * function only sends the intent.
+ */
 function press() {
   if (props.disabled || props.submitting) return
-  phase.value = 'press'
   emit('transmit')
 }
 
+/** The finger left the paper: the node keeps its orbit if the pointer stayed. */
 function release() {
-  if (!props.submitting) phase.value = 'idle'
+  if (props.submitting) return
+  phase.value = hovering.value ? 'hover' : 'idle'
 }
 
 function hover(on: boolean) {
-  if (!props.submitting && phase.value !== 'press') phase.value = on ? 'hover' : 'idle'
+  hovering.value = on
+  if (props.submitting || phase.value === 'error') return
+  phase.value = on ? 'hover' : 'idle'
 }
 </script>
 
 <template>
   <div
     ref="el"
-    class="transmit"
+    class="transmit react-press"
     :class="[
       `transmit--${phase}`,
       {
@@ -121,7 +141,11 @@ function hover(on: boolean) {
       />
     </svg>
     <span class="transmit__glyph" aria-hidden="true">
-      <NetworkIcon :name="showSuccess ? 'check' : 'transmit'" :size="18" :stroke-width="1.8" />
+      <NetworkIcon
+        :name="showSuccess ? 'check' : 'transmit'"
+        :size="18"
+        :stroke-width="1.8"
+      />
     </span>
     <span v-if="showSuccess" class="transmit__burst" aria-hidden="true"></span>
   </div>
@@ -137,25 +161,41 @@ function hover(on: boolean) {
   cursor: pointer;
   outline: none;
   border-radius: 50%;
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-tap-highlight-color: transparent;
+  /* Только конкретные свойства и только семантические роли: нажатие
+     вдавливает лист, фокус и наведение — тихие. */
+  transition:
+    box-shadow var(--motion-press),
+    transform var(--motion-press);
+}
+
+/* Наведение — внешняя орбита: у прибора появляется второе кольцо.
+   Размер кольца не меняется — прибор не растёт, он показывает себя. */
+.transmit::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-hover);
+}
+
+.transmit--hover::before,
+.transmit:focus-visible::before {
+  opacity: 0.45;
 }
 
 .transmit:focus-visible {
-  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
-}
-
-.transmit--hover {
-  transform: scale(1.06);
-}
-
-.transmit--press {
-  transform: scale(0.94);
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--accent);
 }
 
 .transmit--error .transmit__charge {
   stroke: var(--danger);
-  animation: break-ring 300ms ease-in-out;
+  animation: break-ring var(--motion-hover) ease-in-out;
 }
 
 .transmit--submitting {
@@ -171,15 +211,27 @@ function hover(on: boolean) {
 
 .transmit__track {
   stroke: var(--rule);
+  transition: stroke var(--motion-press);
+}
+
+/* Нажатие: чернила впитались — кольцо темнеет, но не меняет размер. */
+.transmit[data-pressed='true'] .transmit__track {
+  stroke: var(--ink-tertiary);
 }
 
 .transmit__charge {
   stroke: var(--accent);
-  transition: stroke-dashoffset 260ms cubic-bezier(0.25, 1, 0.5, 1);
+  transition:
+    stroke-dashoffset var(--motion-hover),
+    stroke var(--motion-press);
+}
+
+.transmit[data-pressed='true'] .transmit__charge {
+  stroke: var(--accent-hover);
 }
 
 .transmit--submitting .transmit__charge {
-  animation: charge-spin 1s linear infinite;
+  animation: charge-spin var(--motion-cinematic-duration) linear infinite;
   stroke-dashoffset: 0;
 }
 
@@ -189,7 +241,7 @@ function hover(on: boolean) {
 
 .transmit__glyph {
   color: var(--ink-secondary);
-  transition: color 180ms;
+  transition: color var(--motion-hover);
 }
 
 .transmit--ready .transmit__glyph,
@@ -201,12 +253,14 @@ function hover(on: boolean) {
   color: var(--success);
 }
 
+/* Успех — волна чернил по бумаге: кольцо расходится СВОИМ краем
+   (растущий отступ), а не масштабом самого элемента. */
 .transmit__burst {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--success);
-  animation: success-burst 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border: 1px solid var(--success);
+  animation: success-burst var(--motion-reveal) var(--ease-entrance) forwards;
   pointer-events: none;
 }
 
@@ -221,11 +275,11 @@ function hover(on: boolean) {
 
 @keyframes success-burst {
   0% {
-    transform: scale(0.5);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 45%, transparent);
     opacity: 0.9;
   }
   100% {
-    transform: scale(2.4);
+    box-shadow: 0 0 0 14px transparent;
     opacity: 0;
   }
 }
@@ -252,7 +306,10 @@ function hover(on: boolean) {
 
 @media (prefers-reduced-motion: reduce) {
   .transmit,
+  .transmit::before,
+  .transmit__track,
   .transmit__charge,
+  .transmit__glyph,
   .transmit__burst {
     transition: none;
     animation: none;

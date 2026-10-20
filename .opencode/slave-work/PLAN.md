@@ -145,7 +145,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       Токены: `--material-shadow-1/2`, `--material-edge`, `--material-press-delta`.
       Всё без `transform: scale`, без `transition: all`; только transition/opacity/box-shadow/border-color.
       | Файлы: `src/assets/material.css` (new), `src/main.ts` | deps: M-T1 | size: S
-- [ ] M-T5. Применение: главная и карточки — `src/views/HomeView.vue`, `src/components/ui/BoardCard3D.vue`,
+- [x] M-T5. Применение: главная и карточки — `src/views/HomeView.vue`, `src/components/ui/BoardCard3D.vue`,
       `src/components/ui/DepthCard.vue`, `src/components/layout/AppHeader.vue`, `src/components/ui/DepthCard.vue`.
       Что делать: (а) hero-CTA получает material-реакцию + pointer-light (реактивное освещение бумаги),
       (б) карточки досок — `.react-lift` + `.react-edge` вместо текущих ad-hoc hover (убери `transform: scale`
@@ -153,14 +153,14 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       «Разделы»), (г) шапка — тихая реакция, без параллакса. Обязательно: `useTilt` в карточках оставить
       (это наклон, а не magnetic) — не дублировать наклон через material-классы.
       | Файлы: `src/views/HomeView.vue`, `src/components/ui/BoardCard3D.vue`, `src/components/ui/DepthCard.vue`, `src/components/layout/AppHeader.vue` | deps: M-T2, M-T3, M-T4 | size: M
-- [ ] M-T6. Применение: тред и композер — `src/views/ThreadView.vue`, `src/components/thread/ThreadRow.vue`,
+- [x] M-T6. Применение: тред и композер — `src/views/ThreadView.vue`, `src/components/thread/ThreadRow.vue`,
       `src/components/thread/PostBody.vue`, `src/components/composer/SignalDock.vue`.
       Что делать: (а) строки треда и посты — material-реакция (кромка/тень), никакого scale;
       (б) `SignalDock` (1480 стр.) — точечно: убрать `transition: all 220ms`, заменить на семантические
       токены, добавить press-реакцию на `TransmitControl`; (в) на длинных списках — только opacity-появление,
       без per-row transform (иначе страница «перегрузится»).
       | Файлы: `src/views/ThreadView.vue`, `src/components/thread/ThreadRow.vue`, `src/components/thread/PostBody.vue`, `src/components/composer/SignalDock.vue` | deps: M-T2, M-T4 | size: M
-- [ ] M-T7. Применение: остальные поверхности — `src/components/launch/LaunchBay.vue`,
+- [x] M-T7. Применение: остальные поверхности — `src/components/launch/LaunchBay.vue`,
       `src/components/report/ReportProbe.vue`, `src/components/scan/ScanLens.vue`,
       `src/components/watch/WatchPanel.vue`, `src/views/AboutView.vue`, `src/views/StatsView.vue`,
       `src/views/ModerationView.vue`, `src/components/composer/TransmitControl.vue`.
@@ -216,7 +216,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 
 ### Фаза 5 — Дедупликация, перф, a11y, guard'ы, документация
 
-- [ ] M-T13. Motion guard — `src/scripts/verify-motion.mjs` (new, рядом с `verify-3d.mjs`) + npm-скрипт
+- [ ] M-T13. Motion guard — `scripts/verify-motion.mjs` (new, рядом с `verify-3d.mjs`) + npm-скрипт
       `verify:motion` в `package.json` (единственное разрешённое изменение package.json). Проверки:
       запрет `transition: all`; запрет «сырых» `cubic-bezier(...)` и `NNms` в `.vue` (кроме самого motion.css
       и точечных исключений, перечисленных явным списком); запрет `transform: scale(...)` в `:hover`-правилах
@@ -263,5 +263,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 - 2026-10-20 23:58 батч 2 запущен: M-T2 (useMotion), M-T3 (KineticText), M-T4 (material.css), M-T11 (NotFound/оффлайн-состояния), M-T12 (3D-хореография состояний) — файлы не пересекаются
 - 2026-10-21 00:22 батч 2 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 теста) → коммит ниже
 - 2026-10-21 00:22 батч 3 запущен: M-T5 (главная/карточки/шапка), M-T6 (тред/композер), M-T7 (launch/report/scan/watch/служебные вью) — файлы не пересекаются
+- 2026-10-21 00:58 батч 3 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 тестов) → коммит ниже. Масштабирование вычищено из hover-реакций (LaunchBay, ReportProbe, TransmitControl, SignalDock)
+- 2026-10-21 00:58 батч 4 запущен: M-T13 (motion guard), M-T15 (перф-дисциплина) — файлы не пересекаются
 
 ## Проблемы / заблокировано

@@ -46,7 +46,11 @@ function formatDate(value: string): string {
 </script>
 
 <template>
-  <div v-if="visible" class="thread-item" :class="{ 'thread-item--hidden': hidden }">
+  <div
+    v-if="visible"
+    class="thread-item react-lift"
+    :class="{ 'thread-item--hidden': hidden }"
+  >
     <RouterLink
       :to="`/threads/${props.thread.id}`"
       class="thread-row"
@@ -64,7 +68,7 @@ function formatDate(value: string): string {
             <NetworkIcon name="pin" :size="12" />
             <span class="thread-pin__label">pin</span>
           </span>
-          <span class="thread-title">{{ thread.title }}</span>
+          <span class="thread-title react-ink">{{ thread.title }}</span>
         </div>
         <div class="thread-meta">
           <span v-if="showBoard" class="meta-board">/{{ thread.board }}/</span>
@@ -85,7 +89,7 @@ function formatDate(value: string): string {
 
     <button
       type="button"
-      class="thread-hide"
+      class="thread-hide react-press"
       :aria-label="hidden ? 'Показать тред' : 'Скрыть тред'"
       :title="hidden ? 'Показать тред' : 'Скрыть тред'"
       :aria-pressed="hidden"
@@ -101,11 +105,23 @@ function formatDate(value: string): string {
 .thread-item {
   position: relative;
   border-bottom: 1px solid var(--rule);
-  transition: opacity var(--duration-normal) var(--ease-out);
+  /* Лист лежит на столе и приподнимается под курсором: тень растёт, кромка
+     ловит свет. Никакого сдвига и никакого масштаба. */
+  transition:
+    opacity var(--motion-hover),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .thread-item--hidden {
   opacity: 0.5;
+}
+
+/* Кромка ловит свет: правило материального слоя перебито базовой рамкой
+   компонента (она объявлена в каскаде позже), поэтому edge-реакция задана
+   здесь явно — тем же токеном. */
+.thread-item:hover {
+  border-bottom-color: var(--material-edge-lit);
 }
 
 .thread-row {
@@ -116,11 +132,6 @@ function formatDate(value: string): string {
   padding: var(--space-4) calc(var(--space-5) + 36px) var(--space-4) var(--space-5);
   text-decoration: none;
   color: var(--ink);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.thread-row:hover {
-  background: var(--paper-sunken);
 }
 
 .thread-row:focus-visible {
@@ -201,9 +212,12 @@ function formatDate(value: string): string {
 
 .thread-hide {
   position: absolute;
-  top: 50%;
+  /* Центрируем без transform: смещение на 1px принадлежит нажатию —
+     бумага вдавливается, а не прыгает. */
+  top: 0;
+  bottom: 0;
+  margin-block: auto;
   right: var(--space-2);
-  transform: translateY(-50%);
   width: 44px;
   height: 44px;
   display: grid;
@@ -215,9 +229,11 @@ function formatDate(value: string): string {
   cursor: pointer;
   opacity: 0;
   transition:
-    color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out),
-    opacity var(--duration-fast) var(--ease-out);
+    color var(--motion-hover),
+    background-color var(--motion-hover),
+    opacity var(--motion-hover),
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .thread-item:hover .thread-hide,
@@ -225,6 +241,8 @@ function formatDate(value: string): string {
   opacity: 1;
 }
 
+/* Знак отвечает чернилами: тон переходит в акцент, ничего не растёт.
+   Плашка появляется, чтобы нажатию было куда впитаться. */
 .thread-hide:hover {
   color: var(--accent);
   background: var(--paper-sunken);
@@ -245,9 +263,17 @@ function formatDate(value: string): string {
   }
 }
 
+/* На тач-экранах наведения нет — знак не должен прятаться до предательства. */
+@media (hover: none) {
+  .thread-hide {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .thread-row:hover {
-    transform: none;
+  .thread-item,
+  .thread-hide {
+    transition: none;
   }
 }
 </style>

@@ -122,7 +122,8 @@ const identityDisplay = computed(
 )
 
 const canSubmit = computed(
-  () => body.value.trim().length > 0 && body.value.length <= MAX_BODY && !props.submitting,
+  () =>
+    body.value.trim().length > 0 && body.value.length <= MAX_BODY && !props.submitting,
 )
 
 // A field is marked invalid by either flavour of failure: the API refused
@@ -235,7 +236,8 @@ function onSurfaceFocus() {
 }
 
 function onSurfaceBlur() {
-  if (body.value.trim() || files.value.length || lensOpen.value || helpOpen.value) return
+  if (body.value.trim() || files.value.length || lensOpen.value || helpOpen.value)
+    return
   // A refusal in the stack is not something a blur may fold away — it stays
   // open until it is retried or the dock is collapsed on purpose.
   if (props.error || railError.value) return
@@ -565,7 +567,9 @@ function onRailError(message: string) {
  * single custom property and moves nothing. Reduced motion keeps the
  * proximity (it is only opacity) but drops every transition on it.
  */
-const linkSource = computed<HTMLElement | null>(() => props.replyContext?.source ?? null)
+const linkSource = computed<HTMLElement | null>(
+  () => props.replyContext?.source ?? null,
+)
 
 let linkFrame = 0
 let linkStrength = -1
@@ -652,7 +656,7 @@ onUnmounted(stopLinkProximity)
       <div v-if="replyContext" class="signal-dock__context" data-testid="reply-context">
         <button
           type="button"
-          class="context-node"
+          class="context-node react-ink"
           :aria-label="`Показать пост #${replyContext.postId}`"
           @click="emit('locate-context')"
         >
@@ -661,7 +665,7 @@ onUnmounted(stopLinkProximity)
         </button>
         <button
           type="button"
-          class="context-remove"
+          class="context-remove react-press"
           aria-label="Убрать контекст ответа"
           @click="clearContext"
         >
@@ -722,7 +726,7 @@ onUnmounted(stopLinkProximity)
       <span class="dock-sage" :class="{ 'dock-sage--on': sage }">
         <button
           type="button"
-          class="dock-sage__relay"
+          class="dock-sage__relay react-press"
           role="switch"
           :aria-checked="sage"
           aria-label="Тихий сигнал (SAGE)"
@@ -746,7 +750,10 @@ onUnmounted(stopLinkProximity)
         </span>
       </span>
       <span class="signal-dock__identity" aria-hidden="true">
-        <span class="signal-dock__dot" :class="{ 'signal-dock__dot--live': expanded }"></span>
+        <span
+          class="signal-dock__dot"
+          :class="{ 'signal-dock__dot--live': expanded }"
+        ></span>
         {{ identityDisplay }}
         <span class="signal-dock__thread">/#{{ threadId }}</span>
       </span>
@@ -766,7 +773,7 @@ onUnmounted(stopLinkProximity)
         <template #corner>
           <button
             type="button"
-            class="dock-preview-toggle"
+            class="dock-preview-toggle react-press"
             :class="{ 'dock-preview-toggle--on': previewOpen }"
             :aria-pressed="previewOpen"
             aria-label="Предпросмотр сообщения"
@@ -790,7 +797,11 @@ onUnmounted(stopLinkProximity)
     </div>
 
     <!-- expanding stack: context node, cargo rail, notices, preview -->
-    <div v-if="previewOpen && body.length > 0" class="dock-preview" data-testid="dock-preview">
+    <div
+      v-if="previewOpen && body.length > 0"
+      class="dock-preview"
+      data-testid="dock-preview"
+    >
       <span class="dock-preview__kicker">предпросмотр сигнала</span>
       <div class="dock-preview__body">
         <template v-for="(token, i) in previewTokens" :key="i">
@@ -799,7 +810,8 @@ onUnmounted(stopLinkProximity)
         </template>
       </div>
       <span class="dock-preview__meta">
-        {{ sage ? 'тихий сигнал (sage)' : 'обычный ответ' }} · вложений: {{ files.length }}
+        {{ sage ? 'тихий сигнал (sage)' : 'обычный ответ' }} · вложений:
+        {{ files.length }}
       </span>
     </div>
 
@@ -811,7 +823,7 @@ onUnmounted(stopLinkProximity)
     <div class="signal-dock__rail">
       <button
         type="button"
-        class="dock-lens"
+        class="dock-lens react-press"
         aria-label="Команды (⌘K)"
         data-testid="dock-lens"
         @click="openLens()"
@@ -881,9 +893,10 @@ onUnmounted(stopLinkProximity)
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-3) var(--space-4)
+    calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   /* the sheet only ever changes its rule colour — no travel, no shadow */
-  transition: border-color 220ms var(--ease-out-quart);
+  transition: border-color var(--motion-hover);
 }
 
 /* ── the SHEET (P3-T1c) ───────────────────────────────────────────────────
@@ -931,7 +944,7 @@ onUnmounted(stopLinkProximity)
     var(--link-accent, var(--accent)) 86%,
     transparent 100%
   );
-  transition: opacity 260ms var(--ease-out-quart);
+  transition: opacity var(--motion-hover);
 }
 
 .signal-dock--linked .signal-dock__edge {
@@ -984,7 +997,8 @@ onUnmounted(stopLinkProximity)
   background: radial-gradient(closest-side, var(--accent), transparent);
 }
 
-/* expanding stack — morphs upward, no dropdown arrow, no v-if accordion */
+/* expanding stack — morphs upward, no dropdown arrow, no v-if accordion.
+   Лист разворачивается характером «появления»: медленно и с уверенным финалом. */
 .signal-dock__stack {
   display: flex;
   flex-direction: column;
@@ -993,8 +1007,8 @@ onUnmounted(stopLinkProximity)
   opacity: 0;
   overflow: hidden;
   transition:
-    max-height 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 220ms var(--ease-out-quart);
+    max-height var(--motion-reveal) var(--ease-entrance),
+    opacity var(--motion-reveal) var(--ease-entrance);
 }
 
 .signal-dock--active .signal-dock__stack {
@@ -1073,6 +1087,7 @@ onUnmounted(stopLinkProximity)
   font-family: var(--font-display);
   font-size: 0.74rem;
   letter-spacing: 0.04em;
+  transition: color var(--motion-hover);
 }
 
 .context-node__glyph {
@@ -1088,6 +1103,10 @@ onUnmounted(stopLinkProximity)
   border-radius: 50%;
   display: grid;
   place-items: center;
+  transition:
+    color var(--motion-hover),
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .context-remove:hover {
@@ -1100,6 +1119,17 @@ onUnmounted(stopLinkProximity)
   align-items: flex-start;
   gap: var(--space-3);
   min-height: 34px;
+}
+
+/* Кромка набора: поле отвечает тихо — волосяная линия под строкой, без
+   свечения и без масштаба. Поле живёт в дочернем компоненте, поэтому
+   достаём его через :deep. */
+.signal-dock :deep(.signal-surface__input) {
+  transition: box-shadow var(--motion-hover);
+}
+
+.signal-dock--active :deep(.signal-surface__input) {
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--accent) 40%, transparent);
 }
 
 .signal-dock__identity {
@@ -1120,7 +1150,10 @@ onUnmounted(stopLinkProximity)
   height: 7px;
   border-radius: 50%;
   border: 1px solid var(--ink-tertiary);
-  transition: all 220ms var(--ease-out-quart);
+  /* Точка зажигается — только цвет и кромка, никакой «мусорки» переходов. */
+  transition:
+    background-color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .signal-dock__dot--live {
@@ -1180,7 +1213,12 @@ onUnmounted(stopLinkProximity)
   background: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 200ms var(--ease-out-quart);
+  /* Реле вдавливается под пальцем, а не пружинит: тайминги перечислены
+     явно, потому что `transition` не складывается. */
+  transition:
+    border-color var(--motion-hover),
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .dock-sage__relay:focus-visible {
@@ -1211,9 +1249,9 @@ onUnmounted(stopLinkProximity)
   background: var(--ink-tertiary);
   opacity: 0.55;
   transition:
-    background 220ms var(--ease-out-quart),
-    height 220ms var(--ease-out-quart),
-    opacity 220ms var(--ease-out-quart);
+    background var(--motion-hover),
+    height var(--motion-hover),
+    opacity var(--motion-hover);
 }
 
 /* the lever: rests in the left half of the scale, throws right when armed */
@@ -1226,9 +1264,9 @@ onUnmounted(stopLinkProximity)
   background: var(--paper-raised);
   transform: translateX(0);
   transition:
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 220ms var(--ease-out-quart),
-    box-shadow 260ms var(--ease-out-quart);
+    transform var(--motion-hover-duration) var(--ease-emphasized),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .dock-sage--on .dock-sage__lever {
@@ -1259,8 +1297,10 @@ onUnmounted(stopLinkProximity)
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
-    color 180ms var(--ease-out-quart),
-    background 180ms var(--ease-out-quart);
+    color var(--motion-hover),
+    background-color var(--motion-hover),
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .dock-preview-toggle:hover {
@@ -1302,9 +1342,10 @@ onUnmounted(stopLinkProximity)
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
   transition:
-    color 180ms var(--ease-out-quart),
-    border-color 180ms var(--ease-out-quart),
-    transform 180ms var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover),
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .dock-lens:hover,
@@ -1320,11 +1361,8 @@ onUnmounted(stopLinkProximity)
     0 0 0 3px var(--accent);
 }
 
-.dock-lens:active {
-  transform: scale(0.94);
-}
-
-/* three concentric rings opening outward: the diaphragm */
+/* three concentric rings: the diaphragm. Кольца не растут и не сжимаются —
+   они просто проявляются, когда узел оживает. Никакого масштаба. */
 .dock-lens__iris,
 .dock-lens__iris::before,
 .dock-lens__iris::after {
@@ -1333,42 +1371,34 @@ onUnmounted(stopLinkProximity)
   border-radius: 50%;
   border: 1px solid var(--accent);
   opacity: 0;
-  transition:
-    transform 320ms var(--ease-out-quart),
-    opacity 320ms var(--ease-out-quart);
+  transition: opacity var(--motion-hover);
 }
 
 .dock-lens__iris {
   inset: -1px;
-  transform: scale(0.72);
 }
 
 .dock-lens__iris::before {
   inset: -5px;
-  transform: scale(0.6);
 }
 
 .dock-lens__iris::after {
   inset: -10px;
-  transform: scale(0.46);
 }
 
 .dock-lens:hover .dock-lens__iris,
 .dock-lens:focus-visible .dock-lens__iris {
   opacity: 0.6;
-  transform: scale(1);
 }
 
 .dock-lens:hover .dock-lens__iris::before,
 .dock-lens:focus-visible .dock-lens__iris::before {
   opacity: 0.34;
-  transform: scale(1);
 }
 
 .dock-lens:hover .dock-lens__iris::after,
 .dock-lens:focus-visible .dock-lens__iris::after {
   opacity: 0.16;
-  transform: scale(1);
 }
 
 .signal-dock__hint {
@@ -1420,10 +1450,12 @@ onUnmounted(stopLinkProximity)
   margin-right: 4px;
 }
 
-/* transitions */
-.notice-enter-active,
+/* transitions: появление — характером «появления», уход — в тень */
+.notice-enter-active {
+  transition: opacity var(--motion-reveal);
+}
 .notice-leave-active {
-  transition: opacity 180ms var(--ease-out-quart);
+  transition: opacity var(--motion-hover-duration) var(--ease-exit);
 }
 .notice-enter-from,
 .notice-leave-to {
@@ -1464,17 +1496,11 @@ onUnmounted(stopLinkProximity)
   .dock-lens,
   .dock-lens__iris,
   .dock-lens__iris::before,
-  .dock-lens__iris::after {
+  .dock-lens__iris::after,
+  .context-node,
+  .context-remove {
     transition: none;
     animation: none;
-  }
-
-  /* the diaphragm holds its full size instead of breathing out; hover still
-     lights it, just without the travel */
-  .dock-lens__iris,
-  .dock-lens__iris::before,
-  .dock-lens__iris::after {
-    transform: scale(1);
   }
 }
 </style>

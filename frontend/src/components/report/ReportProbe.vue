@@ -5,6 +5,7 @@ import type { ReportReason } from '@/types'
 import type { TransmitError } from '@/api/errors'
 import { useDraft } from '@/composables/useDraft'
 import { gsap } from '@/composables/useGsap'
+import { usePointerLight } from '@/composables/useMotion'
 import ReasonConstellation from './ReasonConstellation.vue'
 import DraftBeacon from '../composer/DraftBeacon.vue'
 import SignalSurface from '../composer/SignalSurface.vue'
@@ -77,6 +78,15 @@ const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
 const bodyRef = ref<HTMLElement | null>(null)
 const anchorRef = ref<HTMLElement | null>(null)
 const flightRef = ref<HTMLElement | null>(null)
+
+/**
+ * The chosen reason catches the light.
+ *
+ * One small node, one listener: the ring of the picked reason takes a soft
+ * highlight that follows the cursor — the paper answers where the finger
+ * is. Everything else in the probe stays still.
+ */
+usePointerLight(anchorRef, { radius: 90 })
 
 interface Flight {
   glyph: NetworkIconName
@@ -360,7 +370,7 @@ function onKeydown(e: KeyboardEvent) {
           <!-- the anchor is the very node that was chosen, not a new circle:
                the same 34px reason ring, in the place the flight lands -->
           <div class="probe-anchor">
-            <span ref="anchorRef" class="probe-anchor__node">
+            <span ref="anchorRef" class="probe-anchor__node react-edge">
               <NetworkIcon
                 v-if="reasonMeta"
                 :name="reasonMeta.glyph"
@@ -368,7 +378,9 @@ function onKeydown(e: KeyboardEvent) {
                 :stroke-width="1.6"
               />
             </span>
-            <span v-if="reasonMeta" class="probe-anchor__label">{{
+            <!-- the chosen reason keeps its ink line: the accent stays where
+                 the pen was, without a flash or a jump -->
+            <span v-if="reasonMeta" class="probe-anchor__label react-ink">{{
               reasonMeta.label
             }}</span>
             <button
@@ -447,7 +459,7 @@ function onKeydown(e: KeyboardEvent) {
 
 /* the probe opens as a node arriving at the post, not a box dropping in */
 .probe-shell {
-  animation: probe-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: probe-in var(--motion-reveal) var(--ease-entrance);
 }
 
 @keyframes probe-in {
@@ -492,6 +504,10 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: 50%;
   display: grid;
   place-items: center;
+  /* тихая реакция: цвет и подложка, без «вспышки» */
+  transition:
+    color var(--motion-hover),
+    background-color var(--motion-hover);
 }
 
 .probe-head__close:hover {
@@ -554,18 +570,14 @@ function onKeydown(e: KeyboardEvent) {
   align-items: center;
   gap: var(--space-3);
   opacity: 0;
-  transform: scale(0.94);
-  /* it grows out of the ring's own centre, where the flight lands */
-  transform-origin: 17px center;
-  transition:
-    opacity 220ms var(--ease-out-quart),
-    transform 220ms var(--ease-out-quart);
+  /* Только прозрачность: кольцо уже прилетело в эту точку, увеличивать
+     или подпрыгивать здесь нечего — узел просто проявляется. */
+  transition: opacity var(--motion-hover);
 }
 
 .probe-body.is-stage-2.is-landed .probe-anchor,
 .probe-body.is-quiet .probe-anchor {
   opacity: 1;
-  transform: none;
 }
 
 .probe-body.is-quiet .probe-anchor {
@@ -583,12 +595,22 @@ function onKeydown(e: KeyboardEvent) {
   color: var(--accent);
   background: var(--paper);
   flex-shrink: 0;
+  /* the light of the cursor stays inside the ring — it is a highlight on
+     the paper, not a lamp behind it */
+  overflow: hidden;
 }
 
 .probe-anchor__label {
+  display: inline-block;
   font-family: var(--font-body);
   font-size: 0.78rem;
   color: var(--ink);
+}
+
+/* the chosen reason keeps its ink line — the accent stays where the pen
+   was, and it does not flash or jump when it appears */
+.probe-anchor__label.react-ink::after {
+  transform: scaleX(1);
 }
 
 .probe-anchor__change {
@@ -601,6 +623,8 @@ function onKeydown(e: KeyboardEvent) {
   color: var(--ink-tertiary);
   text-decoration: underline;
   text-underline-offset: 3px;
+  /* тихая реакция: только цвет чернил */
+  transition: color var(--motion-hover);
 }
 
 .probe-anchor__change:hover {
@@ -660,7 +684,9 @@ function onKeydown(e: KeyboardEvent) {
     animation: none;
   }
 
-  .probe-anchor {
+  .probe-anchor,
+  .probe-anchor__change,
+  .probe-head__close {
     transition: none;
   }
 }

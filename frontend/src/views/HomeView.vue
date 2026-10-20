@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import NetworkCore from '@/components/three/NetworkCore.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
 import BoardCard3D from '@/components/ui/BoardCard3D.vue'
+import KineticText from '@/components/ui/KineticText.vue'
 import TelemetryRail from '@/components/home/TelemetryRail.vue'
 import MentionsBeacon from '@/components/home/MentionsBeacon.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
@@ -14,6 +15,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+import { usePointerLight, usePress } from '@/composables/useMotion'
 import { captureMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
 import { gsap, prefersReducedMotion } from '@/composables/useGsap'
@@ -23,6 +25,14 @@ const { sounds } = useSound()
 const sectionRef = ref<HTMLElement | null>(null)
 const recentRef = ref<HTMLElement | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
+const ctaRef = ref<HTMLElement | null>(null)
+
+// Реактивное освещение — единственная «герой»-поверхность страницы:
+// свет идёт за курсором по бумаге, а сама кнопка не смещается и не растёт.
+usePointerLight(ctaRef, { radius: 120 })
+// Нажатие ловится явно, а не только через `:active`: так «впитывание
+// чернил» одинаково читается и с мыши, и с клавиатуры.
+usePress(ctaRef)
 
 useScrollReveal(sectionRef, '.board-card-3d')
 useScrollReveal(recentRef, '.thread-row')
@@ -64,7 +74,13 @@ function openRecent(event: MouseEvent, threadId: number) {
     <div ref="overlayRef" class="overlay">
       <div class="overlay-content">
         <div class="overlay-header">
-          <p class="overlay-kicker">BMSTUD Network · МГТУ им. Н. Э. Баумана</p>
+          <KineticText
+            as="p"
+            class="overlay-kicker"
+            text="BMSTUD Network · МГТУ им. Н. Э. Баумана"
+            mode="words"
+            :delay="0.35"
+          />
           <div class="overlay-meta">
             <span class="meta-item">
               <span class="meta-label">Узлы</span>
@@ -78,7 +94,12 @@ function openRecent(event: MouseEvent, threadId: number) {
           </div>
         </div>
 
-        <button type="button" class="overlay-cta" @click="enterNetwork">
+        <button
+          ref="ctaRef"
+          type="button"
+          class="overlay-cta react-lift react-press react-edge"
+          @click="enterNetwork"
+        >
           <span class="cta-text">Войти в сеть</span>
           <span class="cta-arrow" aria-hidden="true">↓</span>
         </button>
@@ -198,9 +219,13 @@ function openRecent(event: MouseEvent, threadId: number) {
 
 .overlay-kicker {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 500;
+}
+
+/* KineticText сбрасывает шрифт своего корня на `inherit`, поэтому типографику
+   кикера задаём с запасом по специфичности — иначе победило бы внутреннее
+   правило компонента и подпись поехала бы на размер основного текста. */
+.overlay-header .overlay-kicker {
+  font: 500 0.875rem var(--font-body);
   color: var(--ink-secondary);
   letter-spacing: 0.02em;
   text-shadow: 0 2px 20px rgba(242, 237, 224, 0.8);
@@ -243,6 +268,9 @@ function openRecent(event: MouseEvent, threadId: number) {
   background: var(--rule);
 }
 
+/* Кнопка — лист бумаги: она отзывается на свет и на палец, но не прыгает.
+   Тайминги и состояния приходят из material.css, поэтому локальных
+   `transition` и hover-сдвигов здесь больше нет. */
 .overlay-cta {
   display: inline-flex;
   align-items: center;
@@ -258,17 +286,19 @@ function openRecent(event: MouseEvent, threadId: number) {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition:
-    background var(--duration-normal) var(--ease-out),
-    border-color var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
   text-shadow: 0 1px 2px rgba(242, 237, 224, 0.5);
 }
 
-.overlay-cta:hover {
-  background: rgba(242, 237, 224, 0.95);
+/* Кромка кнопки — печатный акцент, общий «подъём листа» её бы погасил.
+   Поэтому на наведении темнеет сам акцент, а реакция идёт светом и тенью. */
+.overlay-cta.react-lift:hover,
+.overlay-cta.react-lift:focus-visible {
   border-color: var(--accent-hover);
-  transform: translateY(-2px);
+}
+
+/* То же для нажатия: акцент остаётся акцентом, вмятина — в тени. */
+.overlay-cta.react-press:active {
+  border-color: var(--accent-hover);
 }
 
 .overlay-cta:focus-visible {
@@ -277,12 +307,14 @@ function openRecent(event: MouseEvent, threadId: number) {
 }
 
 .cta-arrow {
-  transition: transform var(--duration-normal) var(--ease-out);
   font-size: 1.2rem;
+  transition: transform var(--motion-hover);
 }
 
+/* Стрелка намекает направление, но не прыгает: смещение в пределах двух
+   пикселей — ровно столько, сколько допускает «редакционный» закон. */
 .overlay-cta:hover .cta-arrow {
-  transform: translateY(4px);
+  transform: translateY(2px);
 }
 
 .content-layer {
@@ -380,6 +412,15 @@ function openRecent(event: MouseEvent, threadId: number) {
   .overlay-cta,
   .cta-arrow {
     transition: none;
+  }
+}
+
+/* Нажатие «впиталось»: usePress ставит data-pressed, поэтому вмятина
+   одинаково читается и с мыши, и с клавиатуры — у `:active` с клавиатуры
+   нет. */
+@media (prefers-reduced-motion: no-preference) {
+  .overlay-cta[data-pressed='true'] {
+    transform: translateY(var(--material-press-delta));
   }
 }
 </style>

@@ -769,9 +769,10 @@ onMounted(check)
   font-size: 0.85rem;
   min-height: 44px;
   padding: 0 var(--space-3);
+  /* фокус — единственная реакция поля: кромка и мягкий ореол */
   transition:
-    border-color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .login__field input:focus-visible {
@@ -798,8 +799,8 @@ onMounted(check)
   letter-spacing: 0.16em;
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    background-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .login__submit:hover {
@@ -835,9 +836,10 @@ onMounted(check)
   font-size: 0.62rem;
   letter-spacing: 0.1em;
   cursor: pointer;
+  /* тихая реакция: цвет и кромка */
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .queue__refresh:hover,
@@ -868,7 +870,9 @@ onMounted(check)
   padding: var(--space-3) var(--space-4);
   border-left: 2px solid var(--border-medium);
   border-top: 1px solid var(--border-subtle);
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  /* Длинная очередь: только тихая реакция наведения — подложка.
+     Никаких трансформаций по строкам. */
+  transition: background-color var(--motion-hover);
 }
 
 .report:first-of-type {
@@ -998,9 +1002,10 @@ onMounted(check)
   color: var(--text-secondary);
   font-size: 0.74rem;
   cursor: pointer;
+  /* тихая реакция: цвет и кромка */
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .report__btn:hover:not(:disabled) {
@@ -1183,8 +1188,8 @@ onMounted(check)
   letter-spacing: 0.1em;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .journal__refresh:hover {
@@ -1231,7 +1236,8 @@ onMounted(check)
   font-variant-numeric: tabular-nums;
   border-left: 2px solid transparent;
   border-bottom: 1px dashed var(--border-subtle);
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  /* журнал — длинный список: только подложка при наведении */
+  transition: background-color var(--motion-hover);
 }
 
 .journal__row:last-child {
@@ -1308,8 +1314,8 @@ onMounted(check)
   letter-spacing: 0.08em;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    background-color var(--motion-hover);
 }
 
 .tools__seg--active {
@@ -1330,8 +1336,8 @@ onMounted(check)
   outline: none;
   font-variant-numeric: tabular-nums;
   transition:
-    border-color var(--duration-fast) var(--ease-out-quart),
-    box-shadow var(--duration-fast) var(--ease-out-quart);
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .tools__id:focus-visible {
@@ -1354,8 +1360,8 @@ onMounted(check)
   letter-spacing: 0.06em;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .tools__btn:hover {

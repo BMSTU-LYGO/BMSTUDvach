@@ -69,8 +69,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <h3>Что это</h3>
           <p>
             BMSTUDvach — анонимный форум МГТУ им. Н. Э. Баумана, собранный как
-            инженерная сеть: доски — узлы, треды — каналы, ответы — сигналы.
-            Быстрые треды, вложения, жалобы и модерация — без аккаунтов.
+            инженерная сеть: доски — узлы, треды — каналы, ответы — сигналы. Быстрые
+            треды, вложения, жалобы и модерация — без аккаунтов.
           </p>
         </div>
       </DepthCard>
@@ -80,8 +80,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <h3>Анонимность</h3>
           <p>
             Каждый автор — «Аноним». Личности не хранятся; технический отпечаток
-            используется только для защиты от спама и троттлинга. Анонимность —
-            не бесконтрольность: жалобы ведут в модерацию.
+            используется только для защиты от спама и троттлинга. Анонимность — не
+            бесконтрольность: жалобы ведут в модерацию.
           </p>
         </div>
       </DepthCard>
@@ -90,9 +90,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <div class="about-card-inner">
           <h3>Платины</h3>
           <p>
-            Отдельный архив переработанных историй в тематике вуза: генератор
-            хранит исходник и результат раздельно, публикация — после проверки.
-            Читается в <RouterLink to="/platinum">/platinum/</RouterLink>.
+            Отдельный архив переработанных историй в тематике вуза: генератор хранит
+            исходник и результат раздельно, публикация — после проверки. Читается в
+            <RouterLink to="/platinum">/platinum/</RouterLink>.
           </p>
         </div>
       </DepthCard>
@@ -117,9 +117,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <div class="about-card-inner">
           <h3>Приватность и данные</h3>
           <p>
-            Форум анонимный, поэтому все ваши следы живут только в этом браузере,
-            в localStorage. Никакого профиля на сервере нет: удалить их — значит
-            удалить с устройства.
+            Форум анонимный, поэтому все ваши следы живут только в этом браузере, в
+            localStorage. Никакого профиля на сервере нет: удалить их — значит удалить с
+            устройства.
           </p>
           <p class="privacy-hint">
             Что хранится: личности и трипкоды (<code>bmstud-identity</code>,
@@ -128,9 +128,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             (<code>bmstud-thread-seen</code>, <code>bmstud-thread-position</code>),
             список отслеживаемых тредов (<code>bmstudvach-watchlist</code>), режим доски
             и порядок сортировки (<code>board-view-mode</code>,
-            <code>board-thread-order</code>), черновики постов
-            (<code>draft:*</code>) и настройки интерфейса — звук, скан-линии,
-            качество 3D (<code>bmstudvach-sound</code>, <code>bmstudvach-crt</code>,
+            <code>board-thread-order</code>), черновики постов (<code>draft:*</code>) и
+            настройки интерфейса — звук, скан-линии, качество 3D
+            (<code>bmstudvach-sound</code>, <code>bmstudvach-crt</code>,
             <code>bmstudvach-3d</code>).
           </p>
           <p class="privacy-hint">
@@ -276,14 +276,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-md);
   cursor: pointer;
+  /* только семантические роли: наведение — hover, нажатие — press */
   transition:
-    background var(--duration-fast) var(--ease-out-quart),
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    background-color var(--motion-hover),
+    color var(--motion-hover),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-press),
+    transform var(--motion-press);
 }
 
 .privacy-button:hover {
   background: var(--accent-glow-strong);
+}
+
+/* Нажатие: чернила впитались — лист уходит в тень на пиксель, без
+   масштаба и без «вспышки». */
+.privacy-button:active {
+  box-shadow: var(--material-shadow-press);
+  transform: translateY(var(--material-press-delta));
 }
 
 .privacy-button:focus-visible {
@@ -318,6 +328,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 @media (prefers-reduced-motion: reduce) {
   .privacy-button {
     transition: none;
+  }
+
+  .privacy-button:active {
+    transform: none;
   }
 }
 </style>

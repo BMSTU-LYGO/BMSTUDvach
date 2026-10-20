@@ -409,9 +409,10 @@ function barTitle(point: TelemetryActivityPoint): string {
   font-size: 0.66rem;
   letter-spacing: 0.1em;
   cursor: pointer;
+  /* тихая реакция прибора: цвет и подложка переключателя */
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    background-color var(--motion-hover);
 }
 
 .toggle__btn:hover {
@@ -421,6 +422,11 @@ function barTitle(point: TelemetryActivityPoint): string {
 .toggle__btn--active {
   color: var(--accent);
   background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+/* Нажатие: переключатель уходит в бумагу на пиксель — без масштаба. */
+.toggle__btn:active {
+  transform: translateY(var(--material-press-delta));
 }
 
 .toggle__btn:focus-visible {
@@ -481,7 +487,11 @@ function barTitle(point: TelemetryActivityPoint): string {
   width: 100%;
   min-height: 0;
   background: var(--accent);
-  transition: height var(--duration-normal) var(--ease-out-quart);
+  /* столбик растёт, когда приходят показания — это появление данных,
+     а не реакция на курсор */
+  transition:
+    height var(--motion-reveal),
+    background-color var(--motion-hover);
 }
 
 .chart__bar--posts {
@@ -492,8 +502,14 @@ function barTitle(point: TelemetryActivityPoint): string {
   background: var(--accent-dim);
 }
 
-.chart__col:hover .chart__bar {
-  filter: brightness(1.2);
+/* Наведение на столбик — тихая реакция чернил: столбик темнеет.
+   Никакой фильтрации и пересчёта кадра — прибор не мигает. */
+.chart__col:hover .chart__bar--posts {
+  background: var(--accent-hover);
+}
+
+.chart__col:hover .chart__bar--threads {
+  background: var(--accent);
 }
 
 .chart__label {
@@ -510,6 +526,10 @@ function barTitle(point: TelemetryActivityPoint): string {
   .chart__bar,
   .toggle__btn {
     transition: none;
+  }
+
+  .toggle__btn:active {
+    transform: none;
   }
 }
 </style>

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { listBoards } from '@/api/boards'
 import { searchNetwork, type SearchPostHit, type SearchResults } from '@/api/search'
 import type { Board, ThreadSummary } from '@/types'
+import { usePointerLight } from '@/composables/useMotion'
 import NetworkIcon from '../composer/NetworkIcon.vue'
 import ScanHighlight from './ScanHighlight.vue'
 
@@ -14,6 +15,10 @@ import ScanHighlight from './ScanHighlight.vue'
  * Styled as a diagnostic scanner, not a modal: one input, results as
  * signal rows, keyboard-first. Yields to the Signal Dock's own Command
  * Lens when focus lives inside the dock or any field.
+ *
+ * The reaction of the lens is the reaction of an instrument: a soft light
+ * slides along its frame where the cursor is, and the picked row answers
+ * with an edge. Nothing blinks, nothing grows.
  */
 
 const router = useRouter()
@@ -31,6 +36,11 @@ const boards = ref<Board[]>([])
 const inputRef = ref<HTMLInputElement | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 const chipsRef = ref<HTMLElement | null>(null)
+const lensRef = ref<HTMLElement | null>(null)
+
+// The frame of the instrument catches the light of the cursor — one node,
+// one listener. The rows themselves stay quiet.
+usePointerLight(lensRef, { radius: 260 })
 
 interface Row {
   kind: 'thread' | 'post'
@@ -62,7 +72,9 @@ const rows = computed<Row[]>(() => {
 })
 
 const hasQuery = computed(() => query.value.trim().length > 0)
-const empty = computed(() => hasQuery.value && !loading.value && rows.value.length === 0)
+const empty = computed(
+  () => hasQuery.value && !loading.value && rows.value.length === 0,
+)
 const errored = computed(() => empty.value && failed.value)
 
 // Russian plurals: 1 сигнал, 2 сигнала, 5 сигналов.
@@ -74,7 +86,9 @@ function plural(n: number, one: string, few: string, many: string): string {
   return many
 }
 
-const countLabel = computed(() => plural(rows.value.length, 'сигнал', 'сигнала', 'сигналов'))
+const countLabel = computed(() =>
+  plural(rows.value.length, 'сигнал', 'сигнала', 'сигналов'),
+)
 
 // One polite sentence for assistive tech: the lens is keyboard-first,
 // but its state must not be visible-only.
@@ -217,7 +231,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 <template>
   <div v-if="open" class="scan-backdrop" @click="onBackdropClick">
-    <div class="scan" role="dialog" aria-label="Поиск по сети" data-testid="scan-lens">
+    <div
+      ref="lensRef"
+      class="scan react-edge"
+      role="dialog"
+      aria-label="Поиск по сети"
+      data-testid="scan-lens"
+    >
       <header class="scan__head">
         <span class="scan__kicker">поиск</span>
         <input
@@ -280,7 +300,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
       <div v-if="rows.length" ref="listRef" class="scan__results" role="listbox">
         <template v-for="(row, i) in rows" :key="`${row.kind}-${row.id}`">
           <div v-if="i === 0" class="scan__section" aria-hidden="true">треды</div>
-          <div v-else-if="i === results.threads.length" class="scan__section" aria-hidden="true">
+          <div
+            v-else-if="i === results.threads.length"
+            class="scan__section"
+            aria-hidden="true"
+          >
             посты
           </div>
           <button
@@ -312,7 +336,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
       </div>
 
       <div v-else class="scan__panels">
-        <p v-if="errored" class="scan__notice scan__notice--error" data-testid="scan-error">
+        <p
+          v-if="errored"
+          class="scan__notice scan__notice--error"
+          data-testid="scan-error"
+        >
           <span class="scan__notice-mark" aria-hidden="true"></span>
           <span class="scan__notice-text">скан прерван — сеть не ответила</span>
           <span class="scan__notice-hint">проверьте соединение и повторите запрос</span>
@@ -320,10 +348,14 @@ function onGlobalKeydown(e: KeyboardEvent) {
         <p v-else-if="empty" class="scan__notice" data-testid="scan-empty">
           <span class="scan__notice-mark" aria-hidden="true"></span>
           <span class="scan__notice-text">сеть молчит — сигнал не найден</span>
-          <span class="scan__notice-hint">смягчите запрос или выберите другой раздел</span>
+          <span class="scan__notice-hint"
+            >смягчите запрос или выберите другой раздел</span
+          >
         </p>
         <div v-else-if="!hasQuery" class="scan__hint">
-          <p class="scan__hint-title">линза готова — заголовки и посты подсканируют сразу</p>
+          <p class="scan__hint-title">
+            линза готова — заголовки и посты подсканируют сразу
+          </p>
           <dl class="scan__hint-keys">
             <div class="scan__hint-row">
               <dt><kbd>⌘K</kbd></dt>
@@ -375,7 +407,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   padding: var(--space-6) var(--space-4);
-  animation: scan-fade 160ms var(--ease-out-quart);
+  animation: scan-fade var(--motion-hover);
 }
 
 @keyframes scan-fade {
@@ -396,9 +428,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: scan-in 160ms var(--ease-out-expo);
+  /* the lens answers at once — it is an instrument, not a scene change */
+  animation: scan-in var(--motion-hover) var(--ease-emphasized);
 }
-
 
 @keyframes scan-in {
   from {
@@ -453,7 +485,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
   border: 1.5px solid var(--rule);
   border-top-color: var(--accent);
   flex-shrink: 0;
-  animation: scan-spin 700ms linear infinite;
+  /* the instrument works: the ring turns while the scan runs */
+  animation: scan-spin var(--motion-cinematic-duration) linear infinite;
 }
 
 @keyframes scan-spin {
@@ -472,9 +505,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  /* тихая реакция: цвет и кромка, без «вспышки» */
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .scan__close:hover {
@@ -517,10 +551,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
   font-size: 0.64rem;
   white-space: nowrap;
   cursor: pointer;
+  /* тихая реакция прибора: цвет, подложка и кромка */
   transition:
-    color var(--duration-fast) var(--ease-out-quart),
-    background var(--duration-fast) var(--ease-out-quart),
-    border-color var(--duration-fast) var(--ease-out-quart);
+    color var(--motion-hover),
+    background-color var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .scan__chip::before {
@@ -529,7 +564,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   height: 4px;
   border-radius: 50%;
   background: var(--rule);
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  transition: background-color var(--motion-hover);
 }
 
 .scan__chip:hover {
@@ -596,7 +631,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  /* Длинный список — только тихая реакция наведения: подложка и кромка
+     выбранной строки. Никаких трансформаций по строкам. */
+  transition:
+    background-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .scan-row:hover {

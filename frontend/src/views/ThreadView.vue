@@ -12,7 +12,9 @@ import { useRoute } from 'vue-router'
 
 import GenerativeAvatar from '@/components/ui/GenerativeAvatar.vue'
 import SignalDock from '@/components/composer/SignalDock.vue'
-import ContextFiber, { type FiberLinkState } from '@/components/composer/ContextFiber.vue'
+import ContextFiber, {
+  type FiberLinkState,
+} from '@/components/composer/ContextFiber.vue'
 import ReportProbe from '@/components/report/ReportProbe.vue'
 import PostBody from '@/components/thread/PostBody.vue'
 import PostPreview from '@/components/thread/PostPreview.vue'
@@ -51,8 +53,11 @@ const { sounds } = useSound()
  * turned it into a `TransmitError` with a Russian `messageRu`.
  */
 const replyTx = useTransmit<NewPostInput>()
-const { submitting: posting, error: replyError, successToken: postSuccessToken } =
-  replyTx
+const {
+  submitting: posting,
+  error: replyError,
+  successToken: postSuccessToken,
+} = replyTx
 
 /** One report payload; `useTransmit` keeps it for «повторить». */
 interface ReportPayload {
@@ -452,9 +457,11 @@ function onScroll() {
          keeps the single-column flow it has always had. -->
     <div class="thread-body">
       <div class="thread-breadcrumb">
-        <RouterLink to="/" class="breadcrumb-link">Главная</RouterLink>
+        <RouterLink to="/" class="breadcrumb-link react-ink">Главная</RouterLink>
         <span class="breadcrumb-sep">/</span>
-        <span class="breadcrumb-current">{{ store.thread.thread?.board ?? '...' }}</span>
+        <span class="breadcrumb-current">{{
+          store.thread.thread?.board ?? '...'
+        }}</span>
       </div>
 
       <LoadingState v-if="store.thread.loading" />
@@ -468,7 +475,7 @@ function onScroll() {
           <h1 ref="titleRef" class="thread-title">{{ store.thread.thread.title }}</h1>
           <button
             type="button"
-            class="watch-toggle"
+            class="watch-toggle react-lift react-press"
             :class="{ 'watch-toggle--on': watched }"
             :aria-pressed="watched"
             :title="watched ? 'Узел отслеживается — снять' : 'Отслеживать этот узел'"
@@ -480,7 +487,7 @@ function onScroll() {
           </button>
           <button
             type="button"
-            class="thread-search-toggle"
+            class="thread-search-toggle react-lift react-press"
             aria-label="Найти в треде"
             title="Найти в треде (f)"
             data-testid="thread-search-toggle"
@@ -516,7 +523,7 @@ function onScroll() {
           >
           <button
             type="button"
-            class="thread-search__nav"
+            class="thread-search__nav react-lift react-lift--quiet react-press"
             aria-label="Предыдущее совпадение"
             :disabled="searchMatches.length === 0"
             data-testid="thread-search-prev"
@@ -536,7 +543,7 @@ function onScroll() {
           </button>
           <button
             type="button"
-            class="thread-search__close"
+            class="thread-search__close react-lift react-lift--quiet react-press"
             aria-label="Закрыть поиск"
             data-testid="thread-search-close"
             @click="closeThreadSearch"
@@ -606,7 +613,7 @@ function onScroll() {
                   </div>
                   <div class="post-actions">
                     <button
-                      class="btn-reply"
+                      class="btn-reply react-press"
                       :title="`Ответить на пост #${post.id}`"
                       :aria-label="`Ответить на пост #${post.id}`"
                       @click="handleReply(post.id, $event)"
@@ -615,7 +622,7 @@ function onScroll() {
                       <span class="btn-reply__label">Ответить</span>
                     </button>
                     <button
-                      class="btn-report"
+                      class="btn-report react-press"
                       :title="`Пожаловаться на пост #${post.id}`"
                       :aria-label="`Пожаловаться на пост #${post.id}`"
                       @click="openReport(post.id)"
@@ -643,7 +650,7 @@ function onScroll() {
                   <a
                     v-for="id in backlinks.get(post.id)!"
                     :key="id"
-                    class="post-link"
+                    class="post-link react-ink"
                     :href="`#post-${id}`"
                     @click.prevent="navigateToPost(id)"
                     >&gt;&gt;{{ id }}</a
@@ -721,7 +728,7 @@ function onScroll() {
   flex-direction: column;
   gap: var(--space-6);
   position: relative;
-  background: var(--paper, #F2EDE0);
+  background: var(--paper, #f2ede0);
   /* P3-T1c — the reply link is ONE system. The section owns the shared link
      tokens; the ContextFiber and the dock's leading edge both read them, so
      the line, the edge indicator and the marker always agree. */
@@ -749,26 +756,23 @@ function onScroll() {
   align-items: center;
   gap: var(--space-2);
   font-size: 0.875rem;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
 }
 
+/* Ссылка-хлебная крошка отвечает чернильным следом: реакция принадлежит
+   материальному слою, а не отдельному правилу наведения. */
 .breadcrumb-link {
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   text-decoration: none;
 }
 
-.breadcrumb-link:hover {
-  color: var(--accent, #2F4F4E);
-  text-decoration: underline;
-}
-
 .breadcrumb-sep {
-  color: var(--rule, #D4CEB8);
+  color: var(--rule, #d4ceb8);
 }
 
 .breadcrumb-current {
   font-family: var(--font-display, 'Cormorant Garamond', serif);
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .thread-title-row {
@@ -784,7 +788,7 @@ function onScroll() {
   font-weight: 600;
   line-height: 1.3;
   margin: 0;
-  color: var(--ink, #1C1A14);
+  color: var(--ink, #1c1a14);
 }
 
 .watch-toggle {
@@ -794,22 +798,12 @@ function onScroll() {
   min-height: 32px;
   padding: 0 var(--space-3);
   background: none;
-  border: 1px solid var(--rule, #D4CEB8);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 0.875rem;
   cursor: pointer;
-  transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms),
-    background var(--duration-fast, 150ms);
-}
-
-.watch-toggle:hover {
-  color: var(--ink, #1C1A14);
-  border-color: var(--ink-tertiary, #8A8273);
-  background: var(--paper-sunken, #F7F3E8);
 }
 
 .watch-toggle__dot {
@@ -819,13 +813,14 @@ function onScroll() {
   border: 1px solid currentColor;
 }
 
-.watch-toggle--on {
-  color: var(--accent, #2F4F4E);
-  border-color: var(--accent, #2F4F4E);
+/* Включённое состояние сильнее подъёма: кромка остаётся акцентной. */
+.thread-page .watch-toggle.watch-toggle--on {
+  color: var(--accent, #2f4f4e);
+  border-color: var(--accent, #2f4f4e);
 }
 
 .watch-toggle--on .watch-toggle__dot {
-  background: var(--accent, #2F4F4E);
+  background: var(--accent, #2f4f4e);
 }
 
 .thread-search-toggle {
@@ -834,26 +829,16 @@ function onScroll() {
   min-height: 44px;
   padding: 0 var(--space-4);
   background: none;
-  border: 1px solid var(--rule, #D4CEB8);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 0.875rem;
   cursor: pointer;
-  transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms),
-    background var(--duration-fast, 150ms);
-}
-
-.thread-search-toggle:hover {
-  color: var(--ink, #1C1A14);
-  border-color: var(--ink-tertiary, #8A8273);
-  background: var(--paper-sunken, #F7F3E8);
 }
 
 .thread-search-toggle:focus-visible {
-  outline: 2px solid var(--accent, #2F4F4E);
+  outline: 2px solid var(--accent, #2f4f4e);
   outline-offset: 2px;
 }
 
@@ -864,8 +849,8 @@ function onScroll() {
   width: 100%;
   max-width: 520px;
   padding: var(--space-2);
-  background: var(--paper-raised, #EAE4D4);
-  border: 1px solid var(--rule, #D4CEB8);
+  background: var(--paper-raised, #eae4d4);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
 }
 
@@ -874,18 +859,18 @@ function onScroll() {
   min-width: 0;
   min-height: 36px;
   padding: 0 var(--space-3);
-  background: var(--paper, #F2EDE0);
-  border: 1px solid var(--rule, #D4CEB8);
+  background: var(--paper, #f2ede0);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
-  color: var(--ink, #1C1A14);
+  color: var(--ink, #1c1a14);
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 0.9rem;
 }
 
 .thread-search__input:focus-visible {
-  outline: 2px solid var(--accent, #2F4F4E);
+  outline: 2px solid var(--accent, #2f4f4e);
   outline-offset: 1px;
-  border-color: var(--accent, #2F4F4E);
+  border-color: var(--accent, #2f4f4e);
 }
 
 .thread-search__count {
@@ -894,7 +879,7 @@ function onScroll() {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
 }
 
 .thread-search__nav,
@@ -906,23 +891,20 @@ function onScroll() {
   height: 32px;
   flex: none;
   background: none;
-  border: 1px solid var(--rule, #D4CEB8);
+  border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms),
-    background var(--duration-fast, 150ms);
+  /* Лист лежит на столе: тень постоянна, кромку ловит свет. */
+  box-shadow: var(--material-shadow-1);
 }
 
+/* Знак отвечает чернилами, кромку ловит материальный слой. */
 .thread-search__nav:hover:not(:disabled),
 .thread-search__close:hover {
-  color: var(--ink, #1C1A14);
-  border-color: var(--ink-tertiary, #8A8273);
-  background: var(--paper-sunken, #F7F3E8);
+  color: var(--ink, #1c1a14);
 }
 
 .thread-search__nav:disabled {
@@ -932,13 +914,13 @@ function onScroll() {
 
 .thread-search__nav:focus-visible,
 .thread-search__close:focus-visible {
-  outline: 2px solid var(--accent, #2F4F4E);
+  outline: 2px solid var(--accent, #2f4f4e);
   outline-offset: 2px;
 }
 
 .thread-locked {
   font-size: 0.875rem;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   margin: 0;
 }
 
@@ -949,34 +931,34 @@ function onScroll() {
 
 .posts--probing .post-item:not(.post-item--probe) {
   opacity: 0.45;
-  transition: opacity 220ms var(--ease-out-quart);
+  transition: opacity var(--motion-hover);
 }
 
 .post-item--probe {
-  background: var(--paper-sunken, #F7F3E8);
-  box-shadow: inset 2px 0 0 var(--accent, #2F4F4E);
+  background: var(--paper-sunken, #f7f3e8);
+  box-shadow: inset 2px 0 0 var(--accent, #2f4f4e);
 }
 
 .post-item {
   display: flex;
   gap: var(--space-4);
   padding: var(--space-4) 0;
-  transition:
-    background var(--duration-fast, 150ms) var(--ease-out-quart);
+  /* Длинный список постов живёт тихо: только цвет бумаги, никакого сдвига. */
+  transition: background var(--motion-hover);
 }
 
 /* hairline rule between posts — the last one stands alone */
 .post-item:not(:last-child) {
-  border-bottom: 1px solid var(--rule, #D4CEB8);
+  border-bottom: 1px solid var(--rule, #d4ceb8);
 }
 
 .post-item:hover {
-  background: var(--paper-sunken, #F7F3E8);
+  background: var(--paper-sunken, #f7f3e8);
 }
 
 .post-item.op {
-  background: var(--paper-sunken, #F7F3E8);
-  border-left: 2px solid var(--accent, #2F4F4E);
+  background: var(--paper-sunken, #f7f3e8);
+  border-left: 2px solid var(--accent, #2f4f4e);
 }
 
 .post-content {
@@ -1010,14 +992,14 @@ function onScroll() {
 
 .post-author {
   font-weight: 600;
-  color: var(--accent, #2F4F4E);
+  color: var(--accent, #2f4f4e);
   font-size: 0.875rem;
 }
 
 .post-tripcode {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.75rem;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .post-op-badge {
@@ -1029,27 +1011,29 @@ function onScroll() {
   padding: 2px 6px;
   border-radius: 2px;
   background: var(--amber, #d4882a);
-  color: #FFFDF7;
+  color: #fffdf7;
 }
 
 .post-id {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.875rem;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .post-sage {
   display: inline-flex;
   align-items: center;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
   opacity: 0.75;
 }
 
 .post-time {
   font-size: 0.75rem;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
+/* Кнопки поста: материальный слой (react-press) вдавливает их, а сами
+   кнопки только отвечают чернилами — без рамки-подложки и без роста. */
 .btn-reply {
   display: inline-flex;
   align-items: center;
@@ -1057,18 +1041,14 @@ function onScroll() {
   min-height: 24px;
   padding: 2px 6px;
   background: none;
-  border: 1px solid var(--rule, #D4CEB8);
-  color: var(--accent, #2F4F4E);
+  border: 1px solid var(--rule, #d4ceb8);
+  color: var(--accent, #2f4f4e);
   border-radius: 0;
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
   cursor: pointer;
-  transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms),
-    background var(--duration-fast, 150ms);
 }
 
 .btn-reply__label {
@@ -1076,15 +1056,14 @@ function onScroll() {
 }
 
 .btn-reply:hover {
-  color: var(--ink, #1C1A14);
-  border-color: var(--ink-tertiary, #8A8273);
-  background: var(--paper-sunken, #F7F3E8);
+  color: var(--ink, #1c1a14);
+  border-color: var(--ink-tertiary, #8a8273);
 }
 
 .btn-report {
   background: none;
-  border: 1px solid var(--rule, #D4CEB8);
-  color: var(--ink-tertiary, #8A8273);
+  border: 1px solid var(--rule, #d4ceb8);
+  color: var(--ink-tertiary, #8a8273);
   width: 24px;
   height: 24px;
   flex: none;
@@ -1093,16 +1072,12 @@ function onScroll() {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms),
-    background var(--duration-fast, 150ms);
 }
 
+/* Жалоба — опасное действие: кромка и знак отвечают опасным цветом. */
 .btn-report:hover {
-  color: var(--danger, #9C2A1F);
-  border-color: var(--danger, #9C2A1F);
-  background: var(--paper-sunken, #F7F3E8);
+  color: var(--danger, #9c2a1f);
+  border-color: var(--danger, #9c2a1f);
 }
 
 .post-item {
@@ -1110,22 +1085,22 @@ function onScroll() {
 }
 
 .post-item--linked {
-  background: var(--paper-sunken, #F7F3E8);
-  box-shadow: inset 2px 0 0 var(--accent, #2F4F4E);
+  background: var(--paper-sunken, #f7f3e8);
+  box-shadow: inset 2px 0 0 var(--accent, #2f4f4e);
   transition:
-    background 220ms var(--ease-out-quart),
-    box-shadow 220ms var(--ease-out-quart);
+    background var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .post-item--search-active {
-  background: var(--paper-sunken, #F7F3E8);
-  box-shadow: inset 2px 0 0 var(--accent, #2F4F4E);
+  background: var(--paper-sunken, #f7f3e8);
+  box-shadow: inset 2px 0 0 var(--accent, #2f4f4e);
 }
 
 .post-item--focused {
-  outline: 2px solid var(--accent, #2F4F4E);
+  outline: 2px solid var(--accent, #2f4f4e);
   outline-offset: -2px;
-  background: var(--paper-sunken, #F7F3E8);
+  background: var(--paper-sunken, #f7f3e8);
 }
 
 .post-backlinks {
@@ -1138,20 +1113,19 @@ function onScroll() {
 
 .post-backlinks__label {
   font-size: 0.875rem;
-  color: var(--ink-tertiary, #8A8273);
+  color: var(--ink-tertiary, #8a8273);
 }
 
 .post-backlinks .post-link {
-  color: var(--accent, #2F4F4E);
+  color: var(--accent, #2f4f4e);
   text-decoration: none;
-  border-bottom: 1px dotted var(--rule, #D4CEB8);
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 0.875rem;
+  transition: color var(--motion-hover);
 }
 
 .post-backlinks .post-link:hover {
   color: var(--accent-hover, #244140);
-  text-decoration: underline;
 }
 
 .thread-dock {
@@ -1196,7 +1170,7 @@ function onScroll() {
     grid-area: 1 / 2;
     min-width: 0;
     /* the reserved gutter reads as a column, not as a lucky gap */
-    border-left: 1px solid var(--rule, #D4CEB8);
+    border-left: 1px solid var(--rule, #d4ceb8);
   }
 
   .thread-dock {
@@ -1219,34 +1193,62 @@ function onScroll() {
 
 .thread-locked-hint {
   font-size: 0.875rem;
-  color: var(--ink-secondary, #5B5547);
+  color: var(--ink-secondary, #5b5547);
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--rule, #D4CEB8);
+  border: 1px dashed var(--rule, #d4ceb8);
   border-radius: 0;
   text-align: center;
 }
 
 .post-item--located {
-  background: var(--paper-sunken, #F7F3E8);
-  box-shadow: inset 2px 0 0 var(--accent, #2F4F4E);
+  background: var(--paper-sunken, #f7f3e8);
+  box-shadow: inset 2px 0 0 var(--accent, #2f4f4e);
 }
 
 .report-notice {
   font-size: 0.875rem;
-  color: var(--success, #2F4F4E);
+  color: var(--success, #2f4f4e);
   margin: 0;
 }
 
+/* Уведомление о жалобе: появляется характером «появления», уходит в тень. */
 .fade-enter-active {
-  transition: opacity 0.3s var(--ease-out-quart);
+  transition: opacity var(--motion-reveal);
 }
 .fade-leave-active {
-  transition: opacity 0.2s ease-in;
+  transition: opacity var(--motion-hover-duration) var(--ease-exit);
 }
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ── Тайминги кнопок треда ────────────────────────────────────────────────
+   Материальный слой задаёт СОСТОЯНИЯ (подъём, вмятина), а время перехода
+   перечислено здесь явно: `transition` не складывается, и без этого списка
+   одна из реакций потеряла бы свой характер. Селектор с `.thread-page`
+   нужен, чтобы правило не зависело от порядка подключения стилей. */
+.thread-page .watch-toggle,
+.thread-page .thread-search-toggle,
+.thread-page .thread-search__nav,
+.thread-page .thread-search__close,
+.thread-page .btn-reply,
+.thread-page .btn-report {
+  transition:
+    color var(--motion-hover),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover),
+    transform var(--motion-press);
+}
+
+/* Кромка кнопки ловит свет: материальное правило перебито базовой рамкой
+   компонента, поэтому реакция объявлена здесь явно — тем же токеном. */
+.thread-page .watch-toggle:hover,
+.thread-page .thread-search-toggle:hover,
+.thread-page .thread-search__nav:hover:not(:disabled),
+.thread-page .thread-search__close:hover {
+  border-color: var(--material-edge-lit);
 }
 
 @media (max-width: 640px) {
@@ -1264,9 +1266,12 @@ function onScroll() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thread-search-toggle,
-  .thread-search__nav,
-  .thread-search__close {
+  .thread-page .watch-toggle,
+  .thread-page .thread-search-toggle,
+  .thread-page .thread-search__nav,
+  .thread-page .thread-search__close,
+  .thread-page .btn-reply,
+  .thread-page .btn-report {
     transition: none;
   }
 }

@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { TransmitError } from '@/api/errors'
 import type { NewThreadInput } from '@/types'
 import { useDraft } from '@/composables/useDraft'
+import { useMagnetic } from '@/composables/useMotion'
 import SignalSurface from '../composer/SignalSurface.vue'
 import AttachmentRail from '../composer/AttachmentRail.vue'
 import DraftBeacon from '../composer/DraftBeacon.vue'
@@ -68,10 +69,23 @@ const titleRef = ref<HTMLInputElement | null>(null)
 const sceneTitleRef = ref<HTMLElement | null>(null)
 const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
 const railRef = ref<InstanceType<typeof AttachmentRail> | null>(null)
+/**
+ * The launch control itself — the only magnetic element in the app.
+ *
+ * The bay is the one place where the user aims at something and commits, so
+ * the LAUNCH node is allowed to lean towards the cursor. The pull is small
+ * (8px) and dies the moment the cursor leaves: a magnetic button that
+ * lunges is a toy, a magnetic button that leans is an instrument.
+ */
+const launchRef = ref<HTMLElement | null>(null)
 
-const { draft, hasDraft, hasRestoredFiles, status, savedAt, saveDraft, clearDraft } = useDraft(
-  `launch-${props.boardSlug}`,
-)
+// Магнит живёт только здесь: сила 8px, радиус 120px. Сам примитив уже
+// выключает себя при reduced-motion, на тач-устройствах и без тонкого
+// курсора — здесь ничего дублировать не нужно.
+useMagnetic(launchRef, { strength: 8, radius: 120 })
+
+const { draft, hasDraft, hasRestoredFiles, status, savedAt, saveDraft, clearDraft } =
+  useDraft(`launch-${props.boardSlug}`)
 
 const canSubmit = computed(
   () =>
@@ -110,7 +124,11 @@ onMounted(() => {
 watch([title, body, files], () => {
   // The restore spill itself must not rewrite the buffer it just read.
   if (restoringDraft.value) return
-  if (title.value.trim().length > 0 || body.value.trim().length > 0 || files.value.length > 0) {
+  if (
+    title.value.trim().length > 0 ||
+    body.value.trim().length > 0 ||
+    files.value.length > 0
+  ) {
     saveDraft({ title: title.value, body: body.value, files: files.value })
     if (restoredCargo.value) restoredCargo.value = 0
   } else if (hasDraft.value) {
@@ -204,7 +222,11 @@ defineExpose({
     <header class="launch-bay__header">
       <!-- the shared element: the span flies out of the «Новый тред»
            button (BoardView captureMorph/playMorph) into its place here -->
-      <span ref="sceneTitleRef" class="launch-bay__scene" data-testid="launch-scene-title">
+      <span
+        ref="sceneTitleRef"
+        class="launch-bay__scene"
+        data-testid="launch-scene-title"
+      >
         <span class="launch-bay__kicker">NEW TRANSMISSION</span>
         <span class="launch-bay__board">/{{ boardSlug }}/</span>
       </span>
@@ -223,7 +245,10 @@ defineExpose({
         <!-- editorial title: no box, no label, underline = network route -->
         <div
           class="title-surface"
-          :class="{ 'title-surface--live': title.length > 0, 'title-surface--invalid': titleInvalid }"
+          :class="{
+            'title-surface--live': title.length > 0,
+            'title-surface--invalid': titleInvalid,
+          }"
         >
           <input
             ref="titleRef"
@@ -280,11 +305,19 @@ defineExpose({
         </div>
         <div class="telemetry__row">
           <span class="telemetry__key">TITLE</span>
-          <SignalMeter class="telemetry__meter" :current="title.length" :max="MAX_TITLE" />
+          <SignalMeter
+            class="telemetry__meter"
+            :current="title.length"
+            :max="MAX_TITLE"
+          />
         </div>
         <div class="telemetry__row">
           <span class="telemetry__key">BODY</span>
-          <SignalMeter class="telemetry__meter" :current="body.length" :max="MAX_BODY" />
+          <SignalMeter
+            class="telemetry__meter"
+            :current="body.length"
+            :max="MAX_BODY"
+          />
         </div>
         <div class="telemetry__row">
           <span class="telemetry__key">CARGO</span>
@@ -313,15 +346,19 @@ defineExpose({
         <TransmitNotice :error="shownError" @retry="emit('retry')" />
       </div>
       <kbd class="launch-bay__hint" aria-hidden="true">⌘↵</kbd>
-      <span class="launch-bay__transmit-label">LAUNCH</span>
-      <TransmitControl
-        :disabled="!canSubmit"
-        :submitting="submitting"
-        :ready="canSubmit"
-        :success-token="successToken"
-        :error-token="transmitErrorToken"
-        @transmit="submit"
-      />
+      <!-- the launch control: the one magnetic node of the app. The label and
+           the ring travel together, so the pull reads as one gesture. -->
+      <div ref="launchRef" class="launch-bay__launch">
+        <span class="launch-bay__transmit-label">LAUNCH</span>
+        <TransmitControl
+          :disabled="!canSubmit"
+          :submitting="submitting"
+          :ready="canSubmit"
+          :success-token="successToken"
+          :error-token="transmitErrorToken"
+          @transmit="submit"
+        />
+      </div>
     </footer>
   </div>
 </template>
@@ -347,7 +384,7 @@ defineExpose({
 }
 
 .launch-bay--launched {
-  animation: bay-contract 620ms cubic-bezier(0.7, 0, 0.3, 1) forwards;
+  animation: bay-contract var(--motion-reveal-duration) var(--ease-exit) forwards;
 }
 
 /* the sheet contracts into an accent wash and hands the stage back */
@@ -356,7 +393,8 @@ defineExpose({
     background: color-mix(in oklab, var(--accent) 12%, var(--paper-raised));
   }
   100% {
-    transform: scale(0.96) translateY(8px);
+    /* the sheet is lifted off the table, not shrunk: paper does not scale */
+    transform: translateY(8px);
     opacity: 0;
   }
 }
@@ -403,6 +441,10 @@ defineExpose({
   border-radius: 50%;
   display: grid;
   place-items: center;
+  /* тихая реакция: только цвет и подложка, без «вспышки» */
+  transition:
+    color var(--motion-hover),
+    background-color var(--motion-hover);
 }
 
 .launch-bay__close:hover {
@@ -414,7 +456,7 @@ defineExpose({
    fades, so the shared element never dims behind its own sheet */
 .launch-bay__body,
 .launch-bay__rail {
-  animation: bay-fade-in 320ms var(--ease-out-quart);
+  animation: bay-fade-in 320ms var(--ease-emphasized);
 }
 
 @keyframes bay-fade-in {
@@ -462,17 +504,32 @@ defineExpose({
 /* the underline is a network route, not a border */
 .title-surface__route {
   height: 1px;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 12%, var(--ink-tertiary) 12%);
-  transition: background 260ms var(--ease-out-quart);
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) 12%,
+    var(--ink-tertiary) 12%
+  );
+  transition: background var(--motion-hover);
 }
 
 .title-surface--live .title-surface__route {
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 40%, var(--ink-tertiary) 40%);
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) 40%,
+    var(--ink-tertiary) 40%
+  );
 }
 
 /* the API named the title in its 400 — the route answers in danger red */
 .title-surface--invalid .title-surface__route {
-  background: linear-gradient(90deg, var(--danger) 0%, var(--danger) 40%, var(--ink-tertiary) 40%);
+  background: linear-gradient(
+    90deg,
+    var(--danger) 0%,
+    var(--danger) 40%,
+    var(--ink-tertiary) 40%
+  );
 }
 
 .title-surface--invalid .title-surface__node {
@@ -489,7 +546,12 @@ defineExpose({
   border: 1px solid var(--accent);
   /* the bead sits on the sheet's own ground */
   background: var(--paper-raised);
-  transition: all 220ms var(--ease-out-quart);
+  /* только конкретные свойства: переход «по всему» ломает неожиданные
+     анимации (анимация цвета задевает тень, тень — кромку) */
+  transition:
+    background-color var(--motion-hover),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-hover);
 }
 
 .title-surface:focus-within .title-surface__node {
@@ -554,7 +616,10 @@ defineExpose({
   border-radius: var(--radius-md);
   color: var(--ink-tertiary);
   cursor: pointer;
-  transition: color 160ms, background 160ms;
+  /* тихая реакция вторичного действия: цвет и подложка, ничего больше */
+  transition:
+    color var(--motion-hover),
+    background-color var(--motion-hover);
 }
 
 .rail-action:hover {
@@ -597,6 +662,17 @@ defineExpose({
   padding: 2px 6px;
 }
 
+/* the launch control: one gesture — the caption and the ring lean together */
+.launch-bay__launch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* the node must not be squeezed on a narrow rail */
+  flex-shrink: 0;
+  /* the magnetic pull arrives through `translate` and is already smoothed by
+     the primitive itself — a CSS transition on top of it would only lag */
+}
+
 .launch-bay__transmit-label {
   font-family: var(--font-display);
   font-size: 0.7rem;
@@ -606,7 +682,8 @@ defineExpose({
 
 @media (max-width: 860px) {
   .launch-bay {
-    padding: var(--space-4) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    padding: var(--space-4) var(--space-4)
+      calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     /* bottom sheet: the leading edge stays open — no frame above it */
     border-top: 0;
   }
@@ -635,7 +712,9 @@ defineExpose({
   }
 
   .title-surface__route,
-  .title-surface__node {
+  .title-surface__node,
+  .launch-bay__close,
+  .rail-action {
     transition: none;
   }
 }

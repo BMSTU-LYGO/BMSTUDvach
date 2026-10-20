@@ -52,9 +52,11 @@ const isStaff = ref(false)
 onMounted(() => {
   void store.fetchBoards()
   // the console link only shows for staff sessions
-  void staffMe().then((me) => {
-    isStaff.value = me.is_staff
-  }).catch(() => {})
+  void staffMe()
+    .then((me) => {
+      isStaff.value = me.is_staff
+    })
+    .catch(() => {})
 })
 
 function closeMobile() {
@@ -76,21 +78,29 @@ function closeMobile() {
             v-for="board in store.boards.boards"
             :key="board.slug"
             :to="`/boards/${board.slug}`"
-            class="nav-link"
+            class="nav-link motion-quiet react-ink"
             @click="closeMobile"
           >
             /{{ board.slug }}/
           </RouterLink>
-          <RouterLink to="/platinum" class="nav-link nav-accent" @click="closeMobile">
+          <RouterLink
+            to="/platinum"
+            class="nav-link motion-quiet react-ink nav-accent"
+            @click="closeMobile"
+          >
             /platinum/
           </RouterLink>
-          <RouterLink to="/about" class="nav-link" @click="closeMobile">
+          <RouterLink
+            to="/about"
+            class="nav-link motion-quiet react-ink"
+            @click="closeMobile"
+          >
             /about/
           </RouterLink>
           <RouterLink
             v-if="isStaff"
             to="/moderation"
-            class="nav-link nav-accent"
+            class="nav-link motion-quiet react-ink nav-accent"
             @click="closeMobile"
           >
             /mod/
@@ -99,7 +109,7 @@ function closeMobile() {
 
         <div class="fx-toggles">
           <button
-            class="fx-toggle fx-toggle--scan"
+            class="fx-toggle fx-toggle--scan react-press"
             aria-label="Поиск по сети (Cmd/Ctrl+K)"
             title="Поиск по сети — Cmd/Ctrl+K"
             @click="$emit('scan')"
@@ -108,7 +118,7 @@ function closeMobile() {
             <span class="scan-label">Поиск</span>
           </button>
           <button
-            class="fx-toggle"
+            class="fx-toggle react-press"
             :class="{ active: quality3D !== 'off' }"
             :aria-label="QUALITY_HINTS[quality3D]"
             :title="QUALITY_HINTS[quality3D]"
@@ -117,7 +127,7 @@ function closeMobile() {
             3D<span class="q-suffix">·{{ QUALITY_LABELS[quality3D] }}</span>
           </button>
           <button
-            class="fx-toggle"
+            class="fx-toggle react-press"
             :class="{ active: crtEnabled }"
             :aria-pressed="crtEnabled"
             title="CRT-эффекты (сканлайны, виньетка)"
@@ -126,7 +136,7 @@ function closeMobile() {
             CRT
           </button>
           <button
-            class="fx-toggle fx-toggle--sound"
+            class="fx-toggle fx-toggle--sound react-press"
             :class="{ active: soundEnabled }"
             :aria-pressed="soundEnabled"
             :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'"
@@ -210,6 +220,9 @@ function closeMobile() {
   flex-shrink: 0;
 }
 
+/* Кнопки шапки реагируют как бумага: тихий цвет на наведении и вмятина на
+   нажатии. Наведение и нажатие — две роли на одном элементе, а `transition`
+   не складывается, поэтому тайминги собраны вручную из motion.css. */
 .fx-toggle {
   font-family: var(--font-body);
   font-size: 0.8rem;
@@ -224,14 +237,15 @@ function closeMobile() {
   align-items: center;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    color var(--motion-hover),
+    background var(--motion-hover),
+    border-color var(--motion-hover),
+    box-shadow var(--motion-press),
+    transform var(--motion-press);
 }
 
 .fx-toggle:hover {
   color: var(--ink);
-  background: var(--paper-sunken);
   border-color: var(--ink-tertiary);
 }
 
@@ -280,6 +294,8 @@ function closeMobile() {
   min-width: 0;
 }
 
+/* Пункты навигации: тихая реакция — чернильная линия проявляется от левого
+   края, а не заливка и не сдвиг. Тайминги даёт `motion-quiet`. */
 .nav-link {
   padding: var(--space-1) var(--space-3);
   font-family: var(--font-body);
@@ -288,19 +304,25 @@ function closeMobile() {
   color: var(--ink-secondary);
   text-decoration: none;
   border-radius: 0;
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
 }
 
 .nav-link:hover {
   color: var(--ink);
-  background: var(--paper-sunken);
 }
 
 .nav-link.router-link-active {
   color: var(--accent);
-  background: var(--paper-sunken);
+}
+
+/* Линия идёт по ширине подписи, а не по всей кнопке. */
+.nav-link::after {
+  left: var(--space-3);
+  right: var(--space-3);
+}
+
+/* Активный пункт держит линию на постоянной — это и есть его состояние. */
+.nav-link.router-link-active::after {
+  transform: scaleX(1);
 }
 
 .nav-accent {
@@ -328,8 +350,8 @@ function closeMobile() {
   background: var(--ink-secondary);
   border-radius: 1px;
   transition:
-    transform var(--duration-normal) var(--ease-out),
-    opacity var(--duration-fast);
+    transform var(--motion-press),
+    opacity var(--motion-hover);
 }
 
 .hamburger.open span:nth-child(1) {

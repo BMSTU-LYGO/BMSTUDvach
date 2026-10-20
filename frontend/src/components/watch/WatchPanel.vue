@@ -20,7 +20,9 @@ const watch = useWatchlist()
 const rows = ref<Row[]>([])
 const loading = ref(false)
 
-const unreadTotal = computed(() => rows.value.reduce((sum, r) => sum + Math.max(0, r.current - r.seen), 0))
+const unreadTotal = computed(() =>
+  rows.value.reduce((sum, r) => sum + Math.max(0, r.current - r.seen), 0),
+)
 
 onMounted(async () => {
   loading.value = true
@@ -56,14 +58,20 @@ onMounted(async () => {
 })
 
 function open(threadId: number) {
-  watch.markSeen(threadId, rows.value.find((r) => r.threadId === threadId)?.current ?? 0)
+  watch.markSeen(
+    threadId,
+    rows.value.find((r) => r.threadId === threadId)?.current ?? 0,
+  )
   void router.push(`/threads/${threadId}`)
 }
-
 </script>
 
 <template>
-  <section v-if="watch.entries.value.length || rows.length" class="watch" data-testid="watch-panel">
+  <section
+    v-if="watch.entries.value.length || rows.length"
+    class="watch"
+    data-testid="watch-panel"
+  >
     <div class="watch__head">
       <h2 class="watch__title">Отслеживаемые треды</h2>
       <span v-if="unreadTotal > 0" class="watch__badge" data-testid="watch-unread">
@@ -73,8 +81,17 @@ function open(threadId: number) {
 
     <p v-if="loading" class="watch__loading">сверяем сигналы…</p>
     <ul v-else class="watch__list">
-      <li v-for="row in rows" :key="row.threadId" class="watch__row" :data-testid="'watch-row'">
-        <RouterLink :to="`/threads/${row.threadId}`" class="watch__link" @click="open(row.threadId)">
+      <li
+        v-for="row in rows"
+        :key="row.threadId"
+        class="watch__row"
+        :data-testid="'watch-row'"
+      >
+        <RouterLink
+          :to="`/threads/${row.threadId}`"
+          class="watch__link"
+          @click="open(row.threadId)"
+        >
           <span class="watch__name">{{ row.title }}</span>
           <span class="watch__meta">
             <span class="watch__count">{{ row.current }}</span>
@@ -86,7 +103,7 @@ function open(threadId: number) {
         </RouterLink>
         <button
           type="button"
-          class="watch__off"
+          class="watch__off react-press"
           aria-label="Больше не отслеживать"
           @click="watch.untrack(row.threadId)"
         >
@@ -98,24 +115,9 @@ function open(threadId: number) {
 </template>
 
 <style scoped>
+/* Токены палитры и типографики живут в main.css — локальные копии только
+   размножили бы их и разошлись с остальным интерфейсом. */
 .watch {
-  --paper-raised: #EAE4D4;
-  --paper-sunken: #F7F3E8;
-  --ink: #1C1A14;
-  --ink-secondary: #5B5547;
-  --ink-tertiary: #8A8273;
-  --rule: #D4CEB8;
-  --accent: #2F4F4E;
-  --font-display: 'Cormorant Garamond', 'Georgia', serif;
-  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --duration-fast: 150ms;
-  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-
   border: 1px solid var(--rule);
   border-radius: 0;
   background: var(--paper-raised);
@@ -167,7 +169,8 @@ function open(threadId: number) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  transition: background var(--duration-fast) var(--ease-out);
+  /* тихая реакция наведения — только подложка, без прыжков */
+  transition: background-color var(--motion-hover);
 }
 
 .watch__row + .watch__row {
@@ -231,11 +234,16 @@ function open(threadId: number) {
   color: var(--ink-tertiary);
   display: grid;
   place-items: center;
-  transition: color var(--duration-fast) var(--ease-out);
+  /* Переключение наблюдения — материальная реакция: чернила впитываются,
+     лист уходит в тень на пиксель. Никаких прыжков и масштаба. */
+  transition:
+    color var(--motion-hover),
+    box-shadow var(--motion-press),
+    transform var(--motion-press);
 }
 
 .watch__off:hover {
-  color: var(--danger, #9C2A1F);
+  color: var(--danger, #9c2a1f);
 }
 
 .watch__off:focus-visible {
