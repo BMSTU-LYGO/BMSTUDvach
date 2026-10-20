@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type {
+  LineSegments,
   Mesh,
   Object3D,
   PerspectiveCamera,
@@ -66,6 +67,15 @@ function orbits(root: Object3D): Object3D[] {
     if (child.name.startsWith('archive-ring-')) found.push(child)
   })
   return found
+}
+
+/** Every object of the archive, in scene order. */
+function countObjects(root: Object3D): number {
+  let count = 0
+  root.traverse(() => {
+    count += 1
+  })
+  return count
 }
 
 /** The world position of an object of the archive. */
@@ -269,6 +279,53 @@ describe('archive space: disposal', () => {
     }
   })
 
+  it('gives every resource back exactly once', () => {
+    const geometrySpy = vi.spyOn(three.BufferGeometry.prototype, 'dispose')
+    const materialSpy = vi.spyOn(three.Material.prototype, 'dispose')
+    try {
+      const space = buildArchiveSpace(three, 'low')
+      space.setStories([story(1), story(2)])
+      geometrySpy.mockClear()
+      materialSpy.mockClear()
+
+      space.dispose()
+
+      // Seven of each: the core, the halo, the dust, the plate and the
+      // three duty orbits an empty archive keeps alive.
+      expect(geometrySpy).toHaveBeenCalledTimes(7)
+      expect(materialSpy).toHaveBeenCalledTimes(7)
+
+      // A second disposal gives nothing back a second time.
+      space.dispose()
+      expect(geometrySpy).toHaveBeenCalledTimes(7)
+      expect(materialSpy).toHaveBeenCalledTimes(7)
+    } finally {
+      geometrySpy.mockRestore()
+      materialSpy.mockRestore()
+    }
+  })
+
+  it('gives nothing back when the story set changes', () => {
+    const geometrySpy = vi.spyOn(three.BufferGeometry.prototype, 'dispose')
+    const materialSpy = vi.spyOn(three.Material.prototype, 'dispose')
+    try {
+      const space = buildArchiveSpace(three, 'low')
+      geometrySpy.mockClear()
+      materialSpy.mockClear()
+
+      // A rebuild reuses the orbits of the cache and the plates of the
+      // pool — it must not throw a resource away.
+      space.setStories([story(1)])
+      space.setStories([story(2), story(3)])
+
+      expect(geometrySpy).not.toHaveBeenCalled()
+      expect(materialSpy).not.toHaveBeenCalled()
+    } finally {
+      geometrySpy.mockRestore()
+      materialSpy.mockRestore()
+    }
+  })
+
   it('is idempotent and stays safe after the disposal', () => {
     const space = buildArchiveSpace(three, 'low')
     space.setStories([story(1)])
@@ -283,6 +340,125 @@ describe('archive space: disposal', () => {
     expect(world).toBeDefined()
     space.dispose()
     expect(space.scene.getObjectByName('archive-space')).toBeUndefined()
+  })
+})
+
+describe('archive space: the budget of the scene', () => {
+  it('keeps a full archive inside its object budget', () => {
+    const space = buildArchiveSpace(three, 'high')
+    try {
+      space.setStories(Array.from({ length: 60 }, (_, i) => story(i + 1)))
+      expect(plates(space.scene).length).toBe(60)
+      expect(orbits(space.scene).length).toBe(1)
+      // The scene, the world, the core, the halo, the dust, one orbit and
+      // the sixty plates.
+      expect(countObjects(space.scene)).toBe(66)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('caps the plates at the budget of the archive', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories(Array.from({ length: 120 }, (_, i) => story(i + 1)))
+      expect(plates(space.scene).length).toBe(60)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('keeps the scene graph stable over a hundred frames', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2), story(3)])
+      const before = countObjects(space.scene)
+      for (let i = 0; i < 100; i++) space.update(1 / FPS, snap())
+      expect(countObjects(space.scene)).toBe(before)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('reuses the geometry and the material of an orbit across rebuilds', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      const ring = orbits(space.scene)[0] as LineSegments
+      const geometry = ring.geometry
+      const material = ring.material
+
+      space.setStories([story(2)])
+
+      const again = orbits(space.scene)[0] as LineSegments
+      expect(again.geometry).toBe(geometry)
+      expect(again.material).toBe(material)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('reuses the plate meshes across rebuilds', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      const first = plates(space.scene)
+      space.setStories([story(3), story(4)])
+      const second = plates(space.scene)
+      expect(second[0]).toBe(first[0])
+      expect(second[1]).toBe(first[1])
+      expect(second[0].name).toBe('archive-fragment-3')
+      expect(second[0].userData.storyId).toBe(3)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('keeps the composition of the low tier and cuts the detail', () => {
+    const high = buildArchiveSpace(three, 'high')
+    const low = buildArchiveSpace(three, 'low')
+    try {
+      for (const space of [high, low]) {
+        space.setStories([story(1), story(2, 2023), story(3, 2022)])
+      }
+
+      // The same archive on both tiers: the same plates, the same orbits.
+      expect(plates(low.scene).length).toBe(plates(high.scene).length)
+      expect(orbits(low.scene).length).toBe(orbits(high.scene).length)
+
+      // The orbits of the low tier are coarser...
+      const highRing = orbits(high.scene)[0] as LineSegments
+      const lowRing = orbits(low.scene)[0] as LineSegments
+      expect(lowRing.geometry.getAttribute('position').count).toBeLessThan(
+        highRing.geometry.getAttribute('position').count,
+      )
+
+      // ...and the dust of the low tier is sparser.
+      const highDust = high.scene.getObjectByName('archive-dust') as Points
+      const lowDust = low.scene.getObjectByName('archive-dust') as Points
+      expect(lowDust.geometry.getAttribute('position').count).toBeLessThan(
+        highDust.geometry.getAttribute('position').count,
+      )
+    } finally {
+      high.dispose()
+      low.dispose()
+    }
+  })
+
+  it('keeps the plates of both tiers on the same places', () => {
+    const high = buildArchiveSpace(three, 'high')
+    const low = buildArchiveSpace(three, 'low')
+    try {
+      const stories = [story(1, 2021), story(2, 2022), story(3, null)]
+      high.setStories(stories)
+      low.setStories(stories)
+      expect(plates(low.scene).map((plate) => plate.position.toArray())).toEqual(
+        plates(high.scene).map((plate) => plate.position.toArray()),
+      )
+    } finally {
+      high.dispose()
+      low.dispose()
+    }
   })
 })
 

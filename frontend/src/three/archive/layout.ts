@@ -10,6 +10,11 @@
  * Every function is deterministic: the same set of stories always produces
  * the same archive, and the order in which the stories arrive never changes
  * where a given story ends up.
+ *
+ * The functions run when the story set changes — never inside the frame
+ * loop. `archiveLayout` is the entry point the scene uses: it normalises the
+ * stories once and hands out the rings *and* the placements, so a rebuild
+ * never pays for the same normalisation twice.
  */
 
 /** One epoch ring of the archive. */
@@ -68,6 +73,14 @@ export interface LayoutOptions {
   shellRadius?: number
   /** Radial distance between two neighbouring rings (default 1.8). */
   tierSpacing?: number
+}
+
+/** The whole layout of an archive: its rings and its fragments. */
+export interface ArchiveLayout {
+  /** The epoch rings, from the inside out. */
+  rings: ArchiveRing[]
+  /** Where every kept story fragment lives. */
+  placements: FragmentPlacement[]
 }
 
 /** Radius of the innermost ring — matches the current archive shell. */
@@ -211,15 +224,26 @@ function radiusFor(index: number, opts: ResolvedOptions): number {
 }
 
 /**
+ * One epoch ring of the archive — the public ring and the stories that live
+ * on it. The scene needs both, the layout needs the stories to place them.
+ */
+interface RingBucket {
+  /** The ring itself — its index, its radius and the ids on it. */
+  ring: ArchiveRing
+  /** The stories of the ring, in id order. */
+  stories: NormalizedStory[]
+}
+
+/**
  * Group the stories into epoch rings: the unpublished ones innermost, the
  * published ones by ascending year.
  */
-function buildRings(stories: NormalizedStory[], opts: ResolvedOptions): ArchiveRing[] {
-  const byYear = new Map<number | null, number[]>()
+function buildRings(stories: NormalizedStory[], opts: ResolvedOptions): RingBucket[] {
+  const byYear = new Map<number | null, NormalizedStory[]>()
   for (const story of stories) {
     const bucket = byYear.get(story.year)
-    if (bucket) bucket.push(story.id)
-    else byYear.set(story.year, [story.id])
+    if (bucket) bucket.push(story)
+    else byYear.set(story.year, [story])
   }
   const years = Array.from(byYear.keys())
     .filter((year): year is number => year !== null)
@@ -227,11 +251,95 @@ function buildRings(stories: NormalizedStory[], opts: ResolvedOptions): ArchiveR
   const order: (number | null)[] = []
   if (byYear.has(null)) order.push(null)
   order.push(...years)
-  return order.map((year, index) => ({
-    index,
-    radius: radiusFor(index, opts),
-    stories: (byYear.get(year) ?? []).slice().sort((a, b) => a - b),
-  }))
+  return order.map((year, index) => {
+    // The bucket is local to this call — it is sorted in place and handed
+    // over to the ring, no copy needed.
+    const bucket = (byYear.get(year) ?? []).sort((a, b) => a.id - b.id)
+    return {
+      ring: {
+        index,
+        radius: radiusFor(index, opts),
+        stories: bucket.map((story) => story.id),
+      },
+      stories: bucket,
+    }
+  })
+}
+
+/**
+ * Place the stories of the rings.
+ *
+ * The angle follows the golden angle along the ring (plus a per-story jitter
+ * so the ring never looks like a comb), the height, tilt and scale come from
+ * the stable hash of the id. The result is capped to `maxFragments`; the cap
+ * keeps the lowest ids, so the same set of stories always survives it.
+ *
+ * The stories arrive sorted by id, so the budget is one comparison on the
+ * id — no second index of the stories has to be built and thrown away.
+ */
+function placeOnRings(
+  buckets: RingBucket[],
+  stories: NormalizedStory[],
+  opts: ResolvedOptions,
+): FragmentPlacement[] {
+  const limit = opts.maxFragments
+  if (limit <= 0) return []
+  // The last id the budget reaches: everything above it is dropped.
+  const cutoff = limit < stories.length ? stories[limit - 1].id : Infinity
+
+  const placements: FragmentPlacement[] = []
+  for (const bucket of buckets) {
+    // The slot of a fragment on its ring — the golden angle counts the
+    // fragments that survived the cap, not the ones before them.
+    let slot = 0
+    for (const story of bucket.stories) {
+      if (story.id > cutoff) continue
+      const seed = story.seed
+      const jitter = (unit(seed, 'angle') - 0.5) * 2 * ANGLE_JITTER
+      const angle = (((GOLDEN_ANGLE * slot + jitter) % TAU) + TAU) % TAU
+      const radius = bucket.ring.radius
+      const height = (unit(seed, 'height') - 0.5) * 2 * HEIGHT_AMPLITUDE
+      placements.push({
+        id: story.id,
+        ringIndex: bucket.ring.index,
+        angle,
+        radius,
+        x: Math.cos(angle) * radius,
+        y: height,
+        z: Math.sin(angle) * radius,
+        tilt: tiltFor(story.sourceType),
+        scale: SCALE_MIN + unit(seed, 'scale') * (SCALE_MAX - SCALE_MIN),
+        seed,
+      })
+      slot += 1
+    }
+  }
+  return placements
+}
+
+/**
+ * The whole layout of an archive: its rings and its fragments.
+ *
+ * One pass, one normalisation: the scene builder needs both halves of the
+ * layout and used to ask for them separately, which normalised the very
+ * same stories twice. The values are the ones `ringsFor` and
+ * `placeFragments` return — the three share their internals.
+ */
+export function archiveLayout(
+  stories: LayoutInputStory[],
+  opts: LayoutOptions = {},
+): ArchiveLayout {
+  const options = resolveOptions(opts)
+  const normalized = normalizeStories(stories)
+  if (!normalized.length) return { rings: [], placements: [] }
+  const buckets = buildRings(normalized, options)
+  return {
+    rings: buckets.map((bucket) => bucket.ring),
+    placements:
+      options.maxFragments > 0
+        ? placeOnRings(buckets, normalized, options)
+        : [],
+  }
 }
 
 /**
@@ -247,7 +355,7 @@ export function ringsFor(
 ): ArchiveRing[] {
   const normalized = normalizeStories(stories)
   if (!normalized.length) return []
-  return buildRings(normalized, resolveOptions(opts))
+  return buildRings(normalized, resolveOptions(opts)).map((bucket) => bucket.ring)
 }
 
 /**
@@ -266,37 +374,7 @@ export function placeFragments(
   if (options.maxFragments <= 0) return []
   const normalized = normalizeStories(stories)
   if (!normalized.length) return []
-
-  const rings = buildRings(normalized, options)
-  const kept = new Set(normalized.slice(0, options.maxFragments).map((s) => s.id))
-  const byId = new Map(normalized.map((s) => [s.id, s]))
-
-  const placements: FragmentPlacement[] = []
-  for (const ring of rings) {
-    const ids = ring.stories.filter((id) => kept.has(id))
-    ids.forEach((id, index) => {
-      const story = byId.get(id)
-      if (!story) return
-      const seed = story.seed
-      const jitter = (unit(seed, 'angle') - 0.5) * 2 * ANGLE_JITTER
-      const angle = (((GOLDEN_ANGLE * index + jitter) % TAU) + TAU) % TAU
-      const radius = ring.radius
-      const height = (unit(seed, 'height') - 0.5) * 2 * HEIGHT_AMPLITUDE
-      placements.push({
-        id,
-        ringIndex: ring.index,
-        angle,
-        radius,
-        x: Math.cos(angle) * radius,
-        y: height,
-        z: Math.sin(angle) * radius,
-        tilt: tiltFor(story.sourceType),
-        scale: SCALE_MIN + unit(seed, 'scale') * (SCALE_MAX - SCALE_MIN),
-        seed,
-      })
-    })
-  }
-  return placements
+  return placeOnRings(buildRings(normalized, options), normalized, options)
 }
 
 /** The placement of a single story, if it is part of the archive. */

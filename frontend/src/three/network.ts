@@ -236,8 +236,8 @@ interface Packet {
 
 interface Fragment {
   mesh: LineSegments
-  geo: BufferGeometry
-  mat: LineBasicMaterial
+  /** Accent plates are amber, the rest steel — both share their material. */
+  accent: boolean
   ringIdx: number
   angle: number
 }
@@ -657,8 +657,11 @@ export function buildNetwork(
         opacity: 0.35,
       })
       nodeOwned.push(edgeMat)
+      // The inner geometry is kept as well: `EdgesGeometry` copies the
+      // positions, but the source it was built from is a GPU buffer of its
+      // own and has to be released with the wrapper.
       const edgeGeo = keep(
-        new three.EdgesGeometry(variantGeometry(three, variant, 0.6, 0)),
+        new three.EdgesGeometry(keep(variantGeometry(three, variant, 0.6, 0))),
       )
       const edgeMesh = new three.LineSegments(edgeGeo, edgeMat)
       group.add(edgeMesh)
@@ -832,20 +835,22 @@ export function buildNetwork(
   // --- signal pulses -----------------------------------------------------
   const pulsePool: Pulse[] = []
   for (let i = 0; i < 8; i++) {
-    const mat = new three.ShaderMaterial({
-      vertexShader: pulseVertexShader,
-      fragmentShader: pulseFragmentShader,
-      transparent: true,
-      side: three.DoubleSide,
-      blending: three.AdditiveBlending,
-      depthWrite: false,
-      uniforms: {
-        uScale: { value: 1 },
-        uColor: { value: new three.Color(AMBER) },
-        uOpacity: { value: 0 },
-        uLife: { value: 0 },
-      },
-    })
+    const mat = keep(
+      new three.ShaderMaterial({
+        vertexShader: pulseVertexShader,
+        fragmentShader: pulseFragmentShader,
+        transparent: true,
+        side: three.DoubleSide,
+        blending: three.AdditiveBlending,
+        depthWrite: false,
+        uniforms: {
+          uScale: { value: 1 },
+          uColor: { value: new three.Color(AMBER) },
+          uOpacity: { value: 0 },
+          uLife: { value: 0 },
+        },
+      }),
+    )
     const geo = keep(new three.PlaneGeometry(1.5, 1.5))
     const ring = new three.Mesh(geo, mat)
     ring.visible = false
@@ -891,18 +896,20 @@ export function buildNetwork(
   // --- reply packets with trails -----------------------------------------
   const packetPool: Packet[] = []
   for (let i = 0; i < 6; i++) {
-    const mat = new three.ShaderMaterial({
-      vertexShader: packetVertexShader,
-      fragmentShader: packetFragmentShader,
-      transparent: true,
-      blending: three.AdditiveBlending,
-      depthWrite: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new three.Color(AMBER_BRIGHT) },
-        uOpacity: { value: 1 },
-      },
-    })
+    const mat = keep(
+      new three.ShaderMaterial({
+        vertexShader: packetVertexShader,
+        fragmentShader: packetFragmentShader,
+        transparent: true,
+        blending: three.AdditiveBlending,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: new three.Color(AMBER_BRIGHT) },
+          uOpacity: { value: 1 },
+        },
+      }),
+    )
     const geo = keep(new three.SphereGeometry(0.15, 12, 12))
     const mesh = new three.Mesh(geo, mat)
     mesh.visible = false
@@ -913,19 +920,21 @@ export function buildNetwork(
     const trailPositions = new Float32Array(trailCount * 3)
     trailGeo.setAttribute('position', new three.BufferAttribute(trailPositions, 3))
 
-    const trailMat = new three.ShaderMaterial({
-      vertexShader: dustVertexShader,
-      fragmentShader: dustFragmentShader,
-      transparent: true,
-      blending: three.AdditiveBlending,
-      depthWrite: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uSize: { value: 2.5 },
-        uColor: { value: new three.Color(AMBER) },
-        uOpacity: { value: 0.6 },
-      },
-    })
+    const trailMat = keep(
+      new three.ShaderMaterial({
+        vertexShader: dustVertexShader,
+        fragmentShader: dustFragmentShader,
+        transparent: true,
+        blending: three.AdditiveBlending,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uSize: { value: 2.5 },
+          uColor: { value: new three.Color(AMBER) },
+          uOpacity: { value: 0.6 },
+        },
+      }),
+    )
     const trail = new three.Points(trailGeo, trailMat)
     trail.visible = false
     world.add(trail)
@@ -999,7 +1008,14 @@ export function buildNetwork(
     cameraKick = Math.min(0.5, cameraKick + 0.22)
   }
 
-  // --- platinum archive --------------------------------------------------
+  // --- platinum archive (distant background) ------------------------------
+  // The archive has become a scene of its own: `src/three/archive/space.ts`
+  // draws the epoch rings, the paper plates and the dust of the stories on
+  // the platinum route (see `ArchiveSpaceCanvas`). What stays in the network
+  // is the *distant* version of it — three orbit rings, the vault core and a
+  // thin scatter of sparks — so the constellation still has somewhere to
+  // dissolve into. It has to stay cheap: the detail belongs to the archive
+  // space, this is the background behind it.
   const archiveGroup = new three.Group()
   archiveGroup.visible = false
   world.add(archiveGroup)
@@ -1038,34 +1054,107 @@ export function buildNetwork(
   )
   archiveGroup.add(new three.Mesh(glowGeo, glowMat))
 
+  /**
+   * The story count used to draw one wire box per story — a geometry and a
+   * material for every story, up to eighteen of them. The archive space owns
+   * that detail now, so the network keeps only a handful of paper
+   * silhouettes, all of them sharing ONE geometry and three materials.
+   */
+  const MAX_ARCHIVE_SILHOUETTES = 6
+  const silhouetteGeo = keep(
+    new three.EdgesGeometry(new three.BoxGeometry(0.85, 1.1, 0.06)),
+  )
+  const silhouetteMat = keep(
+    new three.LineBasicMaterial({ color: STEEL, transparent: true, opacity: 0.65 }),
+  )
+  const silhouetteAccentMat = keep(
+    new three.LineBasicMaterial({ color: AMBER, transparent: true, opacity: 0.65 }),
+  )
+  const silhouetteHotMat = keep(
+    new three.LineBasicMaterial({ color: AMBER_BRIGHT, transparent: true, opacity: 1 }),
+  )
+
+  /**
+   * The stories themselves survive as sparks along the orbits: one shared
+   * point cloud, revealed up to the story count. No per-story objects at
+   * all — the count moves the draw range of a single buffer.
+   */
+  const SPARKS_PER_STORY = 3
+  const MAX_ARCHIVE_STORIES = 18
+  const sparkCount = MAX_ARCHIVE_STORIES * SPARKS_PER_STORY
+  const sparkGeo = keep(new three.BufferGeometry())
+  const sparkPositions = new Float32Array(sparkCount * 3)
+  const sparkPhases = new Float32Array(sparkCount)
+  const sparkSpeeds = new Float32Array(sparkCount)
+  // A tiny deterministic generator: the sparks must look the same on every
+  // build, so the background never flickers between reloads.
+  let sparkSeed = 0x2f6e2b1
+  const sparkRand = () => {
+    sparkSeed = (sparkSeed * 1664525 + 1013904223) % 4294967296
+    return sparkSeed / 4294967296
+  }
+  for (let i = 0; i < sparkCount; i++) {
+    const ringIdx = i % radii.length
+    const angle = sparkRand() * Math.PI * 2
+    const radius = radii[ringIdx] + (sparkRand() - 0.5) * 0.6
+    sparkPositions[i * 3] = Math.cos(angle) * radius
+    sparkPositions[i * 3 + 1] = (sparkRand() - 0.5) * 0.9
+    sparkPositions[i * 3 + 2] = Math.sin(angle) * radius
+    sparkPhases[i] = sparkRand() * Math.PI * 2
+    sparkSpeeds[i] = 0.15 + sparkRand() * 0.3
+  }
+  sparkGeo.setAttribute('position', new three.BufferAttribute(sparkPositions, 3))
+  sparkGeo.setAttribute('aPhase', new three.BufferAttribute(sparkPhases, 1))
+  sparkGeo.setAttribute('aSpeed', new three.BufferAttribute(sparkSpeeds, 1))
+  sparkGeo.setDrawRange(0, 0)
+  const sparkMat = keep(
+    new three.ShaderMaterial({
+      vertexShader: dustVertexShader,
+      fragmentShader: dustFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      blending: three.AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uSize: { value: high ? 3 : 2 },
+        uColor: { value: new three.Color(AMBER) },
+        uOpacity: { value: 0 },
+      },
+    }),
+  )
+  const sparks = new three.Points(sparkGeo, sparkMat)
+  archiveGroup.add(sparks)
+
   let fragments: Fragment[] = []
 
+  /**
+   * Story count → the archive background. The silhouettes are a decorative
+   * hint (a few plates drifting on the orbits); the stories themselves are
+   * drawn by the archive space. The count still shows here — as sparks.
+   */
   function setStoryCount(count: number) {
-    for (const f of fragments) {
-      archiveGroup.remove(f.mesh)
-      f.geo.dispose()
-      f.mat.dispose()
-    }
+    for (const f of fragments) archiveGroup.remove(f.mesh)
     fragments = []
-    const n = Math.max(0, Math.min(count, 18))
+    const n = Math.max(0, Math.min(count, MAX_ARCHIVE_SILHOUETTES))
     for (let i = 0; i < n; i++) {
-      const geo = new three.EdgesGeometry(new three.BoxGeometry(0.85, 1.1, 0.06))
-      const mat = new three.LineBasicMaterial({
-        color: i % 3 === 0 ? AMBER : STEEL,
-        transparent: true,
-        opacity: 0.65,
-      })
-      const mesh = new three.LineSegments(geo, mat)
+      const accent = i % 3 === 0
+      const mesh = new three.LineSegments(
+        silhouetteGeo,
+        accent ? silhouetteAccentMat : silhouetteMat,
+      )
       const ringIdx = i % 3
-      const angle = (i / n) * Math.PI * 2 + ringIdx * 0.7
+      const angle = (i / Math.max(1, n)) * Math.PI * 2 + ringIdx * 0.7
       mesh.position.set(
         Math.cos(angle) * radii[ringIdx],
         0,
         Math.sin(angle) * radii[ringIdx],
       )
       archiveGroup.add(mesh)
-      fragments.push({ mesh, geo, mat, ringIdx, angle })
+      fragments.push({ mesh, accent, ringIdx, angle })
     }
+    // The stories live on as sparks: one shared cloud, revealed by the count.
+    const stories = Math.max(0, Math.min(count, MAX_ARCHIVE_STORIES))
+    sparkGeo.setDrawRange(0, stories * SPARKS_PER_STORY)
   }
 
   // --- lost node (404) ---------------------------------------------------
@@ -1508,9 +1597,20 @@ export function buildNetwork(
       fragments.forEach((f, i) => {
         const isHot = i === hovered
         f.mesh.scale.setScalar((isHot ? 1.35 : 1) * fragmentScale)
-        f.mat.opacity = (isHot ? 1 : 0.65) * presence.archive
-        f.mat.color.setHex(isHot ? AMBER : i % 3 === 0 ? AMBER : STEEL)
+        // The materials are shared: the hover is a swap, not a per-fragment
+        // material state.
+        f.mesh.material = isHot
+          ? silhouetteHotMat
+          : f.accent
+            ? silhouetteAccentMat
+            : silhouetteMat
       })
+      silhouetteMat.opacity = 0.65 * presence.archive
+      silhouetteAccentMat.opacity = 0.65 * presence.archive
+      silhouetteHotMat.opacity = presence.archive
+      sparks.scale.setScalar(archiveScale)
+      sparkMat.uniforms.uTime.value = elapsed
+      sparkMat.uniforms.uOpacity.value = 0.75 * presence.archive
     }
 
     // Lost node mode
@@ -1666,6 +1766,10 @@ export function buildNetwork(
     update,
     dispose: () => {
       disposeHoverLabel()
+      // The archive background (rings, vault, the shared silhouette geometry
+      // and materials, the spark cloud) is tracked through `keep()`, so it is
+      // released here with everything else — the fragments themselves own no
+      // resources of their own.
       for (const d of [...tracked, ...nodeOwned]) {
         try {
           d.dispose()

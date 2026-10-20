@@ -39,6 +39,52 @@ const search = ref('')
 const focusedId = ref<number | null>(null)
 /** The list of fragments — the scroll container of the archive. */
 const listRef = ref<HTMLElement | null>(null)
+/** What the live region says about the fragment the reader is on. */
+const liveMessage = ref('')
+
+/* === The register: the space in 3D or the archive as text only ========= */
+
+/**
+ * The reader's choice lives in the device-local storage and travels to the
+ * canvas through a window event — the view and the canvas live in different
+ * component trees. The same two names are kept in
+ * `components/three/ArchiveSpaceCanvas.vue`.
+ */
+const ARCHIVE_3D_STORAGE_KEY = 'bmstudvach-archive-3d'
+const ARCHIVE_3D_EVENT = 'bmstudvach:archive-3d'
+
+/** The stored register of the archive (3D is the default one). */
+function readArchive3D(): boolean {
+  try {
+    const stored = localStorage.getItem(ARCHIVE_3D_STORAGE_KEY)
+    if (stored === 'on') return true
+    if (stored === 'off') return false
+  } catch {
+    // blocked storage — the archive keeps the register it has
+  }
+  return true
+}
+
+/** Whether the archive is a space (true) or a text only list (false). */
+const space3D = ref(readArchive3D())
+
+/**
+ * Switch the register of the archive: the choice is remembered on this
+ * device and the canvas is told about it right away.
+ */
+function setSpace3D(enabled: boolean) {
+  space3D.value = enabled
+  try {
+    localStorage.setItem(ARCHIVE_3D_STORAGE_KEY, enabled ? 'on' : 'off')
+  } catch {
+    // blocked storage — the choice lives only as long as the page
+  }
+  window.dispatchEvent(new CustomEvent(ARCHIVE_3D_EVENT, { detail: { enabled } }))
+}
+
+function toggleSpace() {
+  setSpace3D(!space3D.value)
+}
 
 /** Publication year of a story (null = undated or unparsable date). */
 function yearOf(value: string | null): number | null {
@@ -181,6 +227,95 @@ function openRow(id: number) {
   selectStory(id)
 }
 
+/* === The keyboard: the archive is navigable without a mouse =========== */
+
+/** The fragment the live region announced last (it must not repeat itself). */
+let announcedId: number | null = null
+
+/** The rows of the list, in the order the reader sees them. */
+function rowElements(): HTMLElement[] {
+  const list = listRef.value
+  if (!list) return []
+  return Array.from(list.querySelectorAll<HTMLElement>('[data-story-id]'))
+}
+
+/**
+ * Say which fragment the reader is on. The region speaks only when the
+ * fragment really changes — the pointer running over the list must not
+ * make the archive chatter.
+ */
+function announceFragment(id: number) {
+  if (announcedId === id) return
+  const index = stories.value.findIndex((story) => story.id === id)
+  if (index < 0) return
+  announcedId = id
+  const story = stories.value[index]
+  liveMessage.value = `Фрагмент ${index + 1} из ${stories.value.length} · ${story.title}`
+}
+
+/**
+ * A row took the focus: the space follows it and the archive says which
+ * fragment it is.
+ */
+function onRowFocus(id: number) {
+  focusRow(id)
+  announceFragment(id)
+}
+
+/**
+ * Move the focus along the rows of the archive. The space is told first:
+ * the row we leave must not release the focus the new row has already
+ * taken.
+ */
+function moveFocusTo(index: number) {
+  const rows = rowElements()
+  if (!rows.length) return
+  const target = Math.max(0, Math.min(index, rows.length - 1))
+  const row = rows[target]
+  const id = Number(row.dataset.storyId)
+  if (!Number.isFinite(id)) return
+  focusRow(id)
+  announceFragment(id)
+  row.focus?.()
+}
+
+/**
+ * A key was pressed on a row: the arrows walk the archive, Home and End
+ * jump to its edges, Enter opens the fragment under the focus.
+ */
+function onRowKeydown(event: KeyboardEvent, index: number) {
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault()
+      moveFocusTo(index + 1)
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      moveFocusTo(index - 1)
+      break
+    case 'Home':
+      event.preventDefault()
+      moveFocusTo(0)
+      break
+    case 'End':
+      event.preventDefault()
+      moveFocusTo(stories.value.length - 1)
+      break
+    case 'Enter': {
+      event.preventDefault()
+      const story = stories.value[index]
+      if (!story) return
+      // The story is opened the same way the pointer opens it: the space
+      // is told, the scene flies to the plate and the route follows.
+      openRow(story.id)
+      emitSceneEvent({ type: 'archive-open', target: story.id })
+      break
+    }
+    default:
+      break
+  }
+}
+
 /**
  * Bring a row into view — gently. The scroll happens only when the row is
  * really out of sight and the reader did not ask for calm motion, so the
@@ -260,15 +395,38 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div class="archive-stats" aria-live="polite">
-        <span class="stat-node" :class="{ idle: total === 0 }"></span>
-        <span class="stat-text">
-          <template v-if="loading">Синхронизация архива…</template>
-          <template v-else-if="total > 0"> фрагментов в кольцах: {{ total }} </template>
-          <template v-else>Архив пуст — кольца вращаются вхолостую</template>
-        </span>
+      <div class="archive-tools">
+        <div class="archive-stats" aria-live="polite">
+          <span class="stat-node" :class="{ idle: total === 0 }"></span>
+          <span class="stat-text">
+            <template v-if="loading">Синхронизация архива…</template>
+            <template v-else-if="total > 0">
+              фрагментов в кольцах: {{ total }}
+            </template>
+            <template v-else>Архив пуст — кольца вращаются вхолостую</template>
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="archive-mode"
+          :aria-pressed="space3D"
+          aria-label="3D-пространство архива"
+          data-testid="archive-mode-toggle"
+          @click="toggleSpace"
+        >
+          <span class="archive-mode__dot" aria-hidden="true"></span>
+          <span class="archive-mode__label">3D</span>
+          <span class="archive-mode__state" aria-hidden="true">{{
+            space3D ? 'вкл' : 'выкл'
+          }}</span>
+        </button>
       </div>
     </header>
+
+    <p class="archive-live" aria-live="polite" data-testid="archive-live">
+      {{ liveMessage }}
+    </p>
 
     <div v-if="loading" class="archive-empty" data-testid="platinum-empty">
       <ArchiveEmpty mode="loading" :total="0" />
@@ -283,7 +441,7 @@ onBeforeUnmount(() => {
         fragments · показано {{ stories.length }} из {{ total }}
       </p>
       <ol class="fragments" :aria-busy="loadingMore" ref="listRef">
-        <li v-for="story in stories" :key="story.id" class="fragment">
+        <li v-for="(story, index) in stories" :key="story.id" class="fragment">
           <RouterLink
             :to="`/platinum/${story.id}`"
             class="fragment-link"
@@ -295,9 +453,10 @@ onBeforeUnmount(() => {
             @mouseenter="focusRow(story.id)"
             @pointerleave="releaseRow(story.id)"
             @mouseleave="releaseRow(story.id)"
-            @focus="focusRow(story.id)"
+            @focus="onRowFocus(story.id)"
             @blur="releaseRow(story.id)"
             @click="openRow(story.id)"
+            @keydown="onRowKeydown($event, index)"
           >
             <span class="fragment-id text-mono">#{{ story.id }}</span>
             <span class="fragment-main">
@@ -345,6 +504,11 @@ onBeforeUnmount(() => {
    accent per interaction. All motion stays under 260ms. */
 .platinum-page {
   --archive-duration: 200ms;
+  /* The caption ink of the archive: a warm grey between the secondary ink
+     and the tertiary one. The tertiary ink (#8A8273) gives only 3.25:1 on
+     paper — the captions of the instrument have to stay readable, so they
+     take this one (5.5:1 on paper, 5:1 on the raised paper). */
+  --archive-caption: #655e52;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
@@ -400,7 +564,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--archive-caption);
 }
 
 .archive-search__input {
@@ -423,7 +587,7 @@ onBeforeUnmount(() => {
 .archive-search__input::placeholder {
   font-family: var(--font-display);
   letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--archive-caption);
 }
 
 .archive-search__input:hover {
@@ -440,6 +604,14 @@ onBeforeUnmount(() => {
 }
 
 /* === Live counter: node on a wire === */
+.archive-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
 .archive-stats {
   display: inline-flex;
   align-items: center;
@@ -448,6 +620,80 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   background: var(--bg-surface);
+}
+
+/* === The register: one node that switches the space off and on === */
+.archive-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color var(--archive-duration) var(--ease-out-quart),
+    color var(--archive-duration) var(--ease-out-quart),
+    box-shadow var(--archive-duration) var(--ease-out-quart);
+}
+
+.archive-mode:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.archive-mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.archive-mode[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.archive-mode__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--border-medium);
+  transition: background var(--archive-duration) var(--ease-out-quart);
+}
+
+.archive-mode[aria-pressed='true'] .archive-mode__dot {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow-strong);
+}
+
+.archive-mode__label {
+  color: var(--text-primary);
+}
+
+.archive-mode__state {
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--archive-caption);
+}
+
+/* === The voice of the archive: it speaks, it does not show === */
+.archive-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .stat-node {
@@ -496,7 +742,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--archive-caption);
 }
 
 .fragments {
@@ -538,7 +784,7 @@ onBeforeUnmount(() => {
 .fragment-id {
   font-size: 0.74rem;
   letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--archive-caption);
   font-variant-numeric: tabular-nums;
   transition: color var(--archive-duration) var(--ease-out-quart);
 }
@@ -571,7 +817,7 @@ onBeforeUnmount(() => {
 .fragment-date {
   font-family: var(--font-display);
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--archive-caption);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -695,7 +941,9 @@ onBeforeUnmount(() => {
   .fragment-link--focused,
   .fragment-id,
   .fragment-title,
-  .archive-more {
+  .archive-more,
+  .archive-mode,
+  .archive-mode__dot {
     transition: none;
   }
 

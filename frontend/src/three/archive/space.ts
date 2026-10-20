@@ -1,5 +1,6 @@
 import type {
   BufferGeometry,
+  Intersection,
   LineSegments,
   Mesh,
   PerspectiveCamera,
@@ -8,14 +9,13 @@ import type {
 } from 'three'
 
 import {
+  archiveLayout,
   hashId,
-  placeFragments,
-  ringsFor,
   type LayoutInputStory,
   type LayoutOptions,
 } from '@/three/archive/layout'
 import {
-  archiveUniforms,
+  createArchiveUniforms,
   disposeArchiveMaterials,
   dustMaterial as createDustMaterial,
   emptyHaloMaterial as createEmptyHaloMaterial,
@@ -44,6 +44,28 @@ type ThreeModule = typeof import('three')
  *
  * Everything is deterministic: the same set of stories always produces the
  * same archive, and the dust is seeded by a hash instead of `Math.random`.
+ *
+ * ## The budget of the scene
+ *
+ * The archive is a background of a page that also has to read well, so it
+ * stays inside a fixed budget:
+ *
+ * - **One geometry and one material for every plate.** Sixty plates cost
+ *   sixty draw calls, but they share a single `BufferGeometry` and a single
+ *   `ShaderMaterial` — the GPU uploads the plate once, no matter how many
+ *   stories the archive holds.
+ * - **Sixty fragments.** The cap is a hard one (`DEFAULT_MAX_FRAGMENTS`);
+ *   the stories beyond it keep their place in the DOM list, only the plates
+ *   are capped.
+ * - **The orbits are cached.** A rebuild of the archive (a new story set)
+ *   reuses the geometry of a radius and the material of a ring index
+ *   instead of building a new torus every time.
+ * - **The frame allocates nothing.** The plates drift, the orbits turn and
+ *   the camera moves over preallocated buffers; the raycast reuses its hit
+ *   list and runs on a throttle.
+ * - **The low tier keeps the composition.** Same rings, same plates, same
+ *   core — only the segments, the motes of the dust and the noise samples
+ *   of the shaders are cheaper.
  */
 
 /** A snapshot of the archive state the scene has to reflect. */
@@ -110,9 +132,12 @@ export interface ArchiveSpaceOptions {
 const DUTY_RING_RADII = [3.0, 4.8, 6.6]
 /** Tube thickness of an orbit. */
 const RING_TUBE = 0.035
-/** Radial segments of an orbit — the low tier keeps it cheap. */
+/** Segments along an orbit — the low tier keeps it coarse. */
 const RING_SEGMENTS_HIGH = 96
 const RING_SEGMENTS_LOW = 40
+/** Segments around the cross-section of an orbit. */
+const RING_RADIAL_SEGMENTS_HIGH = 6
+const RING_RADIAL_SEGMENTS_LOW = 4
 /** Size of a story plate. */
 const FRAGMENT_WIDTH = 0.85
 const FRAGMENT_HEIGHT = 1.1
@@ -120,12 +145,22 @@ const FRAGMENT_HEIGHT = 1.1
 const VAULT_RADIUS = 1.1
 /** Radius of the halo around the core. */
 const HALO_RADIUS = 1.4
+/** Segments of the halo sphere — the low tier keeps it soft and cheap. */
+const HALO_SEGMENTS_HIGH = 20
+const HALO_SEGMENTS_LOW = 12
 /** Radius of the dust volume. */
 const DUST_RADIUS = 8
 /** Motes of the dust — the low tier keeps it sparse. */
 const DUST_COUNT_HIGH = 200
 const DUST_COUNT_LOW = 60
-/** Default fragment budget. */
+/**
+ * The fragment budget of the archive: the scene never places more plates
+ * than this, whatever the API returns.
+ *
+ * Sixty plates of a shared geometry and a shared material are sixty draw
+ * calls of a background scene — cheap enough to live next to the text of
+ * the page. The stories beyond the cap keep their place in the DOM list.
+ */
 const DEFAULT_MAX_FRAGMENTS = 60
 /** Focus amount of the materials while a story is focused. */
 const FOCUS_AMOUNT = 0.9
@@ -156,11 +191,18 @@ const FOCUS_LIFT = 0.6
 const RAYCAST_INTERVAL = 3
 /** A new hover is published only after two checks in a row agree. */
 const HOVER_CONFIRMATIONS = 2
+/**
+ * How far outside of the canvas the pointer may be before the raycast is
+ * skipped: a pointer that left the canvas cannot reach a plate.
+ */
+const POINTER_MARGIN = 1.05
 
 /** One orbit of the archive. */
 interface RingNode {
   mesh: LineSegments
+  /** Geometry of the orbit — swapped when the radius of the ring changes. */
   geometry: BufferGeometry
+  /** Material of the orbit — one per ring index (own breath phase). */
   material: ShaderMaterial
   /** Rotation speed, radians per second. */
   spin: number
@@ -218,6 +260,19 @@ function easeInOutCubic(t: number): number {
 }
 
 /**
+ * The edge lines of a solid.
+ *
+ * `EdgesGeometry` copies the positions into a buffer of its own, so the
+ * solid itself never reaches the GPU — it is given back right away instead
+ * of waiting for the garbage collector.
+ */
+function edgesOf(three: ThreeModule, source: BufferGeometry): BufferGeometry {
+  const edges = new three.EdgesGeometry(source)
+  source.dispose()
+  return edges
+}
+
+/**
  * Build the archive space.
  *
  * The scene is built around a single `world` group: the orbits, the plates,
@@ -243,10 +298,13 @@ export function buildArchiveSpace(
   world.name = 'archive-space'
   scene.add(world)
 
-  // The shared uniform bank of the archive: one clock, one focus, one dim.
-  const uniforms = archiveUniforms()
+  // The uniform bank of this scene: one clock, one focus, one dim. It
+  // belongs to the scene, so a second archive on the same page never
+  // overwrites the clock of the first one.
+  const uniforms = createArchiveUniforms()
 
-  // Everything the scene owns is tracked, so `dispose` can give it back.
+  // Everything the scene owns is tracked, so `dispose` can give it back —
+  // every geometry and every material exactly once.
   const geometries = new Set<BufferGeometry>()
   const materials = new Set<ShaderMaterial>()
   const keepGeometry = <T extends BufferGeometry>(geometry: T): T => {
@@ -260,17 +318,25 @@ export function buildArchiveSpace(
 
   // --- the core: an amber vault inside a soft halo -----------------------
   const vaultGeometry = keepGeometry(
-    new three.EdgesGeometry(new three.DodecahedronGeometry(VAULT_RADIUS)),
+    edgesOf(three, new three.DodecahedronGeometry(VAULT_RADIUS)),
   )
   const vault = new three.LineSegments(
     vaultGeometry,
-    keepMaterial(createVaultMaterial(three, { quality })),
+    keepMaterial(createVaultMaterial(three, { quality, uniforms })),
   )
   vault.name = 'vault'
   world.add(vault)
 
-  const haloGeometry = keepGeometry(new three.SphereGeometry(HALO_RADIUS, 20, 20))
-  const haloMaterial = keepMaterial(createEmptyHaloMaterial(three, { quality }))
+  const haloGeometry = keepGeometry(
+    new three.SphereGeometry(
+      HALO_RADIUS,
+      high ? HALO_SEGMENTS_HIGH : HALO_SEGMENTS_LOW,
+      high ? HALO_SEGMENTS_HIGH : HALO_SEGMENTS_LOW,
+    ),
+  )
+  const haloMaterial = keepMaterial(
+    createEmptyHaloMaterial(three, { quality, uniforms }),
+  )
   // The halo owns its visibility: it is the light of an *empty* archive and
   // must not follow the presence fade of the rest of the scene.
   const haloDim = { value: 0 }
@@ -303,7 +369,7 @@ export function buildArchiveSpace(
   dustGeometry.setAttribute('aSeed', new three.Float32BufferAttribute(dustSeeds, 1))
   const dust = new three.Points(
     dustGeometry,
-    keepMaterial(createDustMaterial(three, { quality })),
+    keepMaterial(createDustMaterial(three, { quality, uniforms })),
   )
   dust.name = 'archive-dust'
   world.add(dust)
@@ -312,12 +378,29 @@ export function buildArchiveSpace(
   const fragmentGeometry = keepGeometry(
     new three.PlaneGeometry(FRAGMENT_WIDTH, FRAGMENT_HEIGHT),
   )
-  const fragmentMaterial = keepMaterial(createFragmentMaterial(three, { quality }))
+  const fragmentMaterial = keepMaterial(
+    createFragmentMaterial(three, { quality, uniforms }),
+  )
 
+  // --- the orbits: their resources are cached, their nodes are pooled ---
+  /**
+   * The geometry of an orbit, by radius. A rebuild of the archive reuses
+   * the torus of a radius it already built — the ring resources live as
+   * long as the scene does, not as long as a story set does.
+   */
+  const ringGeometries = new Map<string, BufferGeometry>()
+  /** The material of an orbit, by ring index (every ring breathes on its own). */
+  const ringMaterials = new Map<number, ShaderMaterial>()
+  /** The ring nodes — pooled, one per ring slot. */
+  const ringPool: RingNode[] = []
+  /** The rings that are in the world right now. */
   let rings: RingNode[] = []
+  /** The plate meshes — pooled, one per slot. */
+  const fragmentPool: Mesh[] = []
+  /** The plates of the current story set. */
   let fragments: FragmentNode[] = []
   /** The plates alone — the raycaster never looks at anything else. */
-  let fragmentMeshes: Mesh[] = []
+  const fragmentMeshes: Mesh[] = []
   /** The plates by story id — the camera looks a plate up every frame. */
   const fragmentIndex = new Map<number, FragmentNode>()
   let elapsed = 0
@@ -362,6 +445,8 @@ export function buildArchiveSpace(
   // --- the pointer -------------------------------------------------------
   const pointerNdc = new three.Vector2(999, 999)
   const raycaster = new three.Raycaster()
+  /** The hits of the last raycast — the list is reused, never reallocated. */
+  const hitBuffer: Intersection[] = []
   /** Whether the pointer moved since the last raycast. */
   let pointerDirty = true
   /** The frame counter of the scene — the raycast is throttled by it. */
@@ -373,23 +458,72 @@ export function buildArchiveSpace(
   /** How many checks in a row confirmed the pending hover. */
   let pendingHoverCount = 0
 
-  /** Drop the orbits of the previous story set — they belong to it alone. */
-  function clearRings(): void {
-    for (const ring of rings) {
-      world.remove(ring.mesh)
-      ring.geometry.dispose()
-      ring.material.dispose()
-      geometries.delete(ring.geometry)
-      materials.delete(ring.material)
+  /** The geometry of an orbit — built once per radius, kept until dispose. */
+  function ringGeometryFor(radius: number): BufferGeometry {
+    const key = radius.toFixed(6)
+    const cached = ringGeometries.get(key)
+    if (cached) return cached
+    const source = new three.TorusGeometry(
+      radius,
+      RING_TUBE,
+      high ? RING_RADIAL_SEGMENTS_HIGH : RING_RADIAL_SEGMENTS_LOW,
+      high ? RING_SEGMENTS_HIGH : RING_SEGMENTS_LOW,
+    )
+    const geometry = keepGeometry(edgesOf(three, source))
+    ringGeometries.set(key, geometry)
+    return geometry
+  }
+
+  /** The material of an orbit — one per ring index, kept until dispose. */
+  function ringMaterialFor(index: number): ShaderMaterial {
+    const cached = ringMaterials.get(index)
+    if (cached) return cached
+    const material = keepMaterial(
+      createRingMaterial(three, { quality, phase: index * 1.1, uniforms }),
+    )
+    ringMaterials.set(index, material)
+    return material
+  }
+
+  /** The node of an orbit — pooled, so a rebuild allocates no object. */
+  function ringNode(index: number, radius: number): RingNode {
+    const geometry = ringGeometryFor(radius)
+    const material = ringMaterialFor(index)
+    const pooled = ringPool[index]
+    if (pooled) {
+      pooled.geometry = geometry
+      pooled.material = material
+      pooled.mesh.geometry = geometry
+      pooled.mesh.material = material
+      return pooled
     }
+    const mesh = new three.LineSegments(geometry, material)
+    mesh.name = `archive-ring-${index}`
+    const node: RingNode = { mesh, geometry, material, spin: 0, dir: 1 }
+    ringPool[index] = node
+    return node
+  }
+
+  /** The mesh of a plate — pooled, so a rebuild allocates no object. */
+  function fragmentMesh(index: number): Mesh {
+    const pooled = fragmentPool[index]
+    if (pooled) return pooled
+    const mesh = new three.Mesh(fragmentGeometry, fragmentMaterial)
+    fragmentPool[index] = mesh
+    return mesh
+  }
+
+  /** Take the orbits of the previous story set out of the world. */
+  function detachRings(): void {
+    for (let i = 0; i < rings.length; i++) world.remove(rings[i].mesh)
     rings = []
   }
 
-  /** Drop the plates of the previous story set — they share the geometry. */
-  function clearFragments(): void {
-    for (const fragment of fragments) world.remove(fragment.mesh)
+  /** Take the plates of the previous story set out of the world. */
+  function detachFragments(): void {
+    for (let i = 0; i < fragments.length; i++) world.remove(fragments[i].mesh)
     fragments = []
-    fragmentMeshes = []
+    fragmentMeshes.length = 0
     fragmentIndex.clear()
   }
 
@@ -405,11 +539,14 @@ export function buildArchiveSpace(
    * The orbits follow the epochs of the layout; an empty archive keeps three
    * bare orbits alive so the space never looks broken, and lights the halo
    * around the core.
+   *
+   * A rebuild allocates no three.js object: the rings and the plates come
+   * out of their pools, the ring resources come out of their cache.
    */
   function setStories(stories: ArchiveStoryRef[]): void {
     if (disposed) return
-    clearRings()
-    clearFragments()
+    detachRings()
+    detachFragments()
 
     const layoutStories: LayoutInputStory[] = (stories ?? []).map((story) => ({
       id: story.id,
@@ -421,54 +558,42 @@ export function buildArchiveSpace(
       ...opts.layout,
     }
 
-    const epochRings = ringsFor(layoutStories, layoutOptions)
-    const radii = epochRings.length
-      ? epochRings.map((ring) => ring.radius)
+    // One pass, one normalisation: the rings and the plates come from the
+    // same layout, so the archive never places a plate on a ring it did
+    // not build.
+    const layout = archiveLayout(layoutStories, layoutOptions)
+    const radii = layout.rings.length
+      ? layout.rings.map((ring) => ring.radius)
       : DUTY_RING_RADII
-    radii.forEach((radius, index) => {
-      const geometry = keepGeometry(
-        new three.EdgesGeometry(
-          new three.TorusGeometry(
-            radius,
-            RING_TUBE,
-            6,
-            high ? RING_SEGMENTS_HIGH : RING_SEGMENTS_LOW,
-          ),
-        ),
-      )
-      const material = keepMaterial(
-        createRingMaterial(three, { quality, phase: index * 1.1 }),
-      )
-      const mesh = new three.LineSegments(geometry, material)
-      mesh.name = `archive-ring-${index}`
-      mesh.rotation.x = Math.PI / 2 + (index - 1) * 0.3
-      mesh.rotation.z = 0.12 * (index - 1)
-      world.add(mesh)
-      rings.push({
-        mesh,
-        geometry,
-        material,
-        spin: 0.05 + radius * 0.008,
-        dir: index % 2 ? -1 : 1,
-      })
-    })
+    for (let index = 0; index < radii.length; index++) {
+      const radius = radii[index]
+      const node = ringNode(index, radius)
+      node.mesh.rotation.x = Math.PI / 2 + (index - 1) * 0.3
+      node.mesh.rotation.z = 0.12 * (index - 1)
+      node.spin = 0.05 + radius * 0.008
+      node.dir = index % 2 ? -1 : 1
+      world.add(node.mesh)
+      rings.push(node)
+    }
 
-    for (const placement of placeFragments(layoutStories, layoutOptions)) {
-      const mesh = new three.Mesh(fragmentGeometry, fragmentMaterial)
+    for (let index = 0; index < layout.placements.length; index++) {
+      const placement = layout.placements[index]
+      const mesh = fragmentMesh(index)
       mesh.position.set(placement.x, placement.y, placement.z)
       mesh.rotation.set(0, placement.angle, placement.tilt)
       mesh.scale.setScalar(placement.scale)
       mesh.userData.storyId = placement.id
       mesh.name = `archive-fragment-${placement.id}`
       world.add(mesh)
-      fragments.push({
+      const node: FragmentNode = {
         mesh,
         id: placement.id,
         baseY: placement.y,
         angle: placement.angle,
-      })
+      }
+      fragments.push(node)
       fragmentMeshes.push(mesh)
-      fragmentIndex.set(placement.id, fragments[fragments.length - 1])
+      fragmentIndex.set(placement.id, node)
     }
 
     // An empty archive is a lit, breathing space — not a void.
@@ -650,7 +775,9 @@ export function buildArchiveSpace(
    *
    * The raycast is throttled — it runs when the pointer moved or every few
    * frames — and a new hover is published only after two checks in a row
-   * agree, so the pointer does not flicker on the edge of a plate.
+   * agree, so the pointer does not flicker on the edge of a plate. The hit
+   * list is reused, so a check allocates nothing but the hit records
+   * themselves.
    */
   function updatePointer(): void {
     frameCounter += 1
@@ -666,14 +793,31 @@ export function buildArchiveSpace(
       return
     }
 
+    // A pointer that left the canvas cannot reach a plate: no ray needed.
+    if (
+      pointerNdc.x < -POINTER_MARGIN ||
+      pointerNdc.x > POINTER_MARGIN ||
+      pointerNdc.y < -POINTER_MARGIN ||
+      pointerNdc.y > POINTER_MARGIN
+    ) {
+      if (hoveredStory !== null) {
+        hoveredStory = null
+        pendingHover = null
+        pendingHoverCount = 0
+      }
+      return
+    }
+
     // The camera and the plates moved — the ray needs their fresh matrices.
     camera.updateMatrixWorld()
     scene.updateMatrixWorld(true)
     raycaster.setFromCamera(pointerNdc, camera)
-    const hits = raycaster.intersectObjects(fragmentMeshes, false)
+    hitBuffer.length = 0
+    raycaster.intersectObjects(fragmentMeshes, false, hitBuffer)
 
     let hitId: number | null = null
-    for (const hit of hits) {
+    for (let i = 0; i < hitBuffer.length; i++) {
+      const hit = hitBuffer[i]
       if (!hit.object.visible) continue
       const id = hit.object.userData.storyId
       if (typeof id === 'number') {
@@ -681,6 +825,7 @@ export function buildArchiveSpace(
         break
       }
     }
+    hitBuffer.length = 0
 
     if (hitId === hoveredStory) {
       pendingHover = null
@@ -769,7 +914,8 @@ export function buildArchiveSpace(
    *
    * The frame does no allocation: the plates drift along their own phase,
    * the orbits turn around the core, the halo breathes and the camera
-   * either orbits, holds a focus or travels between the two.
+   * either orbits, holds a focus or travels between the two. The loops walk
+   * the arrays by index — an iterator would be garbage of its own.
    */
   function update(dt: number, snap: ArchiveSpaceSnapshot): void {
     if (disposed) return
@@ -794,10 +940,12 @@ export function buildArchiveSpace(
     }
 
     if (!reducedMotion) {
-      for (const ring of rings) {
+      for (let i = 0; i < rings.length; i++) {
+        const ring = rings[i]
         ring.mesh.rotation.z += step * ring.spin * ring.dir
       }
-      for (const fragment of fragments) {
+      for (let i = 0; i < fragments.length; i++) {
+        const fragment = fragments[i]
         fragment.mesh.position.y =
           fragment.baseY + Math.sin(elapsed * 0.6 + fragment.angle * 3) * FRAGMENT_DRIFT
       }
@@ -816,19 +964,44 @@ export function buildArchiveSpace(
     disposed = true
 
     scene.remove(world)
-    clearRings()
-    clearFragments()
+    detachRings()
+    detachFragments()
+    // The pooled nodes leave the world as well — a node that is not
+    // attached any more is simply ignored by `remove`.
+    for (let i = 0; i < ringPool.length; i++) {
+      const node = ringPool[i]
+      if (node) world.remove(node.mesh)
+    }
+    for (let i = 0; i < fragmentPool.length; i++) {
+      const mesh = fragmentPool[i]
+      if (mesh) world.remove(mesh)
+    }
 
-    disposeArchiveMaterials(Array.from(materials))
+    // Every material and every geometry is given back exactly once: the
+    // sets hold each of them a single time, and the flag above keeps a
+    // second `dispose` from running this block again.
+    disposeArchiveMaterials(materials)
     materials.clear()
     for (const geometry of geometries) geometry.dispose()
     geometries.clear()
+    ringGeometries.clear()
+    ringMaterials.clear()
+
+    rings = []
+    fragments = []
+    ringPool.length = 0
+    fragmentPool.length = 0
+    fragmentMeshes.length = 0
+    fragmentIndex.clear()
+    hitBuffer.length = 0
 
     // The camera rig keeps no resources of its own — only its state.
     traveling = false
+    travelElapsed = 0
     pendingHoldId = null
     holdId = null
     focusId = null
+    syncedFocus = null
     hoveredStory = null
     pendingHover = null
     pendingHoverCount = 0

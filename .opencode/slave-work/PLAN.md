@@ -136,7 +136,7 @@ empty state — с полным сохранением удобства чтен
       контекста; `MAX_ACTIVE_CONTEXTS` не поднимать), при `quality=off` прежний
       `ParticleField`; тесты обновить. `NetworkCanvas.vue` НЕ менять.
       | Файлы: `src/components/three/AmbientField.vue`, `src/components/three/__tests__/AmbientField.spec.ts` (new/обновить) | deps: P2-T3 | size: S
-- [ ] P2-T5. Перенос веса архива из `network.ts` + честный guard — в network.ts оставить
+- [x] P2-T5. Перенос веса архива из `network.ts` + честный guard — в network.ts оставить
       контракт (`setStoryCount`, `TorusGeometry`-орбиты) как «отдалённый фон», но убрать
       дублирующую детализацию фрагментов (кап 18 → декоративные пылинки), а в
       `scripts/verify-3d.mjs` добавить блок проверок archive-space: `archive/space.ts`
@@ -181,13 +181,13 @@ empty state — с полным сохранением удобства чтен
 
 ### Фаза 4 — Перф, a11y, guard'ы, документация
 
-- [ ] P4-T1. A11y и клавиатура архива — список остаётся источником правды:
+- [x] P4-T1. A11y и клавиатура архива — список остаётся источником правды:
       `Tab`/стрелки по строкам двигают `focusStory` (3D лишь следует), `Enter` открывает,
       `aria-live` объявление «фрагмент #N · <title>», переключатель «3D/только текст»
       (persist в localStorage, по умолчанию 3D) с `aria-pressed`; фокус-ловушки нет;
       контраст подписей ≥ 4.5:1.
       | Файлы: `src/views/PlatinumView.vue`, `src/components/three/ArchiveSpaceCanvas.vue`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P3-T4 | size: M
-- [ ] P4-T2. Перф-проход Archive Space — переиспользование геометрий/материалов
+- [x] P4-T2. Перф-проход Archive Space — переиспользование геометрий/материалов
       (общие BufferGeometry на кольцо, instancing/merge где возможно), бюджет фрагментов
       (cap + LOD по quality), отключение dust при `low`, `will-change`/blend-пракики,
       замер: нет утечек после unmount (`renderer.dispose()` путь), нет лишних
@@ -213,6 +213,7 @@ empty state — с полным сохранением удобства чтен
 - 2026-10-20 18:55 батч 4 запущен: P2-T3 (ArchiveSpaceCanvas), P3-T2b (хореография состояний), P3-T3 (story-reveal переход) — файлы не пересекаются
 - 2026-10-20 19:17 батч 4 DONE + коммит `eab056d`; батч 5 (P2-T4 AmbientField, P3-T4 PlatinumStoryView) — отчёты записаны, сессия прервалась до верификации
 - 2026-10-21 21:30 батч 5 верифицирован главным агентом (verify:3d 46/46, lint 0, build OK, test 60 файлов/826 тестов) → коммит ниже. Пользователь выбрал «продолжить существующий план»: сначала закрыть Фазу 4 (P2-T5, P4-T1..T4), затем отдельной волной — новая цель (глобальная motion design полировка)
+- 2026-10-21 22:38 батч 5+6 (P2-T5 guard'ы архива, P4-T1 a11y/клавиатура, P4-T2 перф-проход) — DONE, зелёные (verify:3d 66/66, lint 0, build OK, test 60 файлов/862 теста), коммит ниже
 - 2026-10-21 21:30 Гейты Фазы 0 подтверждены в этой сессии: каталоги ✅, slug `opencode-go/minimax-m3.1-flash-free` ✅ (`opencode models`), smoke CLI ✅ (SMOKE_OK, модель в логе, 0 ошибок). Зависшие процессы прошлых раундов (P2-T2, A-T1, A-T2) убиты
 
 ## Проблемы / заблокировано

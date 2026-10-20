@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  defineComponent,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+  type ComponentPublicInstance,
+} from 'vue'
 
 import { prefersReducedMotion } from '@/composables/useGsap'
 import {
@@ -28,10 +36,73 @@ import {
  * The DOM list stays the source of truth: while the pointer rests on a row
  * of the list, that row owns the focus and the scene only follows it. The
  * camera never travels on a hover — it travels when a story is opened.
+ *
+ * The canvas itself is decorative (`aria-hidden`): the list of fragments
+ * is what a screen reader reads. The wrap around it carries one short
+ * label, so the space is not a mystery to the reader.
  */
 
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-const { active } = useThreeScene(canvasRef, build)
+/* === The register: the space in 3D or the archive as text only ========= */
+
+/**
+ * The reader's choice: the archive in 3D or as text only. The choice lives
+ * in the device-local storage and travels from the view (which owns the
+ * switch) to this canvas through a window event — the two live in different
+ * component trees. The same two names are kept in `views/PlatinumView.vue`.
+ */
+const ARCHIVE_3D_STORAGE_KEY = 'bmstudvach-archive-3d'
+const ARCHIVE_3D_EVENT = 'bmstudvach:archive-3d'
+
+/** The stored register of the archive (3D is the default one). */
+function readArchive3D(): boolean {
+  try {
+    const stored = localStorage.getItem(ARCHIVE_3D_STORAGE_KEY)
+    if (stored === 'on') return true
+    if (stored === 'off') return false
+  } catch {
+    // blocked storage — the space keeps the register it has
+  }
+  return true
+}
+
+/** Whether the space is rendered at all. */
+const enabled = ref(readArchive3D())
+
+/** What the space looks like to a screen reader. */
+const SPACE_LABEL = 'Архивное пространство: кольца эпох и фрагменты историй'
+
+/**
+ * The switch of the view arrived: the space follows it. The storage is
+ * written here as well — the canvas may be mounted before the view reads
+ * the choice.
+ */
+function onArchive3D(event: Event) {
+  const detail = (event as CustomEvent<{ enabled?: unknown }>).detail
+  const next =
+    typeof detail?.enabled === 'boolean' ? detail.enabled : readArchive3D()
+  enabled.value = next
+  try {
+    localStorage.setItem(ARCHIVE_3D_STORAGE_KEY, next ? 'on' : 'off')
+  } catch {
+    // blocked storage — the choice lives only as long as the page
+  }
+}
+
+/* === The session: the canvas and the WebGL context it holds ============ */
+
+/**
+ * The canvas element and the state of the session. The session itself is
+ * owned by a child component: when the archive goes text only the child is
+ * unmounted, the WebGL context is given back and the budget of
+ * `MAX_ACTIVE_CONTEXTS` is left alone.
+ */
+const canvasHolder = { ref: ref<HTMLCanvasElement | null>(null) }
+const status = reactive({ active: true })
+
+/** The canvas of the space (a function ref keeps the holder in sync). */
+function setCanvas(el: Element | ComponentPublicInstance | null) {
+  canvasHolder.ref.value = (el as HTMLCanvasElement | null) ?? null
+}
 
 /** The scene of the archive (null until the WebGL context is ready). */
 let space: ArchiveSpaceController | null = null
@@ -61,7 +132,7 @@ let dragPointerId: number | null = null
  * window: the archive may live in a corner of the page.
  */
 function canvasBox(): DOMRect | null {
-  const canvas = canvasRef.value
+  const canvas = canvasHolder.ref.value
   if (!canvas) return null
   const rect = canvas.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) return null
@@ -112,7 +183,7 @@ function onPointerDown(e: PointerEvent) {
   dragY = e.clientY
   dragPointerId = e.pointerId ?? null
   try {
-    canvasRef.value?.setPointerCapture?.(e.pointerId)
+    canvasHolder.ref.value?.setPointerCapture?.(e.pointerId)
   } catch {
     // The capture is a nicety — a drag without it still works.
   }
@@ -123,7 +194,7 @@ function onPointerUp() {
   dragging = false
   if (dragPointerId !== null) {
     try {
-      canvasRef.value?.releasePointerCapture?.(dragPointerId)
+      canvasHolder.ref.value?.releasePointerCapture?.(dragPointerId)
     } catch {
       // The capture may already be gone — nothing to release.
     }
@@ -206,32 +277,64 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   }
 }
 
+/**
+ * The holder of the WebGL session. It renders nothing of its own: the
+ * canvas stays in the template of the wrapper (its styles are scoped
+ * there), while the context lives here — so that the text-only mode can
+ * unmount the session and give the context back.
+ */
+const ArchiveScene = defineComponent({
+  name: 'ArchiveSpaceScene',
+  setup() {
+    const { active } = useThreeScene(canvasHolder.ref, build)
+    watch(
+      active,
+      (value) => {
+        status.active = value
+      },
+      { immediate: true, flush: 'sync' },
+    )
+    return () => null
+  },
+})
+
 onMounted(() => {
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { passive: true })
   window.addEventListener('pointercancel', onPointerUp, { passive: true })
+  window.addEventListener(ARCHIVE_3D_EVENT, onArchive3D)
 })
 
 onUnmounted(() => {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
+  window.removeEventListener(ARCHIVE_3D_EVENT, onArchive3D)
   teardown?.()
   teardown = null
 })
 </script>
 
 <template>
-  <div class="archive-canvas-wrap">
-    <canvas
-      ref="canvasRef"
-      class="archive-canvas"
-      :class="{ hidden: !active }"
-      aria-hidden="true"
-      @pointerdown="onPointerDown"
-      @click="onClick"
-    ></canvas>
-    <div v-if="!active" class="archive-fallback" aria-hidden="true"></div>
+  <div
+    class="archive-canvas-wrap"
+    :class="{ 'archive-canvas-wrap--off': !enabled }"
+    :role="enabled ? 'img' : undefined"
+    :aria-label="enabled ? SPACE_LABEL : undefined"
+    :aria-hidden="enabled ? undefined : 'true'"
+  >
+    <template v-if="enabled">
+      <canvas
+        :ref="setCanvas"
+        class="archive-canvas"
+        :class="{ hidden: !status.active }"
+        aria-hidden="true"
+        @pointerdown="onPointerDown"
+        @click="onClick"
+      ></canvas>
+      <div v-if="!status.active" class="archive-fallback" aria-hidden="true"></div>
+      <ArchiveScene />
+    </template>
   </div>
 </template>
 
@@ -271,5 +374,10 @@ onUnmounted(() => {
       oklch(0.35 0.04 260 / 0.35),
       transparent 72%
     );
+}
+
+/* The archive went text only: the space is not on the page at all. */
+.archive-canvas-wrap--off {
+  display: none;
 }
 </style>

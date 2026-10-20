@@ -21,6 +21,20 @@ function file(path) {
   return readFileSync(full, 'utf8')
 }
 
+/**
+ * Source of a file with the comments stripped out. The archive guard has to
+ * look at real code: a check that a commented-out line can satisfy is not a
+ * guard, it is a decoration.
+ */
+function code(path) {
+  const src = file(path)
+  if (src === null) return ''
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+}
+
 function check(name, cond, hint) {
   results.push({ name, ok: !!cond, hint })
 }
@@ -109,6 +123,61 @@ check('CRT is opt-in (off by default)', crt.includes("getItem(STORAGE_KEY) === '
 const home = file('src/views/HomeView.vue') ?? ''
 check('hero has no forced scanlines', !home.includes('ScanlineOverlay'))
 check('hero keeps engineering grid', home.includes('GridPattern'))
+
+// 10. platinum archive space — the platinum route renders a scene of its own
+// (epoch rings, one plate per story, procedural materials), not the list
+// under the network background.
+const archiveSpace = code('src/three/archive/space.ts')
+check('archive space builder', /export\s+function\s+buildArchiveSpace/.test(archiveSpace))
+check('archive space controller', /ArchiveSpaceController/.test(archiveSpace))
+
+const archiveMaterials = code('src/three/archive/materials.ts')
+check('archive materials: GLSL shaders', archiveMaterials.includes('gl_FragColor'))
+check('archive materials: disposal', archiveMaterials.includes('dispose'))
+
+const archiveLayout = code('src/three/archive/layout.ts')
+check('archive layout: fragment placement', archiveLayout.includes('placeFragments'))
+check('archive layout: epoch rings', archiveLayout.includes('ringsFor'))
+check('archive layout: fragment lookup', archiveLayout.includes('fragmentById'))
+
+const archiveCanvas = code('src/components/three/ArchiveSpaceCanvas.vue')
+check('archive canvas builds the archive space', archiveCanvas.includes('buildArchiveSpace'))
+
+// The platinum view either mounts the archive canvas itself or feeds the
+// archive state — the same wiring, two import styles — so the check accepts
+// both instead of pinning one spelling of the import.
+check(
+  'platinum view drives the archive space',
+  /ArchiveSpaceCanvas|setArchiveStories|archiveStories/.test(
+    code('src/views/PlatinumView.vue'),
+  ),
+)
+
+const ambient = code('src/components/three/AmbientField.vue')
+check('ambient renders the archive canvas', /<ArchiveSpaceCanvas/.test(ambient))
+check('ambient keeps the network canvas', /<NetworkCanvas/.test(ambient))
+check(
+  'ambient: the archive takes the platinum mode',
+  /mode\s*===\s*'platinum'/.test(ambient),
+)
+
+const archiveState = code('src/three/sceneState.ts')
+check('archive state: story list', archiveState.includes('archiveStories'))
+check('archive state: focus', archiveState.includes('focusStory'))
+check('archive state: selection', archiveState.includes('selectStory'))
+for (const ev of ['archive-focus', 'archive-open', 'archive-clear']) {
+  check(`archive event: ${ev}`, archiveState.includes(ev))
+}
+
+// The network keeps the *distant* archive only: a handful of shared
+// silhouettes and one spark cloud — never a box per story.
+const networkCode = code('src/three/network.ts')
+const silhouetteCap = /MAX_ARCHIVE_SILHOUETTES\s*=\s*(\d+)/.exec(networkCode)
+check(
+  'network: the archive detail stays decorative',
+  silhouetteCap !== null && Number(silhouetteCap[1]) <= 6,
+)
+check('network: the stories are one shared spark cloud', networkCode.includes('setDrawRange'))
 
 // report
 const failed = results.filter((r) => !r.ok)

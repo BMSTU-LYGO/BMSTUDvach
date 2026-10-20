@@ -3,6 +3,7 @@ import type { ShaderMaterial } from 'three'
 
 import {
   archiveUniforms,
+  createArchiveUniforms,
   disposeArchiveMaterials,
   dustMaterial,
   emptyHaloMaterial,
@@ -103,6 +104,53 @@ describe('archive materials: uniform contract', () => {
   })
 })
 
+describe('archive materials: the bank of a scene', () => {
+  it('gives a scene a bank of its own', () => {
+    const bank = createArchiveUniforms()
+    const shared = archiveUniforms()
+    expect(bank.uTime).not.toBe(shared.uTime)
+    expect(bank.uFocus).not.toBe(shared.uFocus)
+    expect(bank.uDim).not.toBe(shared.uDim)
+
+    bank.uTime.value = 7
+    expect(shared.uTime.value).toBe(0)
+    expect(createArchiveUniforms().uTime.value).toBe(0)
+  })
+
+  it('wires the materials of a scene into its bank', () => {
+    const bank = createArchiveUniforms()
+    const plate = fragmentMaterial(three, { uniforms: bank })
+    const ring = ringMaterial(three, { uniforms: bank })
+
+    expect(plate.uniforms.uTime).toBe(bank.uTime)
+    expect(plate.uniforms.uFocus).toBe(bank.uFocus)
+    expect(plate.uniforms.uDim).toBe(bank.uDim)
+    expect(ring.uniforms.uTime).toBe(bank.uTime)
+
+    // The palette stays the own business of every material.
+    expect(ring.uniforms.uColorA).not.toBe(plate.uniforms.uColorA)
+  })
+
+  it('moves a whole scene from one place', () => {
+    const bank = createArchiveUniforms()
+    const materials = [
+      fragmentMaterial(three, { uniforms: bank }),
+      ringMaterial(three, { uniforms: bank }),
+      vaultMaterial(three, { uniforms: bank }),
+      dustMaterial(three, { uniforms: bank }),
+      emptyHaloMaterial(three, { uniforms: bank }),
+    ]
+    bank.uTime.value = 3.5
+    bank.uFocus.value = 0.25
+    bank.uDim.value = 0.5
+    for (const material of materials) {
+      expect(material.uniforms.uTime.value).toBe(3.5)
+      expect(material.uniforms.uFocus.value).toBe(0.25)
+      expect(material.uniforms.uDim.value).toBe(0.5)
+    }
+  })
+})
+
 describe('archive materials: shaders', () => {
   it('writes every fragment stage through gl_FragColor', () => {
     for (const material of allMaterials()) {
@@ -170,6 +218,16 @@ describe('archive materials: quality tiers', () => {
     expect(lowRing.fragmentShader).not.toBe(highRing.fragmentShader)
   })
 
+  it('keeps the fine grain layer behind the quality branch', () => {
+    // The branch is uniform, so the low tier really skips the hash instead
+    // of multiplying it by zero.
+    for (const quality of ['high', 'low'] as const) {
+      const source = fragmentMaterial(three, { quality }).fragmentShader
+      expect(source).toContain('uQuality > 0.5 ? hash21(floor(vUv * 320.0))')
+      expect(source).toContain('uQuality > 0.5 ? fbm(gp) : valueNoise(gp)')
+    }
+  })
+
   it('drops the fine grain layer on the low tier', () => {
     const high = fragmentMaterial(three, { quality: 'high' })
     const low = fragmentMaterial(three, { quality: 'low' })
@@ -214,5 +272,37 @@ describe('archive materials: blending and disposal', () => {
 
   it('ignores empty slots in the list', () => {
     expect(() => disposeArchiveMaterials([null, undefined])).not.toThrow()
+  })
+
+  it('takes any iterable, not only an array', () => {
+    const spy = vi.fn()
+    disposeArchiveMaterials(new Set([{ dispose: spy }]))
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the textures of a material back as well', () => {
+    const texture = { isTexture: true, dispose: vi.fn() }
+    const material = { dispose: vi.fn(), uniforms: { uMap: { value: texture } } }
+    disposeArchiveMaterials([material])
+    expect(material.dispose).toHaveBeenCalledTimes(1)
+    expect(texture.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives a shared texture back only once', () => {
+    const texture = { isTexture: true, dispose: vi.fn() }
+    const first = { dispose: vi.fn(), uniforms: { uMap: { value: texture } } }
+    const second = { dispose: vi.fn(), uniforms: { uMap: { value: texture } } }
+    disposeArchiveMaterials([first, second])
+    expect(first.dispose).toHaveBeenCalledTimes(1)
+    expect(second.dispose).toHaveBeenCalledTimes(1)
+    expect(texture.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the archive materials without a texture alone', () => {
+    // The archive is fully procedural — nothing to release beyond the
+    // material itself.
+    for (const material of allMaterials()) {
+      expect(() => disposeArchiveMaterials([material])).not.toThrow()
+    }
   })
 })

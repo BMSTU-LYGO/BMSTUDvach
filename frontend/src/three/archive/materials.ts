@@ -20,11 +20,18 @@ type ThreeModule = typeof import('three')
  * 1. **One uniform contract.** Every material exposes `uTime`, `uFocus` and
  *    `uDim` (plus `uColorA` / `uColorB` / `uQuality`). The three shared
  *    uniforms are the *same objects* in every material, so the scene drives
- *    the whole archive from one place — see `archiveUniforms`.
+ *    the whole archive from one place — see `archiveUniforms` (the default
+ *    bank) and `createArchiveUniforms` (a bank of its own, owned by one
+ *    scene).
  * 2. **GLSL ES 1.00 only.** The shaders avoid `texture()`, `invert()` and
  *    anything else WebGL1 does not guarantee, and they use `gl_FragColor`.
  *    Quality tiers are baked into the source (no `#define`), so every tier
  *    compiles as plain GLSL.
+ *
+ * A third rule keeps the scene cheap: **no textures at all**. Every surface
+ * is procedural, so a material owns nothing but its shader program — the
+ * low tier pays for a third of the noise samples of the high tier, never
+ * for a texture that has to be uploaded, sampled and released again.
  */
 
 /** Quality tier of an archive material. */
@@ -86,6 +93,10 @@ const OCTAVES: Record<ArchiveQuality, number> = { high: 3, low: 1 }
 /**
  * The shared uniform bank. Every factory wires these very objects into its
  * materials, so writing `shared.uTime.value = t` moves the whole archive.
+ *
+ * It is the *default* bank — the one every material shares when no other
+ * bank is given. A scene that must not share its clock with another scene
+ * (two archives on one page) asks for its own: `createArchiveUniforms`.
  */
 const shared: ArchiveCoreUniforms = {
   uTime: { value: 0 },
@@ -188,10 +199,13 @@ const fragmentFrag = /* glsl */ `
     float fresnel = pow(1.0 - abs(dot(viewDir, n)), uFresnelPower);
 
     // Warm paper grain over the local plate position: the high tier stacks
-    // the octaves, the low tier keeps a single layer.
+    // the octaves, the low tier keeps a single layer. The branch is uniform
+    // (uQuality never changes per draw), so the unused layer is really
+    // skipped instead of computed and multiplied by zero.
     vec2 gp = vLocal.xy * 3.4 + vec2(vLocal.z * 1.7, vLocal.z * 0.9);
-    float coarse = mix(valueNoise(gp), fbm(gp), uQuality);
-    float fine = hash21(floor(vUv * 320.0)) * step(1.5, uOctaves);
+    float coarse = uQuality > 0.5 ? fbm(gp) : valueNoise(gp);
+    // The fine layer belongs to the high tier alone.
+    float fine = uQuality > 0.5 ? hash21(floor(vUv * 320.0)) * step(1.5, uOctaves) : 0.0;
     float grain = clamp((coarse * 0.7 + fine * 0.3) * uGrain, 0.0, 1.0);
 
     vec3 paper = uColorA;
@@ -252,7 +266,8 @@ const ringFrag = /* glsl */ `
     // plane the ring was built in.
     vec2 np = vec2(vLocal.x + vLocal.z * 0.61, vLocal.y - vLocal.z * 0.43);
     vec2 q = np * uNoiseScale + vec2(uTime * uSpeed, uTime * uSpeed * 0.6);
-    float n = mix(valueNoise(q), fbm(q), uQuality);
+    // Same branch as on the plate: the low tier samples the noise once.
+    float n = uQuality > 0.5 ? fbm(q) : valueNoise(q);
     float travel = 0.55 + 0.45 * n;
 
     vec3 color = mix(uColorA, uColorB, clamp(uFocus, 0.0, 1.0) * 0.9);
@@ -427,6 +442,15 @@ export interface ArchiveMaterialOptions {
   colorB?: number
   /** Base opacity of the material. */
   opacity?: number
+  /**
+   * The uniform bank of the material.
+   *
+   * Without it the material joins the default bank of the module — the one
+   * every archive material shares. A scene that owns its archive gives its
+   * own bank (`createArchiveUniforms`) to every material it builds, so two
+   * archives on one page never overwrite each other's clock.
+   */
+  uniforms?: ArchiveUniforms
 }
 
 /** Options of the fragment plate. */
@@ -494,11 +518,46 @@ export function archiveUniforms(
 }
 
 /**
+ * A uniform bank of its own — the one a scene owns.
+ *
+ * The default bank of `archiveUniforms` is a module-level singleton: every
+ * material that does not bring its own bank joins it. That is convenient for
+ * a single archive and wrong for two of them (the clock of the older scene
+ * would keep running inside the newer one), so a scene builds its own bank
+ * and hands it to every material it creates.
+ */
+export function createArchiveUniforms(
+  extra?: Record<string, ArchiveUniform<unknown>>,
+): ArchiveUniforms {
+  const uniforms: Record<string, ArchiveUniform<unknown>> = {
+    uTime: { value: 0 },
+    uFocus: { value: 0 },
+    uDim: { value: 1 },
+  }
+  if (extra) {
+    for (const key of Object.keys(extra)) uniforms[key] = extra[key]
+  }
+  return uniforms as ArchiveUniforms
+}
+
+/**
+ * The core uniforms of a material: the bank it was given, or the default
+ * one. The palette and the quality dials are added by the factory itself.
+ */
+function coreUniforms(opts: ArchiveMaterialOptions): ArchiveUniforms {
+  return opts.uniforms ?? archiveUniforms()
+}
+
+/**
  * A fragment plate: a sheet of warm paper standing in the archive.
  *
  * The fresnel rim is the only lit edge, the grain gives the sheet its
  * paper tone and the accent only shows up in the rim while the fragment is
  * focused.
+ *
+ * The low tier samples the noise once instead of three times and skips the
+ * fine grain layer altogether — the branch is uniform, so the hash really is
+ * not evaluated. The result is the same picture, a third of the noise work.
  */
 export function fragmentMaterial(
   three: ThreeModule,
@@ -507,7 +566,7 @@ export function fragmentMaterial(
   const quality = resolveQuality(opts.quality)
   const octaves = OCTAVES[quality]
   const uniforms: ArchiveUniforms = {
-    ...archiveUniforms(),
+    ...coreUniforms(opts),
     uColorA: { value: new three.Color(opts.colorA ?? PAPER) },
     uColorB: { value: new three.Color(opts.colorB ?? ACCENT) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -529,6 +588,8 @@ export function fragmentMaterial(
 /**
  * An orbit ring: a quiet line that breathes and carries a travelling
  * highlight. Works on `LineSegments` — the shader needs no normals.
+ *
+ * The low tier samples the travelling field once instead of three times.
  */
 export function ringMaterial(
   three: ThreeModule,
@@ -537,7 +598,7 @@ export function ringMaterial(
   const quality = resolveQuality(opts.quality)
   const octaves = OCTAVES[quality]
   const uniforms: ArchiveUniforms = {
-    ...archiveUniforms(),
+    ...coreUniforms(opts),
     uColorA: { value: new three.Color(opts.colorA ?? STEEL) },
     uColorB: { value: new three.Color(opts.colorB ?? AMBER) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -568,7 +629,7 @@ export function vaultMaterial(
 ): ShaderMaterial {
   const quality = resolveQuality(opts.quality)
   const uniforms: ArchiveUniforms = {
-    ...archiveUniforms(),
+    ...coreUniforms(opts),
     uColorA: { value: new three.Color(opts.colorA ?? AMBER) },
     uColorB: { value: new three.Color(opts.colorB ?? AMBER_BRIGHT) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -599,7 +660,7 @@ export function dustMaterial(
 ): ShaderMaterial {
   const quality = resolveQuality(opts.quality)
   const uniforms: ArchiveUniforms = {
-    ...archiveUniforms(),
+    ...coreUniforms(opts),
     uColorA: { value: new three.Color(opts.colorA ?? STEEL_LIGHT) },
     uColorB: { value: new three.Color(opts.colorB ?? AMBER) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -630,7 +691,7 @@ export function emptyHaloMaterial(
 ): ShaderMaterial {
   const quality = resolveQuality(opts.quality)
   const uniforms: ArchiveUniforms = {
-    ...archiveUniforms(),
+    ...coreUniforms(opts),
     uColorA: { value: new three.Color(opts.colorA ?? AMBER) },
     uColorB: { value: new three.Color(opts.colorB ?? AMBER_BRIGHT) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -650,18 +711,89 @@ export function emptyHaloMaterial(
 }
 
 /**
+ * The texture slots a material may own. The archive materials are fully
+ * procedural and never fill a slot — the list exists so a future material
+ * that brings a texture cannot leak it.
+ */
+const TEXTURE_SLOTS = [
+  'map',
+  'alphaMap',
+  'aoMap',
+  'bumpMap',
+  'displacementMap',
+  'emissiveMap',
+  'envMap',
+  'lightMap',
+  'metalnessMap',
+  'normalMap',
+  'roughnessMap',
+  'specularMap',
+] as const
+
+/** Whether a value is a three.js texture (it disposes itself). */
+function isTexture(value: unknown): value is { isTexture: true; dispose: () => void } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { isTexture?: unknown }).isTexture === true
+  )
+}
+
+/**
+ * Collect the textures of a material — the ones in the uniform bag and the
+ * ones in the classic slots. Every texture is collected once, even when two
+ * materials share it.
+ */
+function collectTextures(
+  material: { dispose: () => void },
+  textures: Set<{ dispose: () => void }>,
+): void {
+  const bag = material as unknown as {
+    uniforms?: Record<string, { value?: unknown }>
+    [slot: string]: unknown
+  }
+  if (bag.uniforms) {
+    for (const key of Object.keys(bag.uniforms)) {
+      const value = bag.uniforms[key]?.value
+      if (isTexture(value)) textures.add(value)
+    }
+  }
+  for (const slot of TEXTURE_SLOTS) {
+    const value = bag[slot]
+    if (isTexture(value)) textures.add(value)
+  }
+}
+
+/**
  * Dispose a batch of archive materials.
  *
  * Materials are cheap but they hold GPU programs — a scene that rebuilds
- * its fragments has to give them back.
+ * its fragments has to give them back. Every texture a material owns goes
+ * with it (once, even when two materials share one).
+ *
+ * The list may be any iterable — the scene hands over the set of the
+ * materials it tracked, so nothing has to be copied first.
  */
 export function disposeArchiveMaterials(
-  materials: Array<{ dispose: () => void } | null | undefined>,
+  materials: Iterable<{ dispose: () => void } | null | undefined>,
 ): void {
+  const textures = new Set<{ dispose: () => void }>()
   for (const material of materials) {
     if (!material) continue
     try {
       material.dispose()
+    } catch {
+      /* already disposed */
+    }
+    try {
+      collectTextures(material, textures)
+    } catch {
+      /* a material without a uniform bag is fine */
+    }
+  }
+  for (const texture of textures) {
+    try {
+      texture.dispose()
     } catch {
       /* already disposed */
     }

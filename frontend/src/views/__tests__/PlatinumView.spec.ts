@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mount, flushPromises, type DOMWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
@@ -80,6 +80,39 @@ async function mountArchive() {
   await router.push('/platinum')
   await router.isReady()
   const wrapper = mount(PlatinumView, { global: { plugins: [router] } })
+  await flushPromises()
+  await flushPromises()
+  return { wrapper, router }
+}
+
+/**
+ * A row of the list as the element it is: the keyboard walks the rows of
+ * the archive, and jsdom only focuses the elements that are in the document.
+ */
+function rowElement(rows: DOMWrapper<Element>[], index: number): HTMLElement {
+  return rows[index].element as HTMLElement
+}
+
+/**
+ * The archive mounted in the document: the keyboard moves the real focus,
+ * and jsdom only focuses the elements that are in the document.
+ */
+async function mountArchiveInDocument() {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/platinum', component: PlatinumView },
+      { path: '/platinum/:storyId(\\d+)', component: { template: '<div />' } },
+    ],
+  })
+  await router.push('/platinum')
+  await router.isReady()
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const wrapper = mount(PlatinumView, {
+    global: { plugins: [router] },
+    attachTo: host,
+  })
   await flushPromises()
   await flushPromises()
   return { wrapper, router }
@@ -435,5 +468,210 @@ describe('PlatinumView — the archive and the 3D space (P3-T1)', () => {
     await mountArchive()
 
     expect(sceneState.archiveStories).toEqual([])
+  })
+})
+
+describe('PlatinumView — the archive on the keyboard (P4-T1)', () => {
+  /** The archive of the test, mounted in the document. */
+  let mounted: { unmount: () => void } | null = null
+
+  beforeEach(() => {
+    vi.mocked(listPlatinumStories).mockReset()
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    document.body.innerHTML = ''
+  })
+
+  it('walks the rows with the arrows and the space follows', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const seen: SceneEvent[] = []
+    const off = onSceneEvent((ev) => seen.push(ev))
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+    await rows[0].trigger('keydown', { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(rows[1].element)
+    expect(sceneState.focusedStory).toBe(2)
+    expect(rows[1].attributes('data-focused')).toBe('true')
+    expect(rows[0].attributes('data-focused')).toBeUndefined()
+    expect(seen).toContainEqual({ type: 'archive-focus', target: 2 })
+    off()
+  })
+
+  it('walks back with the arrow up', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 1).focus()
+    await rows[1].trigger('keydown', { key: 'ArrowUp' })
+
+    expect(document.activeElement).toBe(rows[0].element)
+    expect(sceneState.focusedStory).toBe(1)
+  })
+
+  it('jumps to the edges of the archive with Home and End', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+
+    await rows[0].trigger('keydown', { key: 'End' })
+    expect(document.activeElement).toBe(rows[1].element)
+
+    await rows[1].trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(rows[0].element)
+  })
+
+  it('opens the story under the focus with Enter', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper, router } = await mountArchiveInDocument()
+    mounted = wrapper
+    const push = vi.spyOn(router, 'push')
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+    await rows[0].trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(sceneState.selectedStory).toBe(1)
+    expect(push).toHaveBeenCalledWith('/platinum/1')
+    push.mockRestore()
+  })
+
+  it('says in the live region which fragment the reader is on', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const live = wrapper.find('[data-testid="archive-live"]')
+    expect(live.attributes('aria-live')).toBe('polite')
+    expect(live.text()).toBe('')
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+    await nextTick()
+
+    expect(live.text()).toContain('Фрагмент 1 из 2')
+    expect(live.text()).toContain('Ночь перед экзаменом')
+
+    await rows[0].trigger('keydown', { key: 'ArrowDown' })
+
+    expect(live.text()).toContain('Фрагмент 2 из 2')
+    expect(live.text()).toContain('Смена на проходной')
+  })
+
+  it('stays quiet while the pointer runs over the list', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    await rows[0].trigger('mouseenter')
+    await rows[1].trigger('mouseenter')
+
+    expect(sceneState.focusedStory).toBe(2)
+    expect(wrapper.find('[data-testid="archive-live"]').text()).toBe('')
+  })
+
+  it('never traps the focus — the reader can leave the archive', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+    mounted = wrapper
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+    expect(document.activeElement).toBe(rows[0].element)
+    expect(sceneState.focusedStory).toBe(1)
+
+    const tab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    })
+    rows[0].element.dispatchEvent(tab)
+    expect(tab.defaultPrevented).toBe(false)
+
+    // The focus left the archive: the space lets the fragment go.
+    rowElement(rows, 0).blur()
+    expect(sceneState.focusedStory).toBe(null)
+  })
+})
+
+describe('PlatinumView — the register of the archive: 3D or text alone (P4-T1)', () => {
+  beforeEach(() => {
+    vi.mocked(listPlatinumStories).mockReset()
+    localStorage.clear()
+  })
+
+  it('shows the space by default and switches it off and on', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchive()
+
+    const toggle = wrapper.find('[data-testid="archive-mode-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    expect(localStorage.getItem('bmstudvach-archive-3d')).toBe('off')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+    expect(localStorage.getItem('bmstudvach-archive-3d')).toBe('on')
+  })
+
+  it('remembers the register of the archive on this device', async () => {
+    localStorage.setItem('bmstudvach-archive-3d', 'off')
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+
+    const { wrapper } = await mountArchive()
+
+    expect(wrapper.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed')).toBe(
+      'false',
+    )
+  })
+
+  it('tells the space about the register of the archive', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchive()
+
+    const seen: unknown[] = []
+    const listener = (event: Event) => seen.push((event as CustomEvent).detail)
+    window.addEventListener('bmstudvach:archive-3d', listener)
+
+    await wrapper.find('[data-testid="archive-mode-toggle"]').trigger('click')
+
+    window.removeEventListener('bmstudvach:archive-3d', listener)
+    expect(seen).toEqual([{ enabled: false }])
+  })
+
+  it('keeps the rows and the empty state of the archive', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchive()
+
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="archive-mode-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(false)
+  })
+
+  it('keeps the switch of the register even when the archive is silent', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    const { wrapper } = await mountArchive()
+
+    expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="archive-mode-toggle"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(0)
   })
 })

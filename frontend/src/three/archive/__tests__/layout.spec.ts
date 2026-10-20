@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  archiveLayout,
   fragmentById,
   hashId,
   layoutSignature,
@@ -331,8 +332,70 @@ describe('placeFragments', () => {
   })
 })
 
-describe('fragmentById', () => {
-  it('finds a fragment by its story id', () => {
+describe('archiveLayout', () => {
+  it('is empty for an empty archive', () => {
+    expect(archiveLayout([])).toEqual({ rings: [], placements: [] })
+  })
+
+  it('returns the very same rings and placements as the two calls', () => {
+    const stories = [
+      story(1, { publishedAt: DATE_2022 }),
+      story(2, { publishedAt: DATE_2023 }),
+      story(3, { publishedAt: null }),
+      story(4, { sourceType: 'generated' }),
+    ]
+    const layout = archiveLayout(stories)
+    expect(layout.rings).toEqual(ringsFor(stories))
+    expect(layout.placements).toEqual(placeFragments(stories))
+  })
+
+  it('keeps the values of the two calls for every option', () => {
+    const stories = Array.from({ length: 40 }, (_, i) =>
+      story(i + 1, { publishedAt: i % 3 === 0 ? DATE_2022 : DATE_2024 }),
+    )
+    for (const opts of [{}, { maxFragments: 12 }, { shellRadius: 5, tierSpacing: 2 }]) {
+      const layout = archiveLayout(stories, opts)
+      expect(layout.rings).toEqual(ringsFor(stories, opts))
+      expect(layout.placements).toEqual(placeFragments(stories, opts))
+    }
+  })
+
+  it('is deterministic for the same input', () => {
+    const stories = [story(1, { publishedAt: DATE_2022 }), story(2)]
+    expect(archiveLayout(stories)).toEqual(archiveLayout(stories))
+  })
+
+  it('does not depend on the order the stories arrive in', () => {
+    const stories = [
+      story(1, { publishedAt: DATE_2022 }),
+      story(2, { publishedAt: DATE_2023 }),
+      story(3, { publishedAt: null }),
+    ]
+    const reference = archiveLayout(stories)
+    for (const seed of [1, 7, 42]) {
+      expect(archiveLayout(shuffle(stories, seed))).toEqual(reference)
+    }
+  })
+
+  it('caps the fragments of the layout', () => {
+    const stories = Array.from({ length: 70 }, (_, i) => story(i + 1))
+    expect(archiveLayout(stories).placements).toHaveLength(60)
+    expect(archiveLayout(stories, { maxFragments: 5 }).placements).toHaveLength(5)
+  })
+
+  it('places every fragment on a ring it built', () => {
+    const stories = Array.from({ length: 30 }, (_, i) =>
+      story(i + 1, { publishedAt: i % 4 === 0 ? DATE_2022 : DATE_2024 }),
+    )
+    const layout = archiveLayout(stories)
+    const radii = layout.rings.map((ring) => ring.radius)
+    for (const placement of layout.placements) {
+      expect(radii[placement.ringIndex]).toBe(placement.radius)
+    }
+  })
+})
+
+describe('fragmentById', () => {  it('finds a fragment by its story id', () => {
     const placements = placeFragments([story(7), story(9)])
     expect(fragmentById(placements, 9)?.id).toBe(9)
   })
