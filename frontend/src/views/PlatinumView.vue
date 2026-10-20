@@ -1,18 +1,33 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { listPlatinumStories, type PlatinumStory } from '@/api/platinum'
-import { setStoryCount } from '@/three/sceneState'
+import {
+  emitSceneEvent,
+  focusStory,
+  onSceneEvent,
+  sceneState,
+  selectStory,
+  setArchiveStories,
+  setStoryCount,
+  type ArchiveStoryRef,
+} from '@/three/sceneState'
+import { ringsFor } from '@/three/archive/layout'
+import { prefersReducedMotion } from '@/composables/useGsap'
 import { apiErrorMessage } from '@/api/client'
 
 /**
  * /platinum/ — the Archive Space. The actual 3D rings/fragments live in
- * the persistent network scene (mode 'platinum'); this view feeds it the
- * published-story count and renders the readable fragments underneath.
+ * the persistent network scene (mode 'platinum'); this view is the single
+ * source of truth of the archive: it feeds the space with the stories it
+ * loaded and keeps the readable list in sync with the focused fragment.
  */
+
+const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
@@ -22,17 +37,71 @@ const page = ref(1)
 const loadingMore = ref(false)
 const query = ref('')
 const search = ref('')
+/** Story the space focuses on (null = the space orbits freely). */
+const focusedId = ref<number | null>(null)
+/** The list of fragments — the scroll container of the archive. */
+const listRef = ref<HTMLElement | null>(null)
+
+/** Publication year of a story (null = undated or unparsable date). */
+function yearOf(value: string | null): number | null {
+  if (!value) return null
+  const parsed = Date.parse(value)
+  if (!Number.isFinite(parsed)) return null
+  const year = new Date(parsed).getFullYear()
+  return Number.isFinite(year) ? year : null
+}
+
+/**
+ * The scene descriptors of a set of stories: one fragment per story.
+ *
+ * The rings come from the very same layout the 3D space uses, so the epoch
+ * a fragment lives on is the epoch the reader sees. The unpublished stories
+ * share the innermost ring.
+ */
+function archiveRefs(list: PlatinumStory[]): ArchiveStoryRef[] {
+  const years = new Map<number, number | null>()
+  for (const story of list) years.set(story.id, yearOf(story.published_at))
+
+  const rings = ringsFor(
+    list.map((story) => ({
+      id: story.id,
+      sourceType: story.source_type ?? undefined,
+      year: years.get(story.id) ?? undefined,
+    })),
+  )
+  const ringOf = new Map<number, number>()
+  for (const ring of rings) {
+    for (const id of ring.stories) ringOf.set(id, ring.index)
+  }
+
+  return list.map((story) => ({
+    id: story.id,
+    title: story.title,
+    year: years.get(story.id) ?? null,
+    ringIndex: ringOf.get(story.id) ?? 0,
+    sourceType: story.source_type ?? null,
+  }))
+}
+
+/** Hand a set of stories to the archive space. */
+function syncArchive(list: PlatinumStory[]) {
+  setArchiveStories(archiveRefs(list))
+}
 
 async function load() {
   loading.value = true
   error.value = ''
+  // The rings breathe empty while the archive answers.
+  setArchiveStories([])
   try {
     const result = await listPlatinumStories({ search: search.value })
     stories.value = result.results
     total.value = result.count
     setStoryCount(result.count)
+    syncArchive(result.results)
   } catch (err) {
     error.value = apiErrorMessage(err, 'Архив недоступен.')
+    setArchiveStories([])
   } finally {
     loading.value = false
   }
@@ -48,6 +117,8 @@ async function loadMore() {
     stories.value.push(...next.results)
     total.value = next.count
     page.value += 1
+    // The space grows with the list: every loaded story is a fragment.
+    syncArchive(stories.value)
   } catch {
     // keep what we already have; the archive is a slow place
   } finally {
@@ -77,7 +148,84 @@ function published(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('ru-RU') : ''
 }
 
-onMounted(load)
+/* === The list speaks to the space ==================================== */
+
+/** The reader points at a row: the space focuses that fragment. */
+function focusRow(id: number) {
+  if (sceneState.focusedStory === id) return
+  focusStory(id)
+  emitSceneEvent({ type: 'archive-focus', target: id })
+}
+
+/**
+ * The reader leaves a row: the focus is released — unless the space has
+ * already moved on to another fragment, which a stale leave must not
+ * overwrite.
+ */
+function releaseRow(id: number) {
+  if (sceneState.focusedStory !== id) return
+  focusStory(null)
+  emitSceneEvent({ type: 'archive-focus', target: null })
+}
+
+/** The row was opened: the space must know which fragment was chosen. */
+function openRow(id: number) {
+  selectStory(id)
+}
+
+/**
+ * Bring a row into view — gently. The scroll happens only when the row is
+ * really out of sight and the reader did not ask for calm motion, so the
+ * list never jumps under the pointer.
+ */
+function revealRow(id: number) {
+  const list = listRef.value
+  if (!list) return
+  const row = list.querySelector<HTMLElement>(`[data-story-id="${id}"]`)
+  if (!row || typeof row.scrollIntoView !== 'function') return
+  const bounds = list.getBoundingClientRect()
+  const rect = row.getBoundingClientRect()
+  // The visible band of the list: the viewport, clipped by the list itself.
+  const top = Math.max(bounds.top, 0)
+  const bottom = Math.min(bounds.bottom, window.innerHeight || bounds.bottom)
+  const inside = rect.top >= top && rect.bottom <= bottom
+  if (inside) return
+  if (prefersReducedMotion()) return
+  row.scrollIntoView({
+    behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    block: 'nearest',
+  })
+}
+
+// The space focuses a fragment: the list marks the row and looks at it.
+watch(
+  () => sceneState.focusedStory,
+  (id) => {
+    focusedId.value = id
+    if (id === null) return
+    void nextTick(() => revealRow(id))
+  },
+  { immediate: true },
+)
+
+/* === The space speaks to the list ==================================== */
+
+let offScene: (() => void) | null = null
+
+onMounted(() => {
+  offScene = onSceneEvent((ev) => {
+    // A fragment was clicked in 3D: the archive opens the story.
+    if (ev.type !== 'archive-open') return
+    selectStory(ev.target)
+    void router.push(`/platinum/${ev.target}`)
+  })
+  void load()
+})
+
+onBeforeUnmount(() => {
+  offScene?.()
+  offScene = null
+})
 </script>
 
 <template>
@@ -121,12 +269,22 @@ onMounted(load)
       <p class="archive-fragments__caption">
         fragments · показано {{ stories.length }} из {{ total }}
       </p>
-      <ol class="fragments" :aria-busy="loadingMore">
+      <ol class="fragments" :aria-busy="loadingMore" ref="listRef">
         <li v-for="story in stories" :key="story.id" class="fragment">
           <RouterLink
             :to="`/platinum/${story.id}`"
             class="fragment-link"
+            :class="{ 'fragment-link--focused': focusedId === story.id }"
+            :data-focused="focusedId === story.id ? 'true' : undefined"
+            :data-story-id="story.id"
             data-testid="fragment-row"
+            @pointerenter="focusRow(story.id)"
+            @mouseenter="focusRow(story.id)"
+            @pointerleave="releaseRow(story.id)"
+            @mouseleave="releaseRow(story.id)"
+            @focus="focusRow(story.id)"
+            @blur="releaseRow(story.id)"
+            @click="openRow(story.id)"
           >
             <span class="fragment-id text-mono">#{{ story.id }}</span>
             <span class="fragment-main">
@@ -408,6 +566,24 @@ onMounted(load)
   color: var(--accent-dim);
 }
 
+/* The space focused this fragment: the row answers with the same hairline
+   the pointer leaves on hover — one accent per interaction. */
+.fragment-link--focused {
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--accent) 70%, transparent);
+  transition:
+    background var(--archive-duration) var(--ease-out-quart),
+    box-shadow var(--archive-duration) var(--ease-out-quart);
+}
+
+.fragment-link--focused .fragment-title {
+  color: var(--accent);
+}
+
+.fragment-link--focused .fragment-id {
+  color: var(--accent-dim);
+}
+
 @media (max-width: 640px) {
   .fragment-link {
     grid-template-columns: 1fr;
@@ -489,6 +665,7 @@ onMounted(load)
 @media (prefers-reduced-motion: reduce) {
   .archive-search__input,
   .fragment-link,
+  .fragment-link--focused,
   .fragment-id,
   .fragment-title,
   .archive-more {

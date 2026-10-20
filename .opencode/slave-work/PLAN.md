@@ -119,9 +119,11 @@ empty state — с полным сохранением удобства чтен
       медленный breath-дрейф); `update(dt, snap)`, `setStories(refs)`, `presence`
       fade-in; dispose по конвенции network.ts. Юнит-смоук на fake-three объекте.
       | Файлы: `src/three/archive/space.ts` (new), `src/three/archive/__tests__/space.spec.ts` (new) | deps: P1-T1, P1-T2, P1-T3 | size: L (включает камеру+указатель из P2-T2)
-- [ ] P2-T2. (ОБЪЕДИНЕНА В P2-T1 — один владелец файла `archive/space.ts`; камера/pointer
-      делаются в рамках P2-T1 по её же спецификации ниже.)
-      | Файлы: — | deps: — | size: —
+- [x] P2-T2 → переименовано в **P2-T1b**. Камера и указатель в `archive/space.ts` —
+      camera rig (idle-orbit, `focus(id)` + `travelToFocus`, `releaseFocus`,
+      raycast hover `setPointer`/`pointerStoryId`, `orbitBy` drag, `openStory`),
+      без OrbitControls; reduced-motion = мгновенный travel.
+      | Файлы: `src/three/archive/space.ts`, `src/three/archive/__tests__/space.spec.ts` | deps: P2-T1 | size: M
 - [ ] P2-T3. Канвас `src/components/three/ArchiveSpaceCanvas.vue` — тонкая обёртка над
       `useThreeScene`: build → `buildArchiveSpace`, watch `sceneState.archiveStories/
       focusedStory` → `setStories/focusStory`, слушатель `onSceneEvent`

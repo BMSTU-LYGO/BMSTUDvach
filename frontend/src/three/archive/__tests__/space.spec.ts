@@ -1,5 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import type { Mesh, Object3D, Points, ShaderMaterial } from 'three'
+import type {
+  Mesh,
+  Object3D,
+  PerspectiveCamera,
+  Points,
+  ShaderMaterial,
+  Vector3,
+} from 'three'
 
 import { buildArchiveSpace, type ArchiveSpaceSnapshot } from '@/three/archive/space'
 import type { ArchiveStoryRef } from '@/three/sceneState'
@@ -59,6 +66,30 @@ function orbits(root: Object3D): Object3D[] {
     if (child.name.startsWith('archive-ring-')) found.push(child)
   })
   return found
+}
+
+/** The world position of an object of the archive. */
+function worldOf(object: Object3D): Vector3 {
+  const position = new three.Vector3()
+  object.getWorldPosition(position)
+  return position
+}
+
+/** The screen position of an object, in NDC. */
+function ndcOf(camera: PerspectiveCamera, object: Object3D): { x: number; y: number } {
+  const position = worldOf(object)
+  camera.updateMatrixWorld()
+  position.project(camera)
+  return { x: position.x, y: position.y }
+}
+
+/** The plate of a story, as it sits in the scene. */
+function plateOf(root: Object3D, id: number): Object3D {
+  const plate = plates(root).find(
+    (candidate) => candidate.name === `archive-fragment-${id}`,
+  )
+  if (!plate) throw new Error(`plate ${id} is missing`)
+  return plate
 }
 
 describe('archive space: the graph of the scene', () => {
@@ -252,5 +283,226 @@ describe('archive space: disposal', () => {
     expect(world).toBeDefined()
     space.dispose()
     expect(space.scene.getObjectByName('archive-space')).toBeUndefined()
+  })
+})
+
+describe('archive space: the camera rig', () => {
+  it('flies to the focused plate and ends up next to it', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      for (let i = 0; i < 10; i++) space.update(1 / FPS, snap())
+      const plate = plateOf(space.scene, 1)
+      const before = space.camera.position.distanceTo(worldOf(plate))
+
+      space.focus(1)
+      space.travelToFocus()
+      for (let i = 0; i < 40; i++) space.update(1 / FPS, snap())
+
+      const after = space.camera.position.distanceTo(worldOf(plate))
+      expect(after).toBeLessThan(before)
+      expect(after).toBeLessThan(4)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('lands the travel in a single frame under reduced motion', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.update(1 / FPS, snap({ reducedMotion: true }))
+      const plate = plateOf(space.scene, 1)
+
+      space.focus(1)
+      space.travelToFocus()
+      space.update(1 / FPS, snap({ reducedMotion: true }))
+
+      expect(space.camera.position.distanceTo(worldOf(plate))).toBeLessThan(4)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('returns to the idle orbit when the focus is released', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      for (let i = 0; i < 10; i++) space.update(1 / FPS, snap())
+
+      space.focus(1)
+      space.travelToFocus()
+      for (let i = 0; i < 40; i++) space.update(1 / FPS, snap())
+
+      space.releaseFocus()
+      for (let i = 0; i < 60; i++) space.update(1 / FPS, snap())
+
+      expect(Math.abs(space.camera.position.z - 12.5)).toBeLessThan(0.6)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('drifts the azimuth by hand', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.update(1 / FPS, snap())
+      const before = Math.atan2(space.camera.position.z, space.camera.position.x)
+
+      space.orbitBy(100, 0)
+      space.update(1 / FPS, snap())
+
+      const after = Math.atan2(space.camera.position.z, space.camera.position.x)
+      expect(Math.abs(after - before)).toBeGreaterThan(0.2)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('ignores the drag while the camera travels', () => {
+    const plain = buildArchiveSpace(three, 'low')
+    const dragged = buildArchiveSpace(three, 'low')
+    try {
+      for (const space of [plain, dragged]) {
+        space.setStories([story(1)])
+        space.focus(1)
+        space.travelToFocus()
+      }
+      dragged.orbitBy(100, 0)
+      for (let i = 0; i < 60; i++) {
+        plain.update(1 / FPS, snap())
+        dragged.update(1 / FPS, snap())
+      }
+      expect(dragged.camera.position.toArray()).toEqual(plain.camera.position.toArray())
+    } finally {
+      plain.dispose()
+      dragged.dispose()
+    }
+  })
+
+  it('opens a story and returns the two ends of the travel', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      space.update(1 / FPS, snap())
+
+      expect(space.openStory(999)).toBeNull()
+
+      const opened = space.openStory(1)
+      expect(opened).not.toBeNull()
+      expect(opened?.id).toBe(1)
+      for (const value of [
+        opened?.from.x,
+        opened?.from.y,
+        opened?.from.z,
+        opened?.to.x,
+        opened?.to.y,
+        opened?.to.z,
+      ]) {
+        expect(Number.isFinite(value)).toBe(true)
+      }
+      expect(opened?.from.z).toBeCloseTo(12.5, 3)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('does not move the camera when only the focus changes', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      for (let i = 0; i < 5; i++) space.update(1 / FPS, snap())
+      const before = space.camera.position.toArray()
+
+      space.focus(1)
+      space.update(1 / FPS, snap())
+
+      const after = space.camera.position.toArray()
+      // The idle orbit keeps drifting, but the focus did not pull the
+      // camera anywhere.
+      expect(Math.abs(after[0] - before[0])).toBeLessThan(0.2)
+      expect(Math.abs(after[1] - before[1])).toBeLessThan(0.2)
+      expect(Math.abs(after[2] - before[2])).toBeLessThan(0.2)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('flies back to the idle orbit when the focused plate disappears', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.focus(1)
+      space.travelToFocus()
+      for (let i = 0; i < 40; i++) space.update(1 / FPS, snap())
+
+      // The story set changed — the plate the camera held is gone.
+      space.setStories([story(2)])
+      for (let i = 0; i < 60; i++) space.update(1 / FPS, snap())
+
+      expect(Math.abs(space.camera.position.z - 12.5)).toBeLessThan(0.6)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('follows the focus of the outside world without moving the camera', () => {
+    const synced = buildArchiveSpace(three, 'low')
+    const plain = buildArchiveSpace(three, 'low')
+    try {
+      for (const space of [synced, plain]) {
+        space.setStories([story(1)])
+        for (let i = 0; i < 5; i++) space.update(1 / FPS, snap())
+      }
+      synced.update(1 / FPS, snap({ focusedStory: 1 }))
+      plain.update(1 / FPS, snap())
+
+      // The focus alone changes nothing about the camera.
+      expect(synced.camera.position.toArray()).toEqual(plain.camera.position.toArray())
+      expect(Math.abs(synced.camera.position.z - 12.5)).toBeLessThan(0.6)
+
+      // ...but the archive knows what to fly to now.
+      const plate = plateOf(synced.scene, 1)
+      synced.travelToFocus()
+      for (let i = 0; i < 40; i++) synced.update(1 / FPS, snap({ focusedStory: 1 }))
+      expect(synced.camera.position.distanceTo(worldOf(plate))).toBeLessThan(4)
+    } finally {
+      synced.dispose()
+      plain.dispose()
+    }
+  })
+})
+
+describe('archive space: the pointer', () => {
+  it('finds the plate under the pointer and loses it in the empty space', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.update(1 / FPS, snap())
+      const plate = plateOf(space.scene, 1)
+      const ndc = ndcOf(space.camera, plate)
+
+      space.setPointer(ndc.x, ndc.y)
+      for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBe(1)
+
+      space.setPointer(-ndc.x, -ndc.y)
+      for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBeNull()
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('reports nothing while the pointer never moved', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBeNull()
+    } finally {
+      space.dispose()
+    }
   })
 })
