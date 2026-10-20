@@ -31,6 +31,12 @@ export type SceneEvent =
   | { type: 'transition-start'; from: SceneMode; to: SceneMode }
   /** Route transition finished: the new mode has settled. */
   | { type: 'transition-end'; from: SceneMode; to: SceneMode }
+  /** Archive Space: a fragment took focus (null = focus released). */
+  | { type: 'archive-focus'; target: number | null }
+  /** Archive Space: a fragment was opened, the story is coming. */
+  | { type: 'archive-open'; target: number }
+  /** Archive Space: the archive was cleared, there is nothing left to see. */
+  | { type: 'archive-clear' }
 
 /**
  * Compact board descriptor the 3D constellation map works with: the API
@@ -46,6 +52,21 @@ export interface BoardSummary {
   description?: string
 }
 
+/**
+ * Compact story descriptor the Archive Space works with: the API
+ * `PlatinumStory` carries body text and metadata the scene has no use for.
+ */
+export interface ArchiveStoryRef {
+  id: number
+  title: string
+  /** Publication year (null = undated story). */
+  year: number | null
+  /** Archive ring the fragment belongs to (0 = innermost). */
+  ringIndex: number
+  /** API `source_type` (null = unknown). */
+  sourceType: string | null
+}
+
 interface SceneState {
   mode: SceneMode
   boardSlug: string | null
@@ -56,6 +77,12 @@ interface SceneState {
   boards: BoardSummary[]
   /** Published platinum stories — drives archive fragments. */
   storyCount: number
+  /** Stories currently placed in the archive space (one fragment each). */
+  archiveStories: ArchiveStoryRef[]
+  /** Story the camera focuses on (null = free orbit). */
+  focusedStory: number | null
+  /** Story the user opened (null = nothing opened). */
+  selectedStory: number | null
 }
 
 export const sceneState = reactive<SceneState>({
@@ -65,6 +92,9 @@ export const sceneState = reactive<SceneState>({
   highlightedBoard: null,
   boards: [],
   storyCount: 0,
+  archiveStories: [],
+  focusedStory: null,
+  selectedStory: null,
 })
 
 export function setSceneMode(
@@ -97,6 +127,46 @@ export function highlightBoard(slug: string | null) {
 
 export function setStoryCount(count: number) {
   sceneState.storyCount = count
+  // An empty archive is a clean slate: the fragments and every focus or
+  // selection that pointed into them go away with it.
+  if (count === 0) {
+    sceneState.archiveStories = []
+    sceneState.focusedStory = null
+    sceneState.selectedStory = null
+  }
+}
+
+/**
+ * Replace the stories placed in the archive space. The list is copied
+ * (element by element) so the scene never aliases the caller's reactive
+ * API arrays. Focus and selection that point at a story which is no longer
+ * in the set are dropped.
+ */
+export function setArchiveStories(refs: ArchiveStoryRef[]) {
+  // Copy: callers reuse their (reactive) arrays, we must not alias them.
+  sceneState.archiveStories = refs.map((r) => ({ ...r }))
+  const ids = new Set(sceneState.archiveStories.map((r) => r.id))
+  if (sceneState.focusedStory !== null && !ids.has(sceneState.focusedStory)) {
+    sceneState.focusedStory = null
+  }
+  if (sceneState.selectedStory !== null && !ids.has(sceneState.selectedStory)) {
+    sceneState.selectedStory = null
+  }
+}
+
+/** Story the archive space focuses on (null = free orbit). */
+export function focusStory(id: number | null) {
+  sceneState.focusedStory = id
+}
+
+/** Story the user opened in the archive space (null = nothing opened). */
+export function selectStory(id: number | null) {
+  sceneState.selectedStory = id
+}
+
+/** Story currently placed in the archive space, by id (undefined = unknown). */
+export function getArchiveStory(id: number): ArchiveStoryRef | undefined {
+  return sceneState.archiveStories.find((s) => s.id === id)
 }
 
 const listeners = new Set<(ev: SceneEvent) => void>()

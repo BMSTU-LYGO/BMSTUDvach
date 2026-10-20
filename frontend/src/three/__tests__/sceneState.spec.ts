@@ -2,13 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   emitSceneEvent,
+  focusStory,
+  getArchiveStory,
   getBoardBySlug,
   highlightBoard,
   onSceneEvent,
   sceneState,
+  selectStory,
+  setArchiveStories,
   setSceneMode,
   setStoryCount,
   syncBoards,
+  type ArchiveStoryRef,
   type BoardSummary,
   type SceneEvent,
 } from '@/three/sceneState'
@@ -19,6 +24,9 @@ describe('sceneState', () => {
     syncBoards([])
     setStoryCount(0)
     highlightBoard(null)
+    setArchiveStories([])
+    focusStory(null)
+    selectStory(null)
   })
 
   it('board mode stores its slug and clears thread id', () => {
@@ -107,5 +115,119 @@ describe('sceneState', () => {
     offBad()
     offGood()
     errSpy.mockRestore()
+  })
+
+  it('starts with an empty archive', () => {
+    expect(sceneState.archiveStories).toEqual([])
+    expect(sceneState.focusedStory).toBeNull()
+    expect(sceneState.selectedStory).toBeNull()
+  })
+
+  it('setArchiveStories copies the list and its items', () => {
+    const refs: ArchiveStoryRef[] = [
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+      { id: 2, title: 'Вторая', year: null, ringIndex: 1, sourceType: null },
+    ]
+    setArchiveStories(refs)
+    refs.push({
+      id: 3,
+      title: 'Третья',
+      year: 2010,
+      ringIndex: 2,
+      sourceType: 'noise',
+    })
+    refs[0].title = 'Мутирована'
+    expect(sceneState.archiveStories).toEqual([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+      { id: 2, title: 'Вторая', year: null, ringIndex: 1, sourceType: null },
+    ])
+    expect(sceneState.archiveStories[0]).not.toBe(refs[0])
+  })
+
+  it('setArchiveStories drops focus and selection that left the set', () => {
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+      { id: 2, title: 'Вторая', year: null, ringIndex: 1, sourceType: null },
+    ])
+    focusStory(2)
+    selectStory(2)
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+    ])
+    expect(sceneState.focusedStory).toBeNull()
+    expect(sceneState.selectedStory).toBeNull()
+  })
+
+  it('setArchiveStories keeps focus and selection that are still present', () => {
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+      { id: 2, title: 'Вторая', year: null, ringIndex: 1, sourceType: null },
+    ])
+    focusStory(2)
+    selectStory(1)
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+      { id: 2, title: 'Вторая', year: null, ringIndex: 1, sourceType: null },
+    ])
+    expect(sceneState.focusedStory).toBe(2)
+    expect(sceneState.selectedStory).toBe(1)
+  })
+
+  it('focusStory and selectStory drive the archive pointers', () => {
+    focusStory(7)
+    selectStory(9)
+    expect(sceneState.focusedStory).toBe(7)
+    expect(sceneState.selectedStory).toBe(9)
+    focusStory(null)
+    selectStory(null)
+    expect(sceneState.focusedStory).toBeNull()
+    expect(sceneState.selectedStory).toBeNull()
+  })
+
+  it('getArchiveStory reads the placed story by id', () => {
+    setArchiveStories([
+      { id: 4, title: 'Кольцо', year: 2004, ringIndex: 2, sourceType: 'drone' },
+    ])
+    expect(getArchiveStory(4)?.title).toBe('Кольцо')
+    expect(getArchiveStory(5)).toBeUndefined()
+  })
+
+  it('an empty archive count clears the archive state', () => {
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+    ])
+    focusStory(1)
+    selectStory(1)
+    setStoryCount(0)
+    expect(sceneState.storyCount).toBe(0)
+    expect(sceneState.archiveStories).toEqual([])
+    expect(sceneState.focusedStory).toBeNull()
+    expect(sceneState.selectedStory).toBeNull()
+  })
+
+  it('a non-zero story count keeps the archive state', () => {
+    setArchiveStories([
+      { id: 1, title: 'Первая', year: 1998, ringIndex: 0, sourceType: 'wave' },
+    ])
+    focusStory(1)
+    setStoryCount(3)
+    expect(sceneState.storyCount).toBe(3)
+    expect(sceneState.archiveStories).toHaveLength(1)
+    expect(sceneState.focusedStory).toBe(1)
+  })
+
+  it('delivers archive events and unsubscribes cleanly', () => {
+    const events: SceneEvent[] = []
+    const off = onSceneEvent((ev) => events.push(ev))
+    emitSceneEvent({ type: 'archive-focus', target: 3 })
+    emitSceneEvent({ type: 'archive-open', target: 3 })
+    emitSceneEvent({ type: 'archive-clear' })
+    off()
+    emitSceneEvent({ type: 'archive-focus', target: null })
+    expect(events).toEqual([
+      { type: 'archive-focus', target: 3 },
+      { type: 'archive-open', target: 3 },
+      { type: 'archive-clear' },
+    ])
   })
 })
