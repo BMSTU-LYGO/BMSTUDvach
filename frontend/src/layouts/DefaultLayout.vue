@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type RouteLocationNormalized, type RouteParams } from 'vue-router'
 
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
@@ -11,7 +11,11 @@ import SkipLink from '@/components/ui/SkipLink.vue'
 import { useRouteScene } from '@/composables/useRouteScene'
 import { usePwa } from '@/composables/usePwa'
 import { sceneState } from '@/three/sceneState'
-import { playTransition, initTransitionDirector } from '@/three/transitionDirector'
+import {
+  playStoryTransition,
+  playTransition,
+  initTransitionDirector,
+} from '@/three/transitionDirector'
 
 // The ambient particle layer (WebGL or Canvas2D) is pure decoration —
 // load it after the app mounts so it never blocks the initial render.
@@ -28,11 +32,46 @@ initTransitionDirector({})
 // grid in ThreadView). The content shell widens by the same gutter so the
 // reading measure never pays for the dock.
 const route = useRoute()
+const router = useRouter()
 const isThreadReader = computed(() => route.name === 'thread')
+
+/**
+ * The story id carried by a route, or 0 when the route opens no story.
+ */
+function storyIdOf(params: RouteParams | undefined): number {
+  const raw = params?.storyId
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const id = Number(value ?? 0)
+  return Number.isFinite(id) && id > 0 ? id : 0
+}
+
+// `useRouteScene` reports the scene modes of a navigation, but `/platinum`
+// and `/platinum/:id` share one mode — the direction of a story transition
+// lives in the route params. The target route is captured by a guard
+// installed *before* the one `useRouteScene` adds, so the callback below
+// always reads the route we are travelling to.
+let pendingRoute: RouteLocationNormalized | null = null
+const removeTargetGuard = router.beforeEach((to) => {
+  pendingRoute = to
+})
+onUnmounted(() => removeTargetGuard())
 
 // `beforeEach` fires while sceneState still describes the route we are
 // leaving — exactly the shared element the trip starts from.
-useRouteScene(useRouter(), (from, to) => {
+useRouteScene(router, (from, to) => {
+  if (from === 'platinum' && to === 'platinum') {
+    // The same archive, a different story: open it or leave it.
+    const openedId = storyIdOf(pendingRoute?.params)
+    if (openedId > 0) {
+      playStoryTransition('reveal', openedId)
+      return
+    }
+    const leavingId = storyIdOf(router.currentRoute.value.params)
+    if (leavingId > 0) {
+      playStoryTransition('return', leavingId)
+    }
+    return
+  }
   if (from !== to) {
     playTransition(from, to, {
       boardSlug: sceneState.boardSlug,

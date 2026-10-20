@@ -24,6 +24,11 @@ export type SharedElementStrategy =
   | 'thread-packet-envoy'
   /** home/board↔platinum: the topology itself morphs into the archive. */
   | 'archive-morph'
+  /**
+   * platinum→platinum with an opened story: the camera keeps the fragment
+   * as its anchor.
+   */
+  | 'archive-story-anchor'
   /** any→error: the camera dives into the core, the lost node materializes. */
   | 'dive-to-lost'
   /** No continuity element — plain fallback trip. */
@@ -56,6 +61,53 @@ const SOFT_VEIL: TransitionScenario = {
   // No specific destination: callers should prefer their own target mode.
   cameraPreset: 'home',
   sharedElement: 'none',
+}
+
+const STORY_DURATION_MS = 520
+
+/**
+ * The two trips inside the archive space: `/platinum` → `/platinum/:id` and
+ * back. Both ends of the trip live in the `platinum` scene mode, so the
+ * mode pair alone cannot tell them apart — the story helper picks them by
+ * direction (see `storyScenario`).
+ */
+const STORY_REVEAL: TransitionScenario = {
+  id: 'story-reveal',
+  from: 'platinum',
+  to: 'platinum',
+  kind: 'soft',
+  durationMs: STORY_DURATION_MS,
+  easing: 'easeInOutCubic',
+  cameraPreset: 'platinum',
+  sharedElement: 'archive-story-anchor',
+}
+
+const STORY_RETURN: TransitionScenario = {
+  id: 'story-return',
+  from: 'platinum',
+  to: 'platinum',
+  kind: 'soft',
+  durationMs: STORY_DURATION_MS,
+  easing: 'easeInOutCubic',
+  cameraPreset: 'platinum',
+  sharedElement: 'archive-story-anchor',
+}
+
+/** Direction of a story trip inside the archive space. */
+export type StoryDirection = 'reveal' | 'return'
+
+/**
+ * The story scenarios, keyed by direction. The director never looks the
+ * scenarios up by id — it asks for the direction it travels in.
+ */
+export const STORY_SCENARIOS: Record<StoryDirection, TransitionScenario> = {
+  reveal: STORY_REVEAL,
+  return: STORY_RETURN,
+}
+
+/** The scenario of a story trip (opening a story / leaving it). */
+export function storyScenario(direction: StoryDirection): TransitionScenario {
+  return STORY_SCENARIOS[direction]
 }
 
 export const scenarios: TransitionScenario[] = [
@@ -163,6 +215,12 @@ export const scenarios: TransitionScenario[] = [
     cameraPreset: 'thread',
     sharedElement: 'archive-morph',
   },
+  // platinum ↔ platinum with an opened story — the archive stays put, only
+  // the fragment changes. Both ends of the trip share the `platinum` mode,
+  // so `scenarioFor` never picks these: the story helper chooses them by
+  // direction.
+  STORY_REVEAL,
+  STORY_RETURN,
   // any → error — dive into the core, the lost node materializes there.
   // Core dive: the camera falls into the backbone, the lost node materialises.
   {
@@ -220,15 +278,32 @@ export const scenarios: TransitionScenario[] = [
 ]
 
 /**
+ * Story trips are chosen by direction, never by the mode pair: both ends of
+ * a story trip live in the `platinum` mode.
+ */
+function isStoryScenario(scenario: TransitionScenario): boolean {
+  return scenario.sharedElement === 'archive-story-anchor'
+}
+
+/**
  * Look up the scenario for a route pair: exact match first, then any
  * wildcard entry, then the soft-veil fallback.
+ *
+ * The story scenarios live in the registry too, but they are skipped here —
+ * a story trip is picked by `storyScenario`, so the mode pair keeps its
+ * meaning.
  */
 export function scenarioFor(from: SceneMode, to: SceneMode): TransitionScenario {
-  const exact = scenarios.find((s) => s.from === from && s.to === to)
+  const exact = scenarios.find(
+    (s) => !isStoryScenario(s) && s.from === from && s.to === to,
+  )
   if (exact) return exact
 
   const partial = scenarios.find(
-    (s) => (s.from === '*' || s.from === from) && (s.to === '*' || s.to === to),
+    (s) =>
+      !isStoryScenario(s) &&
+      (s.from === '*' || s.from === from) &&
+      (s.to === '*' || s.to === to),
   )
   return partial ?? SOFT_VEIL
 }

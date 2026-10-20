@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -9,8 +9,14 @@ vi.mock('@/api/moderation', () => ({
 vi.mock('@/api/boards', () => ({
   listBoards: vi.fn().mockResolvedValue([]),
 }))
+vi.mock('@/three/transitionDirector', () => ({
+  initTransitionDirector: vi.fn(),
+  playTransition: vi.fn(),
+  playStoryTransition: vi.fn(),
+}))
 
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
+import { playStoryTransition, playTransition } from '@/three/transitionDirector'
 
 async function mountLayout(path = '/') {
   const router = createRouter({
@@ -89,5 +95,86 @@ describe('DefaultLayout — a11y landmarks', () => {
 
     const thread = await mountLayout('/threads/7')
     expect(thread.find('#main-content').classes()).toContain('content--reader')
+  })
+})
+
+describe('DefaultLayout — the story trip inside the archive space', () => {
+  beforeEach(() => {
+    vi.mocked(playStoryTransition).mockClear()
+    vi.mocked(playTransition).mockClear()
+  })
+
+  async function mountArchive(path = '/platinum') {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/',
+          name: 'home',
+          component: { template: '<div>page</div>' },
+          meta: { scene: 'home' },
+        },
+        {
+          path: '/platinum',
+          name: 'platinum',
+          component: { template: '<div>archive</div>' },
+          meta: { scene: 'platinum' },
+        },
+        {
+          path: '/platinum/:storyId(\\d+)',
+          name: 'platinum-story',
+          component: { template: '<div>story</div>' },
+          meta: { scene: 'platinum' },
+        },
+      ],
+    })
+    router.push(path)
+    await router.isReady()
+
+    const wrapper = mount(DefaultLayout, {
+      global: {
+        plugins: [createPinia(), router],
+        stubs: {
+          AppHeader: true,
+          AppFooter: true,
+          AmbientField: true,
+          WarpCanvas: true,
+          ScanLens: true,
+          AnnouncementBanner: true,
+          OfflineBadge: true,
+        },
+      },
+    })
+    await flushPromises()
+    return { wrapper, router }
+  }
+
+  it('opening a story plays the story transition, not the generic one', async () => {
+    const { router } = await mountArchive('/platinum')
+
+    await router.push('/platinum/7')
+    await flushPromises()
+
+    expect(playStoryTransition).toHaveBeenCalledWith('reveal', 7)
+    expect(playTransition).not.toHaveBeenCalled()
+  })
+
+  it('leaving a story plays the story transition back', async () => {
+    const { router } = await mountArchive('/platinum/7')
+
+    await router.push('/platinum')
+    await flushPromises()
+
+    expect(playStoryTransition).toHaveBeenCalledWith('return', 7)
+    expect(playTransition).not.toHaveBeenCalled()
+  })
+
+  it('a plain archive route change plays no story transition', async () => {
+    const { router } = await mountArchive('/platinum')
+
+    await router.push('/platinum')
+    await flushPromises()
+
+    expect(playStoryTransition).not.toHaveBeenCalled()
   })
 })

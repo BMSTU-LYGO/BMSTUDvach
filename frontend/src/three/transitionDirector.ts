@@ -3,7 +3,7 @@ import type { SceneMode } from './sceneState'
 import { emitSceneEvent, sceneState } from './sceneState'
 import { prefersReducedMotion } from '@/composables/useGsap'
 import { playWarp } from './warps'
-import { scenarioFor, type SharedElementStrategy } from './scenarios'
+import { scenarioFor, storyScenario, type SharedElementStrategy, type StoryDirection } from './scenarios'
 
 export const TRANSITION_DURATION_MS = 650
 
@@ -88,6 +88,13 @@ function applySharedElement(
     net?.morphTo('platinum', request.durationMs)
     return
   }
+  if (strategy === 'archive-story-anchor') {
+    // platinum→platinum with an opened story: the camera keeps the fragment
+    // as its anchor. The network controller is not the camera of the archive
+    // route — the archive space owns that one — so the network is left
+    // untouched and the archive events carry the intent instead.
+    return
+  }
   if (strategy === 'dive-to-lost') {
     net?.morphTo('error', request.durationMs)
   }
@@ -129,5 +136,51 @@ export function playTransition(
     endTimer = null
     net?.anchorSharedElement(null)
     emitSceneEvent({ type: 'transition-end', from, to })
+  }, TRANSITION_DURATION_MS)
+}
+
+/**
+ * The story trip inside the archive space: `/platinum` → `/platinum/:id` and
+ * back.
+ *
+ * Both ends of the trip live in the `platinum` scene mode, so there is no
+ * camera preset to travel to and no topology to morph — the fragment itself
+ * stays the anchor. The archive canvas listens for the archive events and
+ * moves its own camera; the network controller is not involved at all.
+ *
+ * Under reduced motion the trip is silent: only the soft veil plays, no
+ * camera, no timers, no events.
+ */
+export function playStoryTransition(
+  direction: StoryDirection,
+  storyId: number,
+): void {
+  clearPendingEnd()
+
+  if (prefersReducedMotion()) {
+    playWarp('soft')
+    return
+  }
+
+  const scenario = storyScenario(direction)
+
+  applySharedElement(ctx.network, scenario.sharedElement, {
+    from: 'platinum',
+    boardSlug: null,
+    durationMs: scenario.durationMs,
+  })
+
+  if (direction === 'reveal') {
+    emitSceneEvent({ type: 'archive-open', target: storyId })
+  } else {
+    emitSceneEvent({ type: 'archive-clear' })
+  }
+
+  playWarp(scenario.kind)
+
+  emitSceneEvent({ type: 'transition-start', from: 'platinum', to: 'platinum' })
+  endTimer = setTimeout(() => {
+    endTimer = null
+    emitSceneEvent({ type: 'transition-end', from: 'platinum', to: 'platinum' })
   }, TRANSITION_DURATION_MS)
 }

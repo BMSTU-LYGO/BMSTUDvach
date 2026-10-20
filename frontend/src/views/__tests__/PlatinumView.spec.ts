@@ -149,21 +149,138 @@ describe('PlatinumView — archive listing', () => {
     expect(listPlatinumStories).toHaveBeenLastCalledWith({ search: 'проходная' })
   })
 
-  it('answers an empty archive with the shared empty state', async () => {
+  it('answers an empty archive with the archive panel', async () => {
     vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
     const { wrapper } = await mountArchive()
 
-    expect(wrapper.find('[data-testid="empty"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Пустой архив')
+    const panel = wrapper.find('[data-testid="archive-empty"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('archive-empty--empty')
+    expect(wrapper.find('[data-testid="archive-empty-title"]').text()).toBe(
+      'Кольца вращаются вхолостую',
+    )
+    expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(0)
   })
 
-  it('reports a failed archive request through the error state', async () => {
+  it('reports a failed archive request through the archive panel', async () => {
     vi.mocked(listPlatinumStories).mockRejectedValue(new Error('сеть недоступна'))
     const { wrapper } = await mountArchive()
 
-    expect(wrapper.find('[data-testid="error"]').exists()).toBe(true)
+    const panel = wrapper.find('[data-testid="archive-empty"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('archive-empty--error')
+    expect(panel.attributes('role')).toBe('alert')
     expect(wrapper.text()).toContain('сеть недоступна')
+  })
+})
+
+describe('PlatinumView — the quiet states of the archive (P3-T2b)', () => {
+  beforeEach(() => {
+    vi.mocked(listPlatinumStories).mockReset()
+  })
+
+  it('speaks in the loading register while the vault answers', async () => {
+    // The vault never answers: the archive stays in its syncing register.
+    vi.mocked(listPlatinumStories).mockImplementation(
+      () => new Promise<Paginated<PlatinumStory>>(() => {}),
+    )
+    const { wrapper } = await mountArchive()
+
+    const panel = wrapper.find('[data-testid="archive-empty"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('archive-empty--loading')
+    expect(panel.attributes('aria-busy')).toBe('true')
+    expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(0)
+  })
+
+  it('answers a silent search in the search register', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    const { wrapper } = await mountArchive()
+
+    await wrapper.find('input#archive-search').setValue('осциллограф')
+    await new Promise((resolve) => window.setTimeout(resolve, 350))
+    await flushPromises()
+
+    const panel = wrapper.find('[data-testid="archive-empty"]')
+    expect(panel.classes()).toContain('archive-empty--search')
+    expect(panel.text()).toContain('осциллограф')
+    expect(wrapper.find('[data-testid="archive-empty-reset"]').exists()).toBe(true)
+  })
+
+  it('forgets the query and asks the archive again from the first page', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 6))
+    const { wrapper } = await mountArchive()
+
+    // The reader pulled the second page in.
+    vi.mocked(listPlatinumStories).mockImplementationOnce(() =>
+      page([story(3, 'Последний фрагмент', 'Третья история архива.')], 3),
+    )
+    await wrapper.find('button.archive-more').trigger('click')
+    await flushPromises()
+    expect(listPlatinumStories).toHaveBeenLastCalledWith({ page: 2, search: '' })
+
+    // The archive is asked in vain.
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    await wrapper.find('input#archive-search').setValue('осциллограф')
+    await new Promise((resolve) => window.setTimeout(resolve, 350))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="archive-empty"]').classes()).toContain(
+      'archive-empty--search',
+    )
+
+    // The reset forgets the query and starts the list over.
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 6))
+    await wrapper.find('[data-testid="archive-empty-reset"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      (wrapper.find('input#archive-search').element as HTMLInputElement).value,
+    ).toBe('')
+    expect(listPlatinumStories).toHaveBeenLastCalledWith({ search: '' })
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(2)
+
+    // The page counter started over: the next page is the second one.
+    await wrapper.find('button.archive-more').trigger('click')
+    await flushPromises()
+    expect(listPlatinumStories).toHaveBeenLastCalledWith({ page: 2, search: '' })
+  })
+
+  it('asks the archive again when the reader retries', async () => {
+    vi.mocked(listPlatinumStories).mockRejectedValueOnce(new Error('сеть недоступна'))
+    const { wrapper } = await mountArchive()
+
+    expect(wrapper.find('[data-testid="archive-empty-retry"]').exists()).toBe(true)
+
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    await wrapper.find('[data-testid="archive-empty-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(listPlatinumStories).toHaveBeenCalledTimes(2)
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(2)
+  })
+
+  it('tells the space to forget the archive when the line breaks', async () => {
+    vi.mocked(listPlatinumStories).mockRejectedValue(new Error('сеть недоступна'))
+
+    const seen: SceneEvent[] = []
+    const off = onSceneEvent((ev) => seen.push(ev))
+    await mountArchive()
+    off()
+
+    expect(seen).toContainEqual({ type: 'archive-clear' })
+    expect(sceneState.archiveStories).toEqual([])
+  })
+
+  it('never loses the archive panel wrapper', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page([], 0))
+    const { wrapper } = await mountArchive()
+
+    const shell = wrapper.find('[data-testid="platinum-empty"]')
+    expect(shell.exists()).toBe(true)
+    expect(shell.classes()).toContain('archive-empty')
+    expect(shell.find('[data-testid="archive-empty"]').exists()).toBe(true)
   })
 })
 

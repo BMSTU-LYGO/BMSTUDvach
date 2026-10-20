@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import LoadingState from '@/components/LoadingState.vue'
-import ErrorState from '@/components/ErrorState.vue'
-import EmptyState from '@/components/EmptyState.vue'
+import ArchiveEmpty from '@/components/platinum/ArchiveEmpty.vue'
 import { listPlatinumStories, type PlatinumStory } from '@/api/platinum'
 import {
   emitSceneEvent,
@@ -101,7 +99,10 @@ async function load() {
     syncArchive(result.results)
   } catch (err) {
     error.value = apiErrorMessage(err, 'Архив недоступен.')
+    // The line broke: the space keeps its bare rings and is told to forget
+    // whatever was in it.
     setArchiveStories([])
+    emitSceneEvent({ type: 'archive-clear' })
   } finally {
     loading.value = false
   }
@@ -131,18 +132,25 @@ let debounce: number | null = null
 watch(query, (value) => {
   if (debounce) window.clearTimeout(debounce)
   debounce = window.setTimeout(() => {
-    search.value = value.trim()
+    const next = value.trim()
+    // The archive was already asked in this register — nothing to ask again.
+    if (next === search.value) return
+    search.value = next
     page.value = 1
     void load()
   }, 300)
 })
 
-// The archive answers in the same register it was asked in.
-const emptyMessage = computed(() =>
-  search.value
-    ? `По запросу «${search.value}» архив молчит.`
-    : 'Пустой архив — это тоже красиво: три орбиты, ядро-хранилище и ожидание первых историй.',
-)
+/**
+ * The archive is asked in vain: forget the query and ask it again from the
+ * first page. The rings keep their place, the list starts over.
+ */
+function resetSearch() {
+  query.value = ''
+  search.value = ''
+  page.value = 1
+  void load()
+}
 
 function published(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('ru-RU') : ''
@@ -262,8 +270,13 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <LoadingState v-if="loading" />
-    <ErrorState v-else-if="error" :message="error" :on-retry="load" />
+    <div v-if="loading" class="archive-empty" data-testid="platinum-empty">
+      <ArchiveEmpty mode="loading" :total="0" />
+    </div>
+
+    <div v-else-if="error" class="archive-empty" data-testid="platinum-empty">
+      <ArchiveEmpty mode="error" :detail="error" @retry="load" />
+    </div>
 
     <div v-else-if="stories.length" class="archive-fragments">
       <p class="archive-fragments__caption">
@@ -303,7 +316,14 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-else class="archive-empty" data-testid="platinum-empty">
-      <EmptyState :message="emptyMessage" />
+      <ArchiveEmpty
+        v-if="search"
+        mode="search"
+        :query="search"
+        :total="total"
+        @reset="resetSearch"
+      />
+      <ArchiveEmpty v-else mode="empty" :total="total" />
     </div>
 
     <button
@@ -654,12 +674,19 @@ onBeforeUnmount(() => {
   }
 }
 
-/* === Empty archive: the shared state speaks for itself === */
+/* === Quiet states: one register, no layout shift === */
 .archive-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-10) 0 var(--space-12);
+  width: 100%;
+  min-height: 288px;
+}
+
+@media (max-width: 640px) {
+  .archive-empty {
+    min-height: 240px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
