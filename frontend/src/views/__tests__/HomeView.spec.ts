@@ -87,8 +87,8 @@ describe('HomeView — recent transmissions', () => {
 
   it('shows the hero explanation and CTA', async () => {
     wrapper = await mountHome()
-    expect(wrapper.text()).toContain('Доски — узлы сети')
-    expect(wrapper.find('.hero-cta').exists()).toBe(true)
+    expect(wrapper.text()).toContain('BMSTUD Network')
+    expect(wrapper.find('.overlay-cta').exists()).toBe(true)
   })
 
   it('lists recent threads with their board', async () => {
@@ -146,7 +146,7 @@ describe('HomeView — telemetry rail', () => {
     vi.mocked(getTelemetry).mockRejectedValue(new Error('network down'))
     wrapper = await mountHome()
     expect(wrapper.find('[data-testid="telemetry-rail"]').exists()).toBe(false)
-    expect(wrapper.find('.hero-cta').exists()).toBe(true)
+    expect(wrapper.find('.overlay-cta').exists()).toBe(true)
   })
 })
 
@@ -210,7 +210,7 @@ describe('HomeView — mentions beacon', () => {
     expect(wrapper.find('[data-testid="mentions-beacon"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="mentions-count"]').text()).toBe('—')
     expect(wrapper.find('[data-testid="mentions-list"]').exists()).toBe(false)
-    expect(wrapper.find('.hero-cta').exists()).toBe(true)
+    expect(wrapper.find('.overlay-cta').exists()).toBe(true)
   })
 })
 
@@ -224,14 +224,13 @@ describe('HomeView — page structure', () => {
 
   afterEach(() => wrapper?.unmount())
 
-  it('keeps the hero hierarchy: kicker, title, subtitle, CTA', async () => {
+  it('keeps the overlay hierarchy: kicker, meta, CTA', async () => {
     wrapper = await mountHome()
-    expect(wrapper.find('.hero-kicker').text()).toContain('BMSTUD Network')
-    expect(wrapper.find('.hero-kicker').text()).toContain('МГТУ им. Н. Э. Баумана')
-    expect(wrapper.find('h1').text()).toContain('BMSTUDvach')
-    expect(wrapper.find('.hero-subtitle').text()).toContain('без регистрации')
-    expect(wrapper.find('.hero-cta').exists()).toBe(true)
-    expect(wrapper.find('.hero-alt').attributes('href')).toBe('/about')
+    expect(wrapper.find('.overlay-kicker').text()).toContain('BMSTUD Network')
+    expect(wrapper.find('.overlay-kicker').text()).toContain('МГТУ им. Н. Э. Баумана')
+    expect(wrapper.find('.meta-value').exists()).toBe(true)
+    expect(wrapper.find('.overlay-cta').exists()).toBe(true)
+    expect(wrapper.find('.cta-text').text()).toContain('Войти в сеть')
   })
 
   it('names every content block with a labelled section heading', async () => {
@@ -247,17 +246,17 @@ describe('HomeView — page structure', () => {
     const recent = wrapper.find('#section-recent-title')
     expect(recent.text()).toBe('Последние передачи')
 
-    // decorative rules and mono indexes stay out of the a11y tree
-    for (const rule of wrapper.findAll('.section-rule, .hero-rule, .label-line')) {
+    // decorative rules stay out of the a11y tree
+    for (const rule of wrapper.findAll('.section-rule')) {
       expect(rule.attributes('aria-hidden')).toBe('true')
     }
   })
 
-  it('keeps the decorative hero layers out of the a11y tree', async () => {
+  it('keeps the decorative overlay layers out of the a11y tree', async () => {
     wrapper = await mountHome()
     for (const selector of [
-      '.hero-kicker__sep',
-      '.hero-cta-arrow',
+      '.meta-divider',
+      '.cta-arrow',
     ]) {
       const el = wrapper.find(selector)
       expect(el.exists()).toBe(true)
@@ -308,8 +307,8 @@ describe('HomeView — drafts panel', () => {
     wrapper = await mountHome()
     const panel = wrapper.find('[data-testid="drafts-panel"]')
     expect(panel.exists()).toBe(true)
-    expect(panel.text()).toContain('НЕЗАКОНЧЕННЫЕ СИГНАЛЫ')
-    expect(wrapper.find('[data-testid="draft-row-7"]').text()).toContain('#7')
+    expect(panel.text()).toContain('ЧЕРНОВИКИ')
+    expect(wrapper.find('[data-testid="draft-row-7"]').text()).toContain('ответ в треде #7')
   })
 })
 

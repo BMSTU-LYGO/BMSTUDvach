@@ -12,12 +12,19 @@ vi.mock('@/api/boards', () => ({
 
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 
-async function mountLayout() {
+async function mountLayout(path = '/') {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: { template: '<div>page</div>' } }],
+    routes: [
+      { path: '/', name: 'home', component: { template: '<div>page</div>' } },
+      {
+        path: '/threads/:threadId(\\d+)',
+        name: 'thread',
+        component: { template: '<div>thread</div>' },
+      },
+    ],
   })
-  router.push('/')
+  router.push(path)
   await router.isReady()
 
   const wrapper = mount(DefaultLayout, {
@@ -74,5 +81,13 @@ describe('DefaultLayout — a11y landmarks', () => {
 
     const main = wrapper.find('#main-content')
     expect(main.attributes('tabindex')).toBe('-1')
+  })
+
+  it('widens the reader shell only on the thread route (P3-T5 gutter)', async () => {
+    const home = await mountLayout()
+    expect(home.find('#main-content').classes()).not.toContain('content--reader')
+
+    const thread = await mountLayout('/threads/7')
+    expect(thread.find('#main-content').classes()).toContain('content--reader')
   })
 })

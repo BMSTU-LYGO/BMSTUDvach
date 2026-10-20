@@ -30,6 +30,7 @@ function handleNavigate() {
   <RouterLink
     :to="`/boards/${board.slug}`"
     class="board-card-3d"
+    :data-board-slug="board.slug"
     :class="{ hovered: isHovered }"
     :style="{ '--delay': index * 0.08 + 's' }"
     @pointerenter="setHighlight(true)"

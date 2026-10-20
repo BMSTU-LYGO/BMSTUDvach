@@ -27,6 +27,24 @@ export type SceneEvent =
   | { type: 'report-submit' }
   /** Thread launched from a board: the cluster answers. */
   | { type: 'thread-launch'; target: string }
+  /** Route transition started: warp overlay is up, camera is travelling. */
+  | { type: 'transition-start'; from: SceneMode; to: SceneMode }
+  /** Route transition finished: the new mode has settled. */
+  | { type: 'transition-end'; from: SceneMode; to: SceneMode }
+
+/**
+ * Compact board descriptor the 3D constellation map works with: the API
+ * `Board` carries far more than the scene needs (ids, timestamps, rules).
+ */
+export interface BoardSummary {
+  slug: string
+  /** `thread_count` of the API board — drives node size/glow. */
+  threadCount: number
+  /** `order` of the API board — drives the tier the node sits on. */
+  order: number
+  name?: string
+  description?: string
+}
 
 interface SceneState {
   mode: SceneMode
@@ -34,8 +52,8 @@ interface SceneState {
   threadId: number | null
   /** Board node highlighted by card hover/focus (null = none). */
   highlightedBoard: string | null
-  /** Board slugs currently shown in the network (home/board routes). */
-  boards: string[]
+  /** Boards currently shown in the network (home/board routes). */
+  boards: BoardSummary[]
   /** Published platinum stories — drives archive fragments. */
   storyCount: number
 }
@@ -63,8 +81,14 @@ export function setSceneMode(
   }
 }
 
-export function syncBoards(slugs: string[]) {
-  sceneState.boards = slugs.slice()
+export function syncBoards(boards: BoardSummary[]) {
+  // Copy: callers reuse their (reactive) arrays, we must not alias them.
+  sceneState.boards = boards.map((b) => ({ ...b }))
+}
+
+/** Board currently shown in the network, by slug (undefined = not loaded). */
+export function getBoardBySlug(slug: string): BoardSummary | undefined {
+  return sceneState.boards.find((b) => b.slug === slug)
 }
 
 export function highlightBoard(slug: string | null) {

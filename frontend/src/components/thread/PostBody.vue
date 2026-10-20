@@ -8,15 +8,13 @@ import type { HighlightSegment } from '@/composables/useThreadSearch'
 import { useQuoteThreadId } from '@/composables/useQuoteInsert'
 import { useDraftQuoteStore } from '@/stores/draftQuote'
 import AttachmentLightbox from './AttachmentLightbox.vue'
+import NetworkIcon from '../composer/NetworkIcon.vue'
 import type { Attachment } from '@/types'
 
 /**
  * Post body with `>>123` links rendered as real anchors (native keyboard,
  * middle-click and copy-link still work). Links to ids that do not exist
  * in the thread stay visible but marked dead — honest over pretending.
- *
- * Optional author signature: the display name plus the server-computed
- * tripcode, so a poster stays recognisable across posts without accounts.
  *
  * A plain click on a live link quotes the post into the Signal Dock draft
  * (QUOTE-01) on top of navigating; modified clicks stay native.
@@ -36,8 +34,6 @@ import type { Attachment } from '@/types'
 const props = defineProps<{
   body: string
   knownIds: Set<number>
-  author?: string
-  tripcode?: string
   attachments?: Attachment[]
   threadId?: number
   highlight?: string
@@ -131,6 +127,35 @@ function openLightbox(index: number) {
 
 const isImage = (mime: string) => mime.startsWith('image/')
 
+/** Attachment size as a compact KB/MB pair — bytes lie on small files. */
+function formatSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—'
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** Intrinsic pixel dimensions, when the server knows them. */
+function formatDimensions(attachment: Attachment): string | null {
+  if (attachment.width && attachment.height) {
+    return `${attachment.width} × ${attachment.height}`
+  }
+  return null
+}
+
+/** Lowercase extension pulled from the name or the MIME type, no dot. */
+function fileExtension(attachment: Attachment): string {
+  const name = attachment.original_name || ''
+  const dot = name.lastIndexOf('.')
+  if (dot > 0 && dot < name.length - 1) {
+    return name.slice(dot + 1).toUpperCase()
+  }
+  const slash = attachment.mime_type.indexOf('/')
+  if (slash > 0 && slash < attachment.mime_type.length - 1) {
+    return attachment.mime_type.slice(slash + 1).toUpperCase()
+  }
+  return 'FILE'
+}
+
 function linkTitle(id: number): string {
   if (!props.knownIds.has(id)) return 'Пост не найден'
   return `Пост #${id}: клик вставит цитату >>${id} в черновик, Ctrl/Cmd+клик — новая вкладка`
@@ -194,27 +219,9 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   }
   emit('navigate', id)
 }
-
-const authorLabel = computed(() => (props.author ?? '').trim() || 'Аноним')
-const trip = computed(() => (props.tripcode ?? '').trim())
-const showSignature = computed(() => Boolean((props.author ?? '').trim() || trip.value))
-const signature = computed(() =>
-  trip.value ? `${authorLabel.value} ${trip.value}` : authorLabel.value,
-)
 </script>
 
 <template>
-  <p
-    v-if="showSignature"
-    class="post-signature"
-    :aria-label="`Автор: ${signature}`"
-    data-testid="post-signature"
-  >
-    <span class="post-signature__author">{{ authorLabel }}</span>
-    <span v-if="trip" class="post-signature__tripcode" data-testid="post-tripcode">{{
-      trip
-    }}</span>
-  </p>
   <div class="post-body">
     <template v-for="(block, blockIndex) in blocks" :key="blockIndex">
       <span v-if="block.kind === 'gap'" class="post-gap">{{ block.eol }}</span>
@@ -277,14 +284,38 @@ const signature = computed(() =>
       :aria-label="`Открыть вложение ${attachment.original_name || index + 1}`"
       @click="openLightbox(index)"
     >
-      <img
-        v-if="isImage(attachment.mime_type)"
-        class="post-attachment__img"
-        :src="attachment.url"
-        :alt="attachment.original_name"
-        loading="lazy"
-      />
-      <span v-else class="post-attachment__file">{{ attachment.original_name }}</span>
+      <template v-if="isImage(attachment.mime_type)">
+        <img
+          class="post-attachment__img"
+          :src="attachment.url"
+          :alt="attachment.original_name"
+          :width="attachment.width ?? undefined"
+          :height="attachment.height ?? undefined"
+          loading="lazy"
+        />
+        <div class="post-attachment__meta">
+          <span v-if="attachment.original_name" class="post-attachment__name">{{
+            attachment.original_name
+          }}</span>
+          <span class="post-attachment__size">{{ formatSize(attachment.size) }}</span>
+          <span
+            v-if="formatDimensions(attachment)"
+            class="post-attachment__dimensions"
+            >{{ formatDimensions(attachment) }}</span
+          >
+        </div>
+      </template>
+      <div v-else class="post-attachment__file-info">
+        <span class="post-attachment__glyph" aria-hidden="true">
+          <NetworkIcon name="attach" :size="16" />
+        </span>
+        <span class="post-attachment__file-text">
+          <span class="post-attachment__name">{{
+            attachment.original_name || `вложение.${fileExtension(attachment)}`
+          }}</span>
+          <span class="post-attachment__size">{{ formatSize(attachment.size) }}</span>
+        </span>
+      </div>
     </button>
   </div>
 
@@ -296,27 +327,6 @@ const signature = computed(() =>
 </template>
 
 <style scoped>
-.post-signature {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-1);
-  flex-wrap: wrap;
-}
-
-.post-signature__author {
-  font-family: var(--font-body, 'Inter', sans-serif);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--accent, #2F4F4E);
-}
-
-.post-signature__tripcode {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.75rem;
-  color: var(--ink-tertiary, #8A8273);
-}
-
 .post-body {
   max-width: 65ch;
   overflow-wrap: anywhere;
@@ -327,7 +337,7 @@ const signature = computed(() =>
 }
 
 .post-block:not(:last-child) {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .post-line {
@@ -337,8 +347,9 @@ const signature = computed(() =>
 }
 
 .post-quote {
-  padding-left: var(--space-3);
-  border-left: 3px solid var(--rule, #D4CEB8);
+  padding-left: var(--space-4);
+  border-left: 4px solid var(--rule, #D4CEB8);
+  background: rgba(247, 243, 232, 0.3);
   color: var(--ink-secondary, #5B5547);
   font-style: italic;
 }
@@ -350,13 +361,14 @@ const signature = computed(() =>
   font-family: var(--font-body, 'Inter', sans-serif);
   font-size: 1em;
   transition:
-    color var(--duration-fast, 150ms),
-    border-color var(--duration-fast, 150ms);
+    background var(--duration-fast, 150ms),
+    color var(--duration-fast, 150ms);
 }
 
 .post-link:hover {
   color: var(--accent-hover, #244140);
   text-decoration: underline;
+  background: var(--paper-sunken, #F7F3E8);
 }
 
 .post-link:focus-visible {
@@ -379,6 +391,7 @@ const signature = computed(() =>
 .post-link--dead:focus-visible {
   color: var(--ink-tertiary, #8A8273);
   text-decoration: none;
+  background: transparent;
 }
 
 .post-link--quoted {
@@ -403,16 +416,28 @@ const signature = computed(() =>
   padding: 0 1px;
 }
 
+/**
+ * Mosaic: one tile per grid cell, so three or more attachments read as a
+ * field of thumbnails instead of a cramped row. `auto-fill` collapses the
+ * grid to a single column on a 320px screen without a media query.
+ */
 .post-attachments {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  justify-items: start;
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
 
 .post-attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
   padding: 0;
   overflow: hidden;
+  text-align: left;
   background: var(--paper-raised, #EAE4D4);
   border: 1px solid var(--rule, #D4CEB8);
   border-radius: 0;
@@ -429,17 +454,51 @@ const signature = computed(() =>
 
 .post-attachment__img {
   display: block;
-  max-width: 180px;
-  max-height: 180px;
+  width: 240px;
+  max-width: 100%;
+  max-height: 240px;
   object-fit: cover;
 }
 
-.post-attachment__file {
-  display: block;
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-body, 'Inter', sans-serif);
-  font-size: 0.875rem;
+.post-attachment__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ink-tertiary, #8A8273);
+}
+
+.post-attachment__name {
   color: var(--ink-secondary, #5B5547);
+  overflow-wrap: anywhere;
+}
+
+.post-attachment__file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.post-attachment__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--ink-secondary, #5B5547);
+}
+
+.post-attachment__file-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ink-tertiary, #8A8273);
 }
 
 @media (prefers-reduced-motion: reduce) {

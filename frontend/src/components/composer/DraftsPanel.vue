@@ -1,20 +1,47 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { discardDraft, listDrafts, type DraftSummary } from '@/composables/useDraft'
+import {
+  discardDraft,
+  listDrafts,
+  type DraftKind,
+  type DraftSummary,
+} from '@/composables/useDraft'
 import NetworkIcon from './NetworkIcon.vue'
 
 /**
- * DraftsPanel (DRAFTS-01).
+ * DraftsPanel (DRAFTS-01, widened by P2-T3).
  *
- * Signal Dock buffers live in localStorage under `draft:signal-<id>`, so
- * until now they were invisible until you reopened the thread. This panel
- * surfaces every unfinished signal on the home page with a preview, the
- * thread it belongs to and an honest "saved N ago" stamp.
+ * Every composer buffers into localStorage, and until now only the Signal
+ * Dock's buffers had a way back to the surface that owns them. This panel
+ * lists all three on the home page — a reply («ответ в треде #7»), an
+ * unlaunched thread («новый тред /bauman/») and a report («жалоба на пост
+ * #42») — each with a preview and an honest «N назад» stamp.
+ *
+ * Two honesty rules shape the rows:
+ *  - a launch buffer links to its board with `?launch=1`, and the board
+ *    reopens the Launch Bay with the buffered text (BoardView);
+ *  - a report key names the post but not its thread, so a report row gets
+ *    no resume link at all — only the discard. No phantom navigation: the
+ *    Report Probe restores its own buffer the moment it is opened again.
  *
  * The list is a snapshot: on mount, on cross-tab `storage` changes and on
  * an explicit refresh. No background polling.
  */
+
+/** One row as the template needs it: label and link decided once, here. */
+interface DraftRow {
+  key: string
+  kind: DraftKind
+  testId: string
+  /** What this buffer actually is. */
+  label: string
+  preview: string
+  filesCount: number
+  savedAt: number
+  /** Where «продолжить» leads. Reports have none — see the note above. */
+  resume?: string
+}
 
 const drafts = ref<DraftSummary[]>([])
 
@@ -53,6 +80,53 @@ function filesLabel(count: number): string {
   return `${count} ${word}`
 }
 
+function toRow(draft: DraftSummary): DraftRow {
+  if (draft.kind === 'launch') {
+    // `listDrafts` read the slug out of the key, so it is always there
+    const slug = draft.boardSlug ?? ''
+    return {
+      key: draft.key,
+      kind: draft.kind,
+      testId: `draft-row-launch-${slug}`,
+      label: `новый тред /${slug}/`,
+      // the title is what a thread is announced by; the opener is the
+      // fallback while the title is still empty
+      preview: preview(draft.title || draft.body),
+      filesCount: draft.filesCount,
+      savedAt: draft.savedAt,
+      resume: `/boards/${slug}?launch=1`,
+    }
+  }
+
+  if (draft.kind === 'report') {
+    const postId = draft.postId ?? 0
+    return {
+      key: draft.key,
+      kind: draft.kind,
+      testId: `draft-row-report-${postId}`,
+      label: `жалоба на пост #${postId}`,
+      preview: preview(draft.body),
+      filesCount: draft.filesCount,
+      savedAt: draft.savedAt,
+    }
+  }
+
+  const threadId = draft.threadId ?? 0
+  return {
+    key: draft.key,
+    kind: draft.kind,
+    // signal rows keep the DRAFTS-01 test id the panel has always had
+    testId: `draft-row-${threadId}`,
+    label: `ответ в треде #${threadId}`,
+    preview: preview(draft.body),
+    filesCount: draft.filesCount,
+    savedAt: draft.savedAt,
+    resume: `/threads/${threadId}`,
+  }
+}
+
+const rows = computed<DraftRow[]>(() => drafts.value.map(toRow))
+
 onMounted(() => {
   refresh()
   window.addEventListener('storage', refresh)
@@ -65,13 +139,13 @@ onBeforeUnmount(() => {
 
 <template>
   <section
-    v-if="drafts.length"
+    v-if="rows.length"
     class="drafts"
-    aria-label="Незаконченные сигналы"
+    aria-label="Незаконченные черновики"
     data-testid="drafts-panel"
   >
     <div class="drafts__head">
-      <h2 class="drafts__title">НЕЗАКОНЧЕННЫЕ СИГНАЛЫ</h2>
+      <h2 class="drafts__title">ЧЕРНОВИКИ</h2>
       <button
         type="button"
         class="drafts__refresh"
@@ -84,23 +158,25 @@ onBeforeUnmount(() => {
 
     <ul class="drafts__list">
       <li
-        v-for="draft in drafts"
-        :key="draft.key"
+        v-for="row in rows"
+        :key="row.key"
         class="drafts__row"
-        :data-testid="`draft-row-${draft.threadId}`"
+        :data-testid="row.testId"
       >
         <div class="drafts__main">
-          <p class="drafts__preview">{{ preview(draft.body) }}</p>
+          <p class="drafts__preview">{{ row.preview }}</p>
           <p class="drafts__meta">
-            <span class="drafts__thread">#{{ draft.threadId }}</span>
-            <span v-if="draft.filesCount > 0" class="drafts__files">
-              {{ filesLabel(draft.filesCount) }}
+            <span class="drafts__subject">{{ row.label }}</span>
+            <span v-if="row.filesCount > 0" class="drafts__files">
+              {{ filesLabel(row.filesCount) }}
             </span>
-            <span class="drafts__time">{{ ago(draft.savedAt) }}</span>
+            <span class="drafts__time">{{ ago(row.savedAt) }}</span>
           </p>
         </div>
 
-        <RouterLink :to="`/threads/${draft.threadId}`" class="drafts__resume">
+        <!-- a report has nowhere to resume to: the buffer opens with its
+             own probe, so the row keeps only its discard -->
+        <RouterLink v-if="row.resume" :to="row.resume" class="drafts__resume">
           продолжить
         </RouterLink>
 
@@ -108,7 +184,7 @@ onBeforeUnmount(() => {
           type="button"
           class="drafts__delete"
           aria-label="Удалить черновик"
-          @click="removeDraft(draft.key)"
+          @click="removeDraft(row.key)"
         >
           <NetworkIcon name="close" :size="14" :stroke-width="2" />
         </button>
@@ -218,7 +294,7 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.drafts__thread {
+.drafts__subject {
   color: var(--accent-dim);
   font-weight: 600;
 }

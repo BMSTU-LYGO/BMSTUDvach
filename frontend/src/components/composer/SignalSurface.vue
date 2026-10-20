@@ -5,6 +5,14 @@ import { nextTick, onMounted, ref, watch } from 'vue'
  * Borderless transmission text canvas (SIGNAL-05).
  * No label, no box, no border — the text surface IS the center of the dock.
  * Optional left micro-gutter: TX (transmission) or R:#123 (reply context).
+ *
+ * Optional `corner` slot (P3-T1b): the caller may pin chrome into the top
+ * right corner of the canvas — the Signal Dock puts its preview node there.
+ * The slot reserves its own width, so no line of text is ever covered.
+ *
+ * Optional `label` (report probe): the dock and the bay call their text a
+ * transmission, the probe calls it a comment — a screen reader must hear
+ * the word the reader is looking at.
  */
 const props = defineProps<{
   modelValue: string
@@ -13,6 +21,7 @@ const props = defineProps<{
   maxLength: number
   describedBy?: string
   invalid?: boolean
+  label?: string
 }>()
 
 const emit = defineEmits<{
@@ -63,7 +72,13 @@ defineExpose({
 </script>
 
 <template>
-  <div class="signal-surface" :class="{ 'signal-surface--reply': gutter.startsWith('R:') }">
+  <div
+    class="signal-surface"
+    :class="{
+      'signal-surface--reply': gutter.startsWith('R:'),
+      'signal-surface--corner': Boolean($slots.corner),
+    }"
+  >
     <span class="signal-surface__gutter" aria-hidden="true">{{ gutter }}</span>
     <textarea
       ref="el"
@@ -74,7 +89,7 @@ defineExpose({
       :maxlength="maxLength"
       :aria-describedby="describedBy"
       :aria-invalid="invalid || undefined"
-      aria-label="Текст сообщения"
+      :aria-label="label || 'Текст сообщения'"
       data-testid="signal-input"
       @input="onInput"
       @keydown="emit('keydown', $event)"
@@ -82,11 +97,15 @@ defineExpose({
       @blur="emit('blur')"
       @paste="emit('paste', $event)"
     ></textarea>
+    <div v-if="$slots.corner" class="signal-surface__corner">
+      <slot name="corner" />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .signal-surface {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -131,5 +150,17 @@ defineExpose({
 
 .signal-surface__input::-webkit-scrollbar {
   width: 3px;
+}
+
+/* corner chrome (P3-T1b): pinned into the top right of the canvas, with the
+   matching right inset reserved so no line of text hides behind it. */
+.signal-surface--corner .signal-surface__input {
+  padding-right: 2rem;
+}
+
+.signal-surface__corner {
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 </style>

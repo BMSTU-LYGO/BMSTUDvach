@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import BoardCard3D from '@/components/ui/BoardCard3D.vue'
+import NetworkCore from '@/components/three/NetworkCore.vue'
 import GridPattern from '@/components/ui/GridPattern.vue'
+import BoardCard3D from '@/components/ui/BoardCard3D.vue'
 import TelemetryRail from '@/components/home/TelemetryRail.vue'
 import MentionsBeacon from '@/components/home/MentionsBeacon.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
@@ -21,7 +22,7 @@ const store = useForumStore()
 const { sounds } = useSound()
 const sectionRef = ref<HTMLElement | null>(null)
 const recentRef = ref<HTMLElement | null>(null)
-const heroRef = ref<HTMLElement | null>(null)
+const overlayRef = ref<HTMLElement | null>(null)
 
 useScrollReveal(sectionRef, '.board-card-3d')
 useScrollReveal(recentRef, '.thread-row')
@@ -33,18 +34,13 @@ onMounted(() => {
   void store.fetchBoards()
   void store.fetchRecentThreads(6)
 
-  if (prefersReducedMotion() || !heroRef.value) return
+  if (prefersReducedMotion() || !overlayRef.value) return
 
-  gsap.to(heroRef.value, {
-    scrollTrigger: {
-      trigger: heroRef.value,
-      start: 'top top',
-      end: 'bottom top',
-      scrub: 1,
-    },
-    y: -40,
-    opacity: 0.6,
-  })
+  gsap.fromTo(
+    overlayRef.value,
+    { opacity: 0, y: 30 },
+    { opacity: 1, y: 0, duration: 1.2, ease: 'power3.out', delay: 0.3 },
+  )
 })
 
 function enterNetwork() {
@@ -62,97 +58,103 @@ function openRecent(event: MouseEvent, threadId: number) {
 
 <template>
   <section class="home">
-    <div ref="heroRef" class="hero">
-      <GridPattern :cell-size="60" :opacity="0.03" />
-      <div class="hero-content">
-        <p class="hero-kicker">
-          BMSTUD Network <span class="hero-kicker__sep" aria-hidden="true">·</span> МГТУ им. Н. Э. Баумана
-        </p>
-        <h1 class="hero-title">BMSTUDvach</h1>
-        <p class="hero-subtitle">
-          Анонимный форум студентов — без регистрации и профилей
-        </p>
-        <p class="hero-explainer">
-          Доски — узлы сети, треды — каналы, ответы — сигналы. Никто не знает, кто ты.
-        </p>
-        <div class="hero-actions">
-          <button type="button" class="hero-cta" @click="enterNetwork">
-            Войти в сеть
-            <span class="hero-cta-arrow" aria-hidden="true">↓</span>
-          </button>
-          <RouterLink to="/about" class="hero-alt">/about/ — что это</RouterLink>
+    <NetworkCore />
+    <GridPattern :cell-size="60" :opacity="0.03" />
+
+    <div ref="overlayRef" class="overlay">
+      <div class="overlay-content">
+        <div class="overlay-header">
+          <p class="overlay-kicker">BMSTUD Network · МГТУ им. Н. Э. Баумана</p>
+          <div class="overlay-meta">
+            <span class="meta-item">
+              <span class="meta-label">Узлы</span>
+              <span class="meta-value">{{ nodeCount }}</span>
+            </span>
+            <span class="meta-divider" aria-hidden="true"></span>
+            <span class="meta-item">
+              <span class="meta-label">Сигналы</span>
+              <span class="meta-value">{{ signalCount }}</span>
+            </span>
+          </div>
         </div>
+
+        <button type="button" class="overlay-cta" @click="enterNetwork">
+          <span class="cta-text">Войти в сеть</span>
+          <span class="cta-arrow" aria-hidden="true">↓</span>
+        </button>
       </div>
     </div>
 
-    <section class="home-section" aria-labelledby="section-boards-title">
-      <div class="section-label">
-        <span class="label-index" aria-hidden="true">01</span>
-        <h2 id="section-boards-title" class="label-text">Разделы</h2>
-        <span class="label-meta" aria-hidden="true">{{ nodeCount }} узлов</span>
-      </div>
+    <div class="content-layer">
+      <section class="home-section" aria-labelledby="section-boards-title">
+        <div class="section-label">
+          <span class="label-index" aria-hidden="true">01</span>
+          <h2 id="section-boards-title" class="label-text">Разделы</h2>
+          <span class="label-meta" aria-hidden="true">{{ nodeCount }} узлов</span>
+        </div>
 
-      <LoadingState v-if="store.boards.loading" />
-      <ErrorState
-        v-else-if="store.boards.error"
-        :message="store.boards.error"
-        :on-retry="store.fetchBoards"
-      />
-      <EmptyState
-        v-else-if="store.boards.boards.length === 0"
-        message="Разделов пока нет."
-      />
-      <div v-else ref="sectionRef" class="boards-grid">
-        <BoardCard3D
-          v-for="(board, index) in store.boards.boards"
-          :key="board.slug"
-          :board="board"
-          :index="index"
-        />
-      </div>
-    </section>
-
-    <TelemetryRail />
-
-    <MentionsBeacon />
-
-    <div class="section-rule" aria-hidden="true"></div>
-
-    <section class="home-section" aria-labelledby="section-recent-title">
-      <div class="section-label">
-        <span class="label-index" aria-hidden="true">02</span>
-        <h2 id="section-recent-title" class="label-text">Последние передачи</h2>
-        <span class="label-meta" aria-hidden="true">{{ signalCount }} сигналов</span>
-      </div>
-
-      <div ref="recentRef" class="recent">
-        <LoadingState v-if="store.recent.loading" />
+        <LoadingState v-if="store.boards.loading" />
         <ErrorState
-          v-else-if="store.recent.error"
-          :message="store.recent.error"
-          :on-retry="() => store.fetchRecentThreads(6)"
+          v-else-if="store.boards.error"
+          :message="store.boards.error"
+          :on-retry="store.fetchBoards"
         />
         <EmptyState
-          v-else-if="store.recent.threads.length === 0"
-          message="В сети пока тихо."
+          v-else-if="store.boards.boards.length === 0"
+          message="Разделов пока нет."
         />
-        <div v-else class="recent-list">
-          <ThreadRow
-            v-for="thread in store.recent.threads"
-            :key="thread.id"
-            :thread="thread"
-            show-board
-            @open="openRecent"
+        <div v-else ref="sectionRef" class="boards-grid">
+          <BoardCard3D
+            v-for="(board, index) in store.boards.boards"
+            :key="board.slug"
+            :board="board"
+            :index="index"
           />
         </div>
-      </div>
-    </section>
+      </section>
 
-    <div class="section-rule" aria-hidden="true"></div>
+      <TelemetryRail />
 
-    <DraftsPanel />
+      <MentionsBeacon />
 
-    <WatchPanel />
+      <div class="section-rule" aria-hidden="true"></div>
+
+      <section class="home-section" aria-labelledby="section-recent-title">
+        <div class="section-label">
+          <span class="label-index" aria-hidden="true">02</span>
+          <h2 id="section-recent-title" class="label-text">Последние передачи</h2>
+          <span class="label-meta" aria-hidden="true">{{ signalCount }} сигналов</span>
+        </div>
+
+        <div ref="recentRef" class="recent">
+          <LoadingState v-if="store.recent.loading" />
+          <ErrorState
+            v-else-if="store.recent.error"
+            :message="store.recent.error"
+            :on-retry="() => store.fetchRecentThreads(6)"
+          />
+          <EmptyState
+            v-else-if="store.recent.threads.length === 0"
+            message="В сети пока тихо."
+          />
+          <div v-else class="recent-list">
+            <ThreadRow
+              v-for="thread in store.recent.threads"
+              :key="thread.id"
+              :thread="thread"
+              show-board
+              @open="openRecent"
+            />
+          </div>
+        </div>
+      </section>
+
+      <div class="section-rule" aria-hidden="true"></div>
+
+      <DraftsPanel />
+
+      <WatchPanel />
+    </div>
   </section>
 </template>
 
@@ -172,6 +174,7 @@ function openRecent(event: MouseEvent, threadId: number) {
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --duration-fast: 150ms;
   --duration-normal: 200ms;
+  --duration-slow: 400ms;
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -185,130 +188,134 @@ function openRecent(event: MouseEvent, threadId: number) {
   --space-16: 4rem;
   --space-20: 5rem;
 
+  position: relative;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 0;
   background: var(--paper);
   color: var(--ink);
-  padding: 0 var(--space-6);
 }
 
-.hero {
+.overlay {
   position: relative;
-  padding: var(--space-20) 0 var(--space-16);
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: var(--space-8);
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--rule);
+  justify-content: center;
+  pointer-events: none;
 }
 
-.hero-content {
+.overlay-content {
   display: flex;
   flex-direction: column;
+  gap: var(--space-8);
+  align-items: center;
+  pointer-events: auto;
 }
 
-.hero-kicker {
-  margin: 0 0 var(--space-6);
+.overlay-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: center;
+  text-align: center;
+}
+
+.overlay-kicker {
+  margin: 0;
   font-family: var(--font-body);
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink-secondary);
-  letter-spacing: 0;
-  text-transform: none;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 20px rgba(242, 237, 224, 0.8);
 }
 
-.hero-kicker__sep {
-  margin: 0 var(--space-2);
-  color: var(--ink-tertiary);
-}
-
-.hero-title {
-  margin: 0 0 var(--space-4);
-  font-family: var(--font-display);
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-}
-
-.hero-subtitle {
-  margin: 0 0 var(--space-4);
-  max-width: 46ch;
-  font-family: var(--font-body);
-  font-size: 1.125rem;
-  font-weight: 400;
-  line-height: 1.6;
-  color: var(--ink-secondary);
-}
-
-.hero-explainer {
-  margin: 0 0 var(--space-8);
-  max-width: 56ch;
-  font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--ink-tertiary);
-}
-
-.hero-actions {
+.overlay-meta {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
-  flex-wrap: wrap;
+  gap: var(--space-6);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--ink-tertiary);
+  text-shadow: 0 2px 20px rgba(242, 237, 224, 0.8);
 }
 
-.hero-cta {
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.meta-label {
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-tertiary);
+}
+
+.meta-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.meta-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--rule);
+}
+
+.overlay-cta {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  background: transparent;
-  border: 1px solid var(--rule);
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: 0 var(--space-8);
+  background: rgba(242, 237, 224, 0.9);
+  backdrop-filter: blur(12px);
+  border: 2px solid var(--accent);
   border-radius: 0;
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+    background var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+  text-shadow: 0 1px 2px rgba(242, 237, 224, 0.5);
 }
 
-.hero-cta:hover {
-  background: var(--paper-sunken);
-  border-color: var(--ink-tertiary);
+.overlay-cta:hover {
+  background: rgba(242, 237, 224, 0.95);
+  border-color: var(--accent-hover);
+  transform: translateY(-2px);
 }
 
-.hero-cta:focus-visible {
+.overlay-cta:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 4px;
 }
 
-.hero-cta-arrow {
-  transition: translate var(--duration-fast) var(--ease-out);
+.cta-arrow {
+  transition: transform var(--duration-normal) var(--ease-out);
+  font-size: 1.2rem;
 }
 
-.hero-cta:hover .hero-cta-arrow {
-  translate: 0 2px;
+.overlay-cta:hover .cta-arrow {
+  transform: translateY(4px);
 }
 
-.hero-alt {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  color: var(--ink-tertiary);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-.hero-alt:hover {
-  color: var(--ink);
+.content-layer {
+  position: relative;
+  z-index: 20;
+  background: var(--paper);
+  padding: 0 var(--space-6);
 }
 
 .home-section {
@@ -378,13 +385,12 @@ function openRecent(event: MouseEvent, threadId: number) {
 }
 
 @media (max-width: 768px) {
-  .home {
+  .content-layer {
     padding: 0 var(--space-4);
   }
 
-  .hero {
-    grid-template-columns: 1fr;
-    padding: var(--space-12) 0 var(--space-10);
+  .overlay-header {
+    padding: 0 var(--space-4);
   }
 
   .label-meta {
@@ -397,9 +403,8 @@ function openRecent(event: MouseEvent, threadId: number) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-cta,
-  .hero-cta-arrow,
-  .hero-alt {
+  .overlay-cta,
+  .cta-arrow {
     transition: none;
   }
 }

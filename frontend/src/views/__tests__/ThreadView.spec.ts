@@ -29,10 +29,11 @@ vi.mock('@/api/posts', () => ({
   createReport: vi.fn(),
 }))
 
-import { createPost } from '@/api/posts'
+import { createPost, createReport } from '@/api/posts'
 import { ApiRequestError } from '@/api/client'
 
 import ThreadView from '@/views/ThreadView.vue'
+import ThreadViewSource from '@/views/ThreadView.vue?raw'
 import { getThread } from '@/api/threads'
 import type { ThreadDetail } from '@/types'
 
@@ -179,9 +180,15 @@ describe('ThreadView — thread reader', () => {
     await wrapper.find('.transmit').trigger('click')
     await flushPromises()
 
-    const error = wrapper.find('[data-testid="dock-error"]')
-    expect(error.exists()).toBe(true)
-    expect(error.text()).toContain('must not exceed 20000')
+    const notice = wrapper.find('[data-testid="dock-error"]')
+    expect(notice.exists()).toBe(true)
+    // the notice is a classified node, not the raw DRF envelope
+    expect(notice.find('[data-testid="transmit-notice"]').attributes('data-kind')).toBe(
+      'validation',
+    )
+    expect(notice.text()).toContain('must not exceed 20000')
+    expect(notice.text()).not.toContain('Validation error')
+    expect(notice.find('[role="alert"]').exists()).toBe(true)
     // failure keeps the typed body
     expect(
       (wrapper.find('[data-testid="signal-input"]').element as HTMLTextAreaElement)
@@ -208,6 +215,39 @@ describe('ThreadView — thread reader', () => {
   it('keeps the Signal Dock writable below the posts', async () => {
     wrapper = await mountThread()
     expect(wrapper.find('[data-testid="signal-dock"]').exists()).toBe(true)
+  })
+
+  it('wires the dock and the ContextFiber into one reply link (P3-T1c)', async () => {
+    wrapper = await mountThread()
+    expect(wrapper.classes()).not.toContain('thread-page--linked')
+    expect(wrapper.find('[data-testid="signal-dock"]').attributes('data-link')).toBe('idle')
+
+    // answering a post arms the link: the fiber measures it, the section
+    // mirrors the state and the dock's leading edge carries the same marker
+    await wrapper.findAll('.btn-reply')[0].trigger('click')
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    await nextTick()
+
+    // jsdom computes no layout, so every rect is zeroed and the source reads
+    // as «off screen»: the fiber is on its edge indicator, and the sheet
+    // answers with the same accent marker rather than a second visual
+    expect(wrapper.classes()).toContain('thread-page--linked')
+    expect(wrapper.classes()).toContain('thread-page--link-edge')
+    const dock = wrapper.find('[data-testid="signal-dock"]')
+    expect(dock.attributes('data-link')).toBe('edge')
+    expect(dock.classes()).toContain('signal-dock--link-edge')
+    expect(dock.find('.signal-dock__edge').exists()).toBe(true)
+    expect(wrapper.find('.context-fiber').classes()).toContain('context-fiber--edge')
+
+    // dropping the context disarms the whole link, both halves at once
+    await wrapper.find('button[aria-label="Убрать контекст ответа"]').trigger('click')
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    await nextTick()
+
+    expect(wrapper.classes()).not.toContain('thread-page--linked')
+    expect(
+      wrapper.find('[data-testid="signal-dock"]').attributes('data-link'),
+    ).toBe('idle')
   })
 })
 
@@ -518,5 +558,202 @@ describe('ThreadView — поиск в треде и cursor j/k (FINDPOST-01)', 
     await nextTick()
 
     expect(wrapper.findAll('.post-item--focused')).toHaveLength(0)
+  })
+})
+
+describe('ThreadView — подпись автора в шапке поста', () => {
+  let wrapper: Awaited<ReturnType<typeof mountThread>> | undefined
+
+  beforeEach(() => {
+    localStorageMock.clear()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  afterEach(() => {
+    wrapper?.unmount()
+    wrapper = undefined
+  })
+
+  function threadWith(author: string, tripcode: string): ThreadDetail {
+    return { ...thread, posts: [{ ...thread.posts[0], author, tripcode }] }
+  }
+
+  it('показывает автора и трипкод в шапке поста', async () => {
+    vi.mocked(getThread).mockResolvedValue(threadWith('Пустота', '!u3V2icOT'))
+    wrapper = await mountThread()
+
+    const author = wrapper.find('[data-testid="post-author"]')
+    expect(author.exists()).toBe(true)
+    expect(author.text()).toBe('Пустота')
+    expect(wrapper.find('[data-testid="post-tripcode"]').text()).toBe('!u3V2icOT')
+  })
+
+  it('подставляет Аноним, когда имя пустое, но трипкод есть', async () => {
+    vi.mocked(getThread).mockResolvedValue(threadWith('', '!u3V2icOT'))
+    wrapper = await mountThread()
+
+    expect(wrapper.find('[data-testid="post-author"]').text()).toBe('Аноним')
+    expect(wrapper.find('[data-testid="post-tripcode"]').exists()).toBe(true)
+  })
+
+  it('не показывает подпись, когда автора и трипкода нет', async () => {
+    vi.mocked(getThread).mockResolvedValue(threadWith('', ''))
+    wrapper = await mountThread()
+
+    expect(wrapper.find('[data-testid="post-author"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="post-tripcode"]').exists()).toBe(false)
+  })
+})
+
+// --- structured transmit errors (P1-T3 / TRANSMIT-ENGINE-01) -------------
+
+describe('ThreadView — передача и жалоба: структурные ошибки', () => {
+  let wrapper: Awaited<ReturnType<typeof mountThread>> | undefined
+
+  /** jsdom lies about `navigator.onLine`, so pin it for a duration. */
+  function setOnline(value: boolean) {
+    Object.defineProperty(navigator, 'onLine', { value, configurable: true })
+  }
+
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.mocked(getThread).mockResolvedValue(thread)
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  afterEach(() => {
+    setOnline(true)
+    wrapper?.unmount()
+    wrapper = undefined
+  })
+
+  it('reply refusal shows the classified notice, not the raw fetch text', async () => {
+    vi.mocked(createPost).mockClear()
+    wrapper = await mountThread()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('важный ответ')
+
+    // the link is down for the whole attempt — classification needs it
+    setOnline(false)
+    vi.mocked(createPost).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    await wrapper.find('.transmit').trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.find('[data-testid="dock-error"]')
+    expect(notice.text()).toContain('Сеть недоступна')
+    expect(notice.text()).not.toContain('Failed to fetch')
+    expect(notice.find('[role="alert"]').exists()).toBe(true)
+    // the typed body survives the refusal
+    expect((input.element as HTMLTextAreaElement).value).toBe('важный ответ')
+    // one attempt, no silent retry loop
+    expect(vi.mocked(createPost)).toHaveBeenCalledTimes(1)
+  })
+
+  it('retry in the dock replays the very same reply', async () => {
+    vi.mocked(createPost).mockClear()
+    vi.mocked(getThread).mockClear()
+    wrapper = await mountThread()
+    const input = wrapper.find('[data-testid="signal-input"]')
+    await input.trigger('focus')
+    await input.setValue('ответ')
+    const readsBefore = vi.mocked(getThread).mock.calls.length
+
+    vi.mocked(createPost).mockRejectedValueOnce(new ApiRequestError(500, 'Boom'))
+    await wrapper.find('.transmit').trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.find('[data-testid="dock-error"]')
+    expect(notice.text()).toContain('Сервер сети не отвечает')
+
+    vi.mocked(createPost).mockResolvedValue(thread.posts[1])
+    await wrapper.find('[data-testid="transmit-notice-retry"]').trigger('click')
+    await flushPromises()
+
+    // the very same payload went out twice
+    expect(vi.mocked(createPost)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(createPost)).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ body: 'ответ' }),
+    )
+    // a retried reply lands like a fresh one: the thread is re-read
+    expect(vi.mocked(getThread).mock.calls.length).toBeGreaterThan(readsBefore)
+    // success clears the notice and resets the dock
+    expect(wrapper.find('[data-testid="dock-error"]').exists()).toBe(false)
+    expect((input.element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('report refusal counts the throttle down inside the probe', async () => {
+    vi.mocked(createReport).mockClear()
+    wrapper = await mountThread()
+
+    await wrapper.findAll('.btn-report')[0].trigger('click')
+    await wrapper.find('[data-testid="reason-spam"]').trigger('click')
+
+    vi.mocked(createReport).mockRejectedValueOnce(
+      new ApiRequestError(
+        429,
+        'Request was throttled. Expected available in 42 seconds.',
+      ),
+    )
+    // the probe owns the first transmit node in the DOM
+    await wrapper.findAll('.transmit')[0].trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.find('[data-testid="probe-error"]')
+    expect(notice.text()).toContain('Слишком много сигналов')
+    expect(notice.text()).toContain('Повтор через 42 с')
+    expect(wrapper.find('[data-testid="transmit-notice-countdown"]').text()).toBe(
+      'повтор через 42с',
+    )
+    // the probe stays open: the reader can still change the reason
+    expect(wrapper.find('[data-testid="probe-stage-2"]').exists()).toBe(true)
+    expect(wrapper.emitted()).not.toHaveProperty('reported')
+  })
+
+  it('retry in the probe replays the very same report', async () => {
+    vi.mocked(createReport).mockClear()
+    wrapper = await mountThread()
+
+    await wrapper.findAll('.btn-report')[0].trigger('click')
+    await wrapper.find('[data-testid="reason-spam"]').trigger('click')
+    await wrapper.find('textarea').setValue('флуд ссылками')
+
+    vi.mocked(createReport).mockRejectedValueOnce(new ApiRequestError(500, 'Boom'))
+    await wrapper.findAll('.transmit')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="probe-error"]').text()).toContain(
+      'Сервер сети не отвечает',
+    )
+
+    vi.mocked(createReport).mockResolvedValue({ detail: 'ok', id: 7 })
+    await wrapper.find('[data-testid="transmit-notice-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(createReport)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(createReport)).toHaveBeenLastCalledWith(1, {
+      reason: 'spam',
+      comment: 'флуд ссылками',
+    })
+    // success closes the probe and thanks the reader
+    expect(wrapper.find('[data-testid="probe-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="probe-stage-2"]').exists()).toBe(false)
+    const thanks = wrapper.find('[data-testid="report-notice"]')
+    expect(thanks.text()).toContain('Жалоба отправлена')
+  })
+})
+
+describe('ThreadView — the dock gutter (P3-T5)', () => {
+  it('moors the sheet in its own grid track, never over the posts', () => {
+    // wide screen: a real two-track grid, dock column then reading column
+    expect(ThreadViewSource).toContain('grid-template-columns: var(--dock-col) minmax(0, 1fr)')
+    expect(ThreadViewSource).toContain('grid-area: 1 / 1')
+    expect(ThreadViewSource).toContain('grid-area: 1 / 2')
+    // the gutter is a clamp — it only takes what the screen can spare
+    expect(ThreadViewSource).toMatch(/--dock-col: clamp\(\d+px, \d+vw, \d+px\)/)
+    // below the breakpoint the wrapper is transparent: the classic flow
+    const body = ThreadViewSource.slice(ThreadViewSource.indexOf('.thread-body {'))
+    expect(body).toContain('display: contents')
   })
 })

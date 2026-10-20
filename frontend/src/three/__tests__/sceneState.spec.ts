@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   emitSceneEvent,
+  getBoardBySlug,
   highlightBoard,
   onSceneEvent,
   sceneState,
   setSceneMode,
   setStoryCount,
   syncBoards,
+  type BoardSummary,
   type SceneEvent,
 } from '@/three/sceneState'
 
@@ -70,10 +72,22 @@ describe('sceneState', () => {
   })
 
   it('syncBoards copies the list', () => {
-    const list = ['b', 'study']
+    const list: BoardSummary[] = [
+      { slug: 'b', threadCount: 0, order: 0 },
+      { slug: 'study', threadCount: 4, order: 1 },
+    ]
     syncBoards(list)
-    list.push('campus')
-    expect(sceneState.boards).toEqual(['b', 'study'])
+    list.push({ slug: 'campus', threadCount: 0, order: 2 })
+    expect(sceneState.boards).toEqual([
+      { slug: 'b', threadCount: 0, order: 0 },
+      { slug: 'study', threadCount: 4, order: 1 },
+    ])
+  })
+
+  it('getBoardBySlug reads the synced board', () => {
+    syncBoards([{ slug: 'study', threadCount: 4, order: 1 }])
+    expect(getBoardBySlug('study')?.threadCount).toBe(4)
+    expect(getBoardBySlug('campus')).toBeUndefined()
   })
 
   it('storyCount drives the archive', () => {

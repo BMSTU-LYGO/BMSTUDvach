@@ -20,8 +20,18 @@ const { setting: quality3D, cycleSetting: cycle3D } = useQuality3D()
 // Keep the 3D network graph in step with the board registry regardless of
 // which page the boards list was first loaded on.
 watch(
-  () => store.boards.boards.map((b) => b.slug),
-  (slugs) => syncBoards(slugs),
+  () => store.boards.boards,
+  (boards) =>
+    syncBoards(
+      boards.map((b) => ({
+        slug: b.slug,
+        threadCount: b.thread_count,
+        order: b.order,
+        name: b.name,
+        description: b.description,
+      })),
+    ),
+  { deep: true },
 )
 
 const QUALITY_LABELS: Record<string, string> = {

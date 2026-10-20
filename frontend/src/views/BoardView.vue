@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import LaunchBay from '@/components/launch/LaunchBay.vue'
 import LoadMoreNode from '@/components/thread/LoadMoreNode.vue'
 import ThreadRow from '@/components/thread/ThreadRow.vue'
 import CatalogCard from '@/components/thread/CatalogCard.vue'
+import RuleSheet from '@/components/thread/RuleSheet.vue'
+import ViewCommutator from '@/components/thread/ViewCommutator.vue'
+import type { ViewMode } from '@/components/thread/ViewCommutator.vue'
 import SortLens from '@/components/thread/SortLens.vue'
 import HiddenThreadsChip from '@/components/thread/HiddenThreadsChip.vue'
 import NetworkIcon from '@/components/composer/NetworkIcon.vue'
@@ -13,15 +17,18 @@ import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+import { useTransmit } from '@/composables/useTransmit'
 import { captureMorph, playMorph } from '@/composables/usePageMorph'
 import { useSound } from '@/composables/useSound'
 import { emitSceneEvent } from '@/three/sceneState'
-import { apiErrorMessage } from '@/api/client'
 import { getBoard } from '@/api/boards'
 import type { ThreadOrder } from '@/api/threads'
 import type { Board, NewThreadInput } from '@/types'
 
 const props = defineProps<{ boardSlug: string }>()
+
+const route = useRoute()
+const router = useRouter()
 
 const store = useForumStore()
 const sectionRef = ref<HTMLElement | null>(null)
@@ -29,19 +36,12 @@ const titleRef = ref<HTMLElement | null>(null)
 const launchBtnRef = ref<HTMLElement | null>(null)
 const bayRef = ref<InstanceType<typeof LaunchBay> | null>(null)
 
-// board rules — a short imageboard-style notice under the /slug/ title
+// board rules — a margin note the board runs against its own /slug/ title.
+// The sheet owns its own opening gesture (P3-T4): the parent only decides
+// whether there is a note at all.
 const board = ref<Board | null>(null)
 const rulesText = computed(() => board.value?.rules?.trim() ?? '')
 const showRules = computed(() => rulesText.value.length > 0)
-
-const RULES_COLLAPSE_LINES = 3
-const RULES_COLLAPSE_LENGTH = 220
-const rulesExpanded = ref(false)
-const rulesCollapsible = computed(
-  () =>
-    rulesText.value.split('\n').length > RULES_COLLAPSE_LINES ||
-    rulesText.value.length > RULES_COLLAPSE_LENGTH,
-)
 
 async function loadBoard() {
   try {
@@ -56,13 +56,16 @@ useScrollReveal(sectionRef, '.thread-row')
 
 const { sounds } = useSound()
 
-const creating = ref(false)
-const createdError = ref('')
-const createSuccessToken = ref(0)
+// Thread creation runs through the transmit engine (P1-T4): one attempt,
+// a classified failure, retry of the very same input. No local error
+// strings — `tx.error` is a structured `TransmitError` the bay renders.
+const tx = useTransmit<NewThreadInput>()
+// Destructured for the template proxy: `tx.error` would hand the ref
+// itself to the bay's `:error` prop (see useTransmit's docs).
+const { submitting: creating, error: launchError, successToken: launchSuccess } = tx
 const launchOpen = ref(false)
 
 // board view: signal rows (list) or cluster nodes (catalog)
-type ViewMode = 'list' | 'catalog'
 const VIEW_KEY = 'board-view-mode'
 const viewMode = ref<ViewMode>(
   (localStorage.getItem(VIEW_KEY) as ViewMode) || 'list',
@@ -109,42 +112,72 @@ onMounted(async () => {
   playMorph(titleRef.value, `board:${props.boardSlug}`)
   void store.fetchThreads(props.boardSlug, threadOrder.value)
   void loadBoard()
+  // P2-T3: the drafts panel hands a launch buffer over with `?launch=1`.
+  // The board mounts and plays its own morph first (the frame above), and
+  // only then does the bay take the stage — the sheet is laid down around
+  // a board that already exists instead of popping over a blank page.
+  if (route.query.launch === '1') {
+    await openLaunchBay()
+    // The flag is consumed: history-replace it away so a reload or a shared
+    // URL does not reopen the bay by itself. Closing the bay does not put
+    // it back — the flag was a request, not a state.
+    await router.replace({ query: { ...route.query, launch: undefined } })
+  }
 })
 
 // "+ Новый тред" morphs into the Launch Bay stage (SIGNAL-13).
+//
+// P3-T2 — shared element, strengthened. «trigger → scene title»: Flip
+// captures the button's geometry and plays it into the bay's scene title
+// (kicker + /slug/), so the title flies out of the button and lands on the
+// sheet; the sheet itself is laid down around it. The trigger steps aside
+// for the flight (`launch-trigger--staged`) — the title leaves the button's
+// place instead of copying it — and the flip runs before the first paint
+// (mounted → nextTick → playMorph), so nothing pops at its resting place.
+// `prefers-reduced-motion` (or a missing GSAP) makes playMorph a no-op and
+// the sheet is simply there.
+const MORPH_DURATION = 0.45
+
 async function openLaunchBay() {
   if (launchOpen.value) return
   captureMorph(launchBtnRef.value, 'launch-bay')
   launchOpen.value = true
+  // The bay is a composer surface taking the stage, so it reuses the
+  // composer-focus gesture the reply dock already owns: the network core
+  // brightens slightly, nothing invented, no dead event bus entry. A
+  // dedicated `bay-open` event would need sceneState + NetworkCanvas +
+  // network.ts — outside this task's files, so it stays a FOLLOWUPS idea.
+  emitSceneEvent({ type: 'composer-focus' })
   await nextTick()
-  playMorph(bayRef.value?.$el ?? null, 'launch-bay', { duration: 0.45 })
+  playMorph(bayRef.value?.sceneTitleElement() ?? null, 'launch-bay', {
+    duration: MORPH_DURATION,
+  })
 }
 
 function closeLaunchBay() {
+  if (!launchOpen.value) return
   launchOpen.value = false
+  emitSceneEvent({ type: 'composer-blur' })
 }
 
+// A successful launch ends the stage exactly like a close does — the scene
+// signal is released either way.
 function onBayDone() {
-  launchOpen.value = false
+  closeLaunchBay()
 }
 
 async function handleCreate(input: NewThreadInput) {
-  creating.value = true
-  createdError.value = ''
-  try {
-    await store.createThread(props.boardSlug, input)
-    createSuccessToken.value++
-    await store.fetchThreads(props.boardSlug, threadOrder.value)
-    sounds.submit()
-    // Spatial feedback: the board cluster answers the launch.
-    emitSceneEvent({ type: 'thread-launch', target: props.boardSlug })
-    // failure keeps the bay open with title/body/files/draft intact
-  } catch (err) {
-    createdError.value = apiErrorMessage(err, 'Не удалось создать тред.')
+  const created = await tx.run(input, (i) => store.createThread(props.boardSlug, i))
+  // A refusal is a state, not a branch: the bay stays open with
+  // title/body/files/draft intact and `tx.error` explains the failure.
+  if (created === undefined) {
     sounds.error()
-  } finally {
-    creating.value = false
+    return
   }
+  await store.fetchThreads(props.boardSlug, threadOrder.value)
+  sounds.submit()
+  // Spatial feedback: the board cluster answers the launch.
+  emitSceneEvent({ type: 'thread-launch', target: props.boardSlug })
 }
 
 function captureRow(event: MouseEvent, threadId: number) {
@@ -160,69 +193,35 @@ function captureRow(event: MouseEvent, threadId: number) {
       <div class="board-header__actions">
         <SortLens :model-value="threadOrder" @change="setThreadOrder" />
         <HiddenThreadsChip />
-        <div class="view-switch" role="group" aria-label="Вид разделы">
-          <button
-            type="button"
-            class="view-switch__btn"
-            :class="{ 'view-switch__btn--active': viewMode === 'list' }"
-            aria-label="Список тредов"
-            :aria-pressed="viewMode === 'list'"
-            @click="setViewMode('list')"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12M2 8h12M2 13h12"/></svg>
-          </button>
-          <button
-            type="button"
-            class="view-switch__btn"
-            :class="{ 'view-switch__btn--active': viewMode === 'catalog' }"
-            aria-label="Каталог узлов"
-            :aria-pressed="viewMode === 'catalog'"
-            @click="setViewMode('catalog')"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>
-          </button>
-        </div>
-        <button ref="launchBtnRef" type="button" class="launch-trigger" @click="openLaunchBay">
+        <ViewCommutator :model-value="viewMode" @change="setViewMode" />
+        <button
+          ref="launchBtnRef"
+          type="button"
+          class="launch-trigger"
+          :class="{ 'launch-trigger--staged': launchOpen }"
+          :tabindex="launchOpen ? -1 : 0"
+          :aria-hidden="launchOpen ? 'true' : undefined"
+          @click="openLaunchBay"
+        >
           <NetworkIcon name="transmit" :size="16" />
           <span class="launch-trigger__label">Новый тред</span>
         </button>
       </div>
     </div>
 
-    <div v-if="showRules" class="board-rules" data-testid="board-rules">
-      <div class="board-rules__head">
-        <span class="board-rules__label">Правила раздела</span>
-        <button
-          v-if="rulesCollapsible"
-          type="button"
-          class="board-rules__toggle"
-          data-testid="board-rules-toggle"
-          aria-controls="board-rules-text"
-          :aria-expanded="rulesExpanded"
-          @click="rulesExpanded = !rulesExpanded"
-        >
-          {{ rulesExpanded ? 'свернуть' : 'показать' }}
-        </button>
-      </div>
-      <p
-        id="board-rules-text"
-        class="board-rules__text"
-        :class="{ 'board-rules__text--clamped': rulesCollapsible && !rulesExpanded }"
-      >
-        {{ rulesText }}
-      </p>
-    </div>
+    <RuleSheet v-if="showRules" :rules="rulesText" />
 
     <LaunchBay
       v-if="launchOpen"
       ref="bayRef"
       :board-slug="props.boardSlug"
       :submitting="creating"
-      :submit-error="createdError"
-      :success-token="createSuccessToken"
+      :error="launchError"
+      :success-token="launchSuccess"
       @submit="handleCreate"
       @close="closeLaunchBay"
       @done="onBayDone"
+      @retry="tx.retry()"
     />
 
     <LoadingState v-if="store.threadList.loading" />
@@ -238,8 +237,10 @@ function captureRow(event: MouseEvent, threadId: number) {
     <div
       v-else
       ref="sectionRef"
-      :class="viewMode === 'catalog' ? 'catalog-grid' : 'threads-list'"
-      :data-staged="launchOpen"
+      :class="[
+        viewMode === 'catalog' ? 'catalog-grid' : 'threads-list',
+        { 'board-feed--receded': launchOpen },
+      ]"
     >
       <template v-if="viewMode === 'catalog'">
         <CatalogCard
@@ -295,56 +296,9 @@ function captureRow(event: MouseEvent, threadId: number) {
   margin: 0;
 }
 
-.board-rules {
-  border: 1px solid var(--rule);
-  border-radius: 0;
-  padding: var(--space-3) var(--space-4);
-  background: var(--paper-raised);
-}
-
-.board-rules__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
-}
-
-.board-rules__label {
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ink-secondary);
-}
-
-.board-rules__toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--ink-tertiary);
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-.board-rules__toggle:hover {
-  color: var(--accent);
-}
-
-.board-rules__text {
-  margin: 0;
-  color: var(--ink-secondary);
-  font-size: 0.875rem;
-  line-height: 1.6;
-  white-space: pre-line;
-}
-
-.board-rules__text--clamped {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+.rule-sheet {
+  /* the margin note crowds the /slug/ title it belongs to */
+  margin-top: calc(var(--space-4) * -1);
 }
 
 .launch-trigger {
@@ -362,7 +316,8 @@ function captureRow(event: MouseEvent, threadId: number) {
   font-size: 0.875rem;
   transition:
     border-color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    background var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .launch-trigger:hover {
@@ -374,11 +329,30 @@ function captureRow(event: MouseEvent, threadId: number) {
   color: var(--ink);
 }
 
-.threads-list[data-staged='true'],
-.catalog-grid[data-staged='true'] {
-  opacity: 0.5;
+/* The trigger is the shared element of the bay morph: while the sheet flies
+   out of its place the button itself is gone — transparent, unfocusable and
+   outside the accessibility tree until the stage is handed back. */
+.launch-trigger--staged {
+  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* P3-T2 — the board recedes while the bay holds the stage. «Отходит»
+   instead of «затемняется слоем»: opacity 0.25 + a 1.5% pull-back, no
+   filter (blur on a long list is not worth the frames). Nothing behind
+   the sheet stays a click/scroll target. */
+.board-feed--receded {
+  opacity: 0.25;
+  transform: scale(0.985);
+  transform-origin: 50% 0;
+  pointer-events: none;
+}
+
+.threads-list,
+.catalog-grid {
+  transition:
+    opacity 320ms var(--ease-out),
+    transform 320ms var(--ease-out);
 }
 
 .board-header__actions {
@@ -386,35 +360,6 @@ function captureRow(event: MouseEvent, threadId: number) {
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-.view-switch {
-  display: inline-flex;
-  border: 1px solid var(--rule);
-  border-radius: 0;
-  overflow: hidden;
-}
-
-.view-switch__btn {
-  min-width: 44px;
-  min-height: 44px;
-  display: grid;
-  place-items: center;
-  background: none;
-  border: none;
-  color: var(--ink-tertiary);
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
-}
-
-.view-switch__btn:hover {
-  color: var(--ink);
-  background: var(--paper-sunken);
-}
-
-.view-switch__btn--active {
-  color: var(--accent);
-  background: var(--paper-sunken);
 }
 
 .catalog-grid {
@@ -431,6 +376,17 @@ function captureRow(event: MouseEvent, threadId: number) {
 @media (prefers-reduced-motion: reduce) {
   .thread-row:hover {
     transform: none;
+  }
+
+  /* the board still recedes — it just does not drift */
+  .threads-list,
+  .catalog-grid {
+    transition: none;
+  }
+
+  /* the trigger still steps aside — it just does not dissolve */
+  .launch-trigger--staged {
+    transition: none;
   }
 }
 </style>

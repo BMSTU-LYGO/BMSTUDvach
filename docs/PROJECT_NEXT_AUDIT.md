@@ -397,3 +397,41 @@ spectacular · build PASS · live (in-container): /telemetry/activity/,
 - verify:3d структурные проверки пройдены (46/46)
 
 **Результат:** сайт выглядит как редакционное издание, не как киберпанк/SaaS. Уникальный визуальный стиль, улучшенная читаемость.
+
+## Forms round (TRANSMIT-ENGINE / SIGNAL DOCK SPATIAL / LAUNCH BAY STAGE / REPORT PROBE MORPH / DRAFT INTEGRITY) — done
+
+### Транзит-движок ошибок (ERR-F)
+- `src/api/errors.ts`: `classifyError()` — единая таксономия отказов API: `offline / throttle / validation / tooLarge / locked / notFound / server / unknown`. Русские `messageRu` всегда (никаких «Failed to fetch» в UI), парсинг DRF-секунд из 429 (`retryAfterSec`), поля 400 в `fields`, матч блокировки треда по `non_field_errors: ["Thread is locked."]`.
+- `src/composables/useTransmit.ts`: один оркестратор submit для всех трёх форм — `run()`/`retry()`/`successToken`/`lastInput`; offline-ejection слушает `window 'online'` и делает ровно один авто-retry; 429 не авто-ретраит (лимит есть лимит).
+- `src/components/composer/TransmitNotice.vue`: единый inline-узел отказа с kind-UI: живой countdown «повтор через Nс», retry-кнопка только где она осмысленна, ru-метки полей валидации (title/body/comment/reason/attachments). role=alert + aria-live.
+- Wiring: ThreadView (ответ + жалоба, два независимых tx), BoardView (создание); формы перешли с `submitError: string` на `error: TransmitError | null` + `@retry`. Field-mapping в бейе: fields.title красит title-surface, fields.body — SignalSurface.
+
+### Черновики: целостность и видимость
+- `useDraft`: метаданные вложений (`MetaFile {name,size}`), flush pending-записи на `pagehide`/`visibilitychange hidden`/unmount, честный `hasRestoredFiles`; строка «текст восстановлен · N файлов — приложи заново» в доке и бейе (role=status, гаснет при работе).
+- Жалоба получила черновик (`draft:report-<postId>`, причина+комментарий, silent restore в stage 2, очистка строго после success).
+- `listDrafts()` обобщён на три вида (`signal/launch/report`); DraftsPanel на Home показывает «ответ в треде», «новый тред /slug/» (ссылка `/boards/<slug>?launch=1`) и «жалоба на пост» (без фантомных переходов); BoardView открывает бей по `?launch=1` и снимает query через replace.
+
+### Signal Dock — пространственный
+- Жёст «листа» вместо карточки (paper/ink, hairline rule, без radius/shadow); на ≥1100px док живёт в собственном левом жёлобе grid-колонки (ThreadView `--dock-col: clamp(440px,34vw,500px)` + widening `content--reader` в DefaultLayout) — ни на одной ширине не накрывает посты.
+- Нить ContextFiber и док — одна система: fiber публикует `FiberLinkState`, секция держит общий `--link-state/--link-accent`, ведущая кромка листа отвечает тем же accent-маркером; скролл-проксимити к источнику усиливает кромку одним значением (rAF, без движения при reduced-motion).
+- Убраны 4 одинаковых rail-пилюли: команды/файлы — в CommandLens (⌘K / `/`), sage — физический тумблер-реле (role=switch) на identity-строке, preview — узел в углу поверхности. Drag-intake без dropzone-вуали: файлы магнитятся к Cargo Rail (pointer-follow glow, раскрытие гнёзд, влёт капсул).
+- Отказ API авто-раскрывает свёрнутый док.
+
+### Launch Bay — сцена
+- Re-skin с тёмной glass-карточки на paper/ink лист (тот же язык, что док/проба); триггер «Новый тред» shared-element-морфом 0.45s вылетает в kicker сцены (captureMorph/playMorph), список доски «отходит» (--receded, opacity+scale, без blur), под сценой недоступен; mobile остаётся safe-area bottom-sheet.
+
+### Report Probe — интерактивные узлы
+- Stage1→stage2 больше не v-if-свчок: обе стадии в DOM (классы + inert), выбранный узел причины летит по нити в анкер (gsap FLIP 420ms), остальные гаснут вдоль проводов к origin, обратный морф по «изменить»; reduced-motion — фейд.
+- Голый textarea заменён на SignalSurface; черновик + TransmitNotice вплетены в сцену; радиосемантика и testid сохранены.
+
+### BoardView chrome
+- Правила раздела: вместо аккордеона «показать/свернуть» — rule sheet (краевая заметка с линейкой-маркером, один жест раскрытия, clip-path «линейная» маска построчно; однострочные правила — записка без жеста).
+- View-switch: вместо двух rect-toggle — один круглый узел-коммутатор с геометрическим морфом 4 hairline→4 квадрата (aria-pressed, data-mode, прежний localStorage-ключ).
+
+### Верификация
+- verify:3d 46/46 · eslint 0 · vue-tsc+vite build OK · vitest 53 файла / 636 тестов (было 467/… → +~170 новых тестов за волну).
+- Guard `emitSceneEvent({ type: 'reply' })` и все существующие testid сохранены.
+
+### Примечания
+- Модель субагентов (step-5-preview-free) пропала из доступов на последних двух задачах — остаток (gutter-widening, финальная верификация, доки) доделан главным агентом по согласованию с пользователем.
+- Визуальная приёмка в живом браузере (морфы, жёлоб дока) не делалась — нет browser-инструмента.

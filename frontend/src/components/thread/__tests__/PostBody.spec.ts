@@ -59,46 +59,12 @@ describe('PostBody', () => {
     expect(wrapper.findAll('.post-link')).toHaveLength(0)
   })
 
-  it('shows no author signature when the post carries none', () => {
-    const wrapper = mountBody('без подписи')
+  it('renders no signature — the author lives in the post header now', () => {
+    const wrapper = mountBody('текст', { author: 'Пустота', tripcode: '!u3V2icOT' })
     expect(wrapper.find('[data-testid="post-signature"]').exists()).toBe(false)
-  })
-
-  it('renders the author name alone when there is no tripcode', () => {
-    const wrapper = mount(PostBody, {
-      props: { body: 'текст', knownIds: known, author: 'Пустота' },
-    })
-    const signature = wrapper.find('[data-testid="post-signature"]')
-    expect(signature.text()).toBe('Пустота')
-    expect(signature.attributes('aria-label')).toBe('Автор: Пустота')
     expect(wrapper.find('[data-testid="post-tripcode"]').exists()).toBe(false)
-  })
-
-  it('renders the tripcode next to the author name', () => {
-    const wrapper = mount(PostBody, {
-      props: {
-        body: 'текст',
-        knownIds: known,
-        author: 'Пустота',
-        tripcode: '!u3V2icOT',
-      },
-    })
-    const signature = wrapper.find('[data-testid="post-signature"]')
-    expect(signature.text()).toBe('Пустота!u3V2icOT')
-    expect(signature.text()).toContain('!u3V2icOT')
-    expect(signature.attributes('aria-label')).toBe('Автор: Пустота !u3V2icOT')
-    expect(wrapper.find('[data-testid="post-tripcode"]').classes()).toContain(
-      'post-signature__tripcode',
-    )
-  })
-
-  it('falls back to Аноним for a tripcode without a display name', () => {
-    const wrapper = mount(PostBody, {
-      props: { body: 'текст', knownIds: known, author: '', tripcode: '!u3V2icOT' },
-    })
-    expect(wrapper.find('[data-testid="post-signature"]').text()).toBe(
-      'Аноним!u3V2icOT',
-    )
+    expect(wrapper.find('.post-signature').exists()).toBe(false)
+    expect(wrapper.text()).toBe('текст')
   })
 
   it('renders >>id as a real anchor to the post', () => {

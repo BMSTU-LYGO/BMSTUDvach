@@ -102,6 +102,20 @@ function size() {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   max-width: 220px;
+  /* P3-T1a: on drop/paste the capsule flies into the strip from the
+     magnetised edge, then settles — CSS-only, no JS timeline. */
+  animation: capsule-arrive 280ms var(--ease-out-quart) both;
+}
+
+@keyframes capsule-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .capsule--image {
@@ -193,6 +207,17 @@ function size() {
 
 .capsule__remove:hover {
   color: var(--danger);
+}
+
+/* prefers-reduced-motion: capsules appear instantly, nothing flies */
+@media (prefers-reduced-motion: reduce) {
+  .capsule {
+    animation: none;
+  }
+
+  .capsule__remove {
+    transition: none;
+  }
 }
 
 .capsule--rejected {

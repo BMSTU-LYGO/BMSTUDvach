@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
+import type { TransmitError } from '@/api/errors'
 import type { NewThreadInput } from '@/types'
 import { useDraft } from '@/composables/useDraft'
 import SignalSurface from '../composer/SignalSurface.vue'
@@ -8,6 +9,7 @@ import AttachmentRail from '../composer/AttachmentRail.vue'
 import DraftBeacon from '../composer/DraftBeacon.vue'
 import SignalMeter from '../composer/SignalMeter.vue'
 import TransmitControl from '../composer/TransmitControl.vue'
+import TransmitNotice from '../composer/TransmitNotice.vue'
 import NetworkIcon from '../composer/NetworkIcon.vue'
 
 const MAX_TITLE = 200
@@ -27,12 +29,22 @@ function reducedMotion(): boolean {
  * LAUNCH BAY (SIGNAL-13..16) — thread creation as a working stage, not a
  * form under a button. The board list recedes, the bay takes the stage,
  * the title is an editorial surface. Same async contract as the Signal
- * Dock: emit intent, parent awaits the API, successToken unlocks reset.
+ * Dock: emit intent, the parent runs `useTransmit` and answers with
+ * `submitting` / `successToken` / a structured `error` (P1-T4), which
+ * this bay renders through TransmitNotice and maps onto its fields.
+ *
+ * P3-T2 — the bay is a SHEET in the paper/ink language of the dock
+ * (--paper-raised ground, --ink letters, --accent threads, one hairline
+ * rule), not a dark rounded card. The parent morphs it in from the
+ * «Новый тред» trigger (captureMorph/playMorph, 0.45s): the sheet — scene
+ * title included — inherits the button's geometry, the trigger itself goes
+ * transparent for the flight. `prefers-reduced-motion` skips the morph and
+ * shows the sheet at once.
  */
 const props = defineProps<{
   boardSlug: string
   submitting?: boolean
-  submitError?: string | null
+  error?: TransmitError | null
   successToken?: number
 }>()
 
@@ -40,19 +52,26 @@ const emit = defineEmits<{
   submit: [input: NewThreadInput]
   close: []
   done: []
+  retry: []
 }>()
 
 const title = ref('')
 const body = ref('')
 const files = ref<File[]>([])
-const error = ref('')
 const launched = ref(false)
+// Intake refusals (attachment rail) never leave the bay, so they live in
+// their own slot next to the structured API failure.
+const localError = ref<TransmitError | null>(null)
 
 const titleRef = ref<HTMLInputElement | null>(null)
+// the shared element the parent morphs in from the launch trigger
+const sceneTitleRef = ref<HTMLElement | null>(null)
 const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
 const railRef = ref<InstanceType<typeof AttachmentRail> | null>(null)
 
-const { draft, hasDraft, status, savedAt, saveDraft, clearDraft } = useDraft(`launch-${props.boardSlug}`)
+const { draft, hasDraft, hasRestoredFiles, status, savedAt, saveDraft, clearDraft } = useDraft(
+  `launch-${props.boardSlug}`,
+)
 
 const canSubmit = computed(
   () =>
@@ -63,18 +82,41 @@ const canSubmit = computed(
     !props.submitting,
 )
 
-// Silently restore a buffered draft; focus the title surface.
+// Silently restore a buffered draft; focus the title surface. Files are
+// metadata-only in the buffer — the note names what must be re-laid.
+const restoredCargo = ref(0)
+const restoringDraft = ref(false)
+const cargoWord = computed(() => {
+  const n = restoredCargo.value
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return 'файл'
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'файла'
+  return 'файлов'
+})
 onMounted(() => {
   if (hasDraft.value && draft.value) {
+    restoringDraft.value = true
     title.value = draft.value.title || ''
     body.value = draft.value.body
+    if (hasRestoredFiles.value) restoredCargo.value = draft.value.files?.length ?? 0
+    void nextTick(() => {
+      restoringDraft.value = false
+    })
   }
   titleRef.value?.focus()
 })
 
-watch([title, body], ([t, b]) => {
-  if (t.trim().length > 0 || b.trim().length > 0) saveDraft({ title: t, body: b })
-  else if (hasDraft.value) clearDraft()
+watch([title, body, files], () => {
+  // The restore spill itself must not rewrite the buffer it just read.
+  if (restoringDraft.value) return
+  if (title.value.trim().length > 0 || body.value.trim().length > 0 || files.value.length > 0) {
+    saveDraft({ title: title.value, body: body.value, files: files.value })
+    if (restoredCargo.value) restoredCargo.value = 0
+  } else if (hasDraft.value) {
+    clearDraft()
+    restoredCargo.value = 0
+  }
 })
 
 // Parent-confirmed success → launch sequence, then hand the stage back.
@@ -88,7 +130,8 @@ watch(
         title.value = ''
         body.value = ''
         files.value = []
-        error.value = ''
+        localError.value = null
+        restoredCargo.value = 0
         launched.value = false
         clearDraft()
         emit('done')
@@ -100,16 +143,27 @@ watch(
 
 const transmitErrorToken = ref(0)
 watch(
-  () => props.submitError,
-  (message) => {
-    error.value = message ?? ''
-    if (message) transmitErrorToken.value++
+  () => props.error,
+  (failure) => {
+    // A new refusal breaks the ring of the transmit node briefly.
+    if (failure) transmitErrorToken.value++
   },
 )
 
+// Field-mapping of a 400: the surface the API named by field is the
+// surface that carries the red edge — the notice stays a summary, not a
+// repeat of the same words.
+const invalidFields = computed(() => Object.keys(props.error?.fields ?? {}))
+const titleInvalid = computed(() => invalidFields.value.includes('title'))
+const bodyInvalid = computed(
+  () => invalidFields.value.includes('body') || localError.value !== null,
+)
+// One refusal, one inline node: an API failure outranks an intake one.
+const shownError = computed<TransmitError | null>(() => props.error ?? localError.value)
+
 function submit() {
   if (!canSubmit.value) return
-  error.value = ''
+  localError.value = null
   emit('submit', { title: title.value, body: body.value, attachments: files.value })
 }
 
@@ -126,7 +180,16 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-defineExpose({ focusTitle: () => titleRef.value?.focus() })
+defineExpose({
+  focusTitle: () => titleRef.value?.focus(),
+  /**
+   * The scene title is the shared element of the bay morph (P3-T2): the
+   * parent captures the trigger's geometry and plays it into this span, so
+   * the kicker and the /slug/ fly out of the «Новый тред» button into their
+   * place on the sheet.
+   */
+  sceneTitleElement: () => sceneTitleRef.value,
+})
 </script>
 
 <template>
@@ -139,8 +202,12 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
     @keydown="onKeydown"
   >
     <header class="launch-bay__header">
-      <span class="launch-bay__kicker">NEW TRANSMISSION</span>
-      <span class="launch-bay__board">/{{ boardSlug }}/</span>
+      <!-- the shared element: the span flies out of the «Новый тред»
+           button (BoardView captureMorph/playMorph) into its place here -->
+      <span ref="sceneTitleRef" class="launch-bay__scene" data-testid="launch-scene-title">
+        <span class="launch-bay__kicker">NEW TRANSMISSION</span>
+        <span class="launch-bay__board">/{{ boardSlug }}/</span>
+      </span>
       <button
         type="button"
         class="launch-bay__close"
@@ -154,7 +221,10 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
     <div class="launch-bay__body">
       <div class="launch-bay__stage">
         <!-- editorial title: no box, no label, underline = network route -->
-        <div class="title-surface" :class="{ 'title-surface--live': title.length > 0 }">
+        <div
+          class="title-surface"
+          :class="{ 'title-surface--live': title.length > 0, 'title-surface--invalid': titleInvalid }"
+        >
           <input
             ref="titleRef"
             v-model="title"
@@ -163,6 +233,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
             maxlength="200"
             placeholder="О чём этот тред?"
             aria-label="Заголовок треда"
+            :aria-invalid="titleInvalid || undefined"
             data-testid="launch-title"
           />
           <div class="title-surface__route" aria-hidden="true">
@@ -176,7 +247,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
           gutter="OP"
           placeholder="Первый сигнал треда…"
           :max-length="MAX_BODY"
-          :invalid="!!error"
+          :invalid="bodyInvalid"
         />
 
         <AttachmentRail
@@ -186,8 +257,19 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
           :accepted="ACCEPTED"
           :max-files="MAX_FILES"
           :max-size="MAX_SIZE"
-          @error="(m: string) => (error = m)"
+          @error="(m: string) => (localError = { kind: 'validation', messageRu: m })"
         />
+
+        <!-- Honest restore: the text is back, the cargo is not — say it once. -->
+        <p
+          v-if="restoredCargo"
+          class="launch-bay__restored"
+          role="status"
+          data-testid="launch-restored"
+        >
+          черновик восстановлен ·
+          {{ restoredCargo }} {{ cargoWord }} — приложите заново
+        </p>
       </div>
 
       <!-- instrumentation rail — not a form sidebar -->
@@ -226,9 +308,10 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
         <span class="rail-action__label">файлы</span>
       </button>
       <span class="launch-bay__spacer"></span>
-      <span v-if="error" class="launch-bay__error" role="alert" data-testid="launch-error">
-        {{ error }}
-      </span>
+      <!-- one inline refusal node: classified by the parent (P1-T4) -->
+      <div v-if="shownError" class="launch-bay__notice" data-testid="launch-error">
+        <TransmitNotice :error="shownError" @retry="emit('retry')" />
+      </div>
       <kbd class="launch-bay__hint" aria-hidden="true">⌘↵</kbd>
       <span class="launch-bay__transmit-label">LAUNCH</span>
       <TransmitControl
@@ -244,27 +327,33 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
 </template>
 
 <style scoped>
+/* ─────────────────────────────────────────────────────────────────────────────
+   The bay is a SHEET, not a card. Same gesture as the Signal Dock: a
+   --paper-raised ground, ink letters and one hairline rule around the
+   edges — no glass, no rounded frame, no drop shadow. Paper carries depth
+   on its own. The header, telemetry and footer survive as scene furniture.
+   ───────────────────────────────────────────────────────────────────────────── */
 .launch-bay {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5) var(--space-6) var(--space-4);
-  background: color-mix(in oklab, var(--bg-deep) 88%, transparent);
-  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 24px 80px oklch(0 0 0 / 0.45);
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .launch-bay--launched {
   animation: bay-contract 620ms cubic-bezier(0.7, 0, 0.3, 1) forwards;
 }
 
+/* the sheet contracts into an accent wash and hands the stage back */
 @keyframes bay-contract {
   40% {
-    border-color: var(--accent);
-    box-shadow: 0 0 60px color-mix(in oklab, var(--accent) 30%, transparent);
+    background: color-mix(in oklab, var(--accent) 12%, var(--paper-raised));
   }
   100% {
     transform: scale(0.96) translateY(8px);
@@ -273,9 +362,22 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
 }
 
 .launch-bay__header {
-  display: flex;
+  /* two fixed tracks: while the scene title is flown in (and momentarily
+     out of the flow by the flip) the close node keeps its place */
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* scene title — one identity, carried in from the trigger's geometry */
+.launch-bay__scene {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .launch-bay__kicker {
@@ -288,24 +390,37 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
 .launch-bay__board {
   font-family: var(--font-display);
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .launch-bay__close {
-  margin-left: auto;
+  grid-column: 2;
   background: none;
   border: none;
   padding: 8px;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   border-radius: 50%;
   display: grid;
   place-items: center;
 }
 
 .launch-bay__close:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+  color: var(--ink);
+  background: var(--paper-sunken);
+}
+
+/* the sheet is laid down while its title flies in — only the furniture
+   fades, so the shared element never dims behind its own sheet */
+.launch-bay__body,
+.launch-bay__rail {
+  animation: bay-fade-in 320ms var(--ease-out-quart);
+}
+
+@keyframes bay-fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .launch-bay__body {
@@ -331,7 +446,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   background: none;
   border: none;
   outline: none;
-  color: var(--text-primary);
+  color: var(--ink);
   font-family: var(--font-body);
   font-size: clamp(1.4rem, 3vw, 2.1rem);
   font-weight: 600;
@@ -340,19 +455,28 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
 }
 
 .title-surface__input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   opacity: 0.55;
 }
 
 /* the underline is a network route, not a border */
 .title-surface__route {
   height: 1px;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 12%, var(--border-medium) 12%);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 12%, var(--ink-tertiary) 12%);
   transition: background 260ms var(--ease-out-quart);
 }
 
 .title-surface--live .title-surface__route {
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 40%, var(--border-medium) 40%);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 40%, var(--ink-tertiary) 40%);
+}
+
+/* the API named the title in its 400 — the route answers in danger red */
+.title-surface--invalid .title-surface__route {
+  background: linear-gradient(90deg, var(--danger) 0%, var(--danger) 40%, var(--ink-tertiary) 40%);
+}
+
+.title-surface--invalid .title-surface__node {
+  border-color: var(--danger);
 }
 
 .title-surface__node {
@@ -363,7 +487,8 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   height: 7px;
   border-radius: 50%;
   border: 1px solid var(--accent);
-  background: var(--bg-deep);
+  /* the bead sits on the sheet's own ground */
+  background: var(--paper-raised);
   transition: all 220ms var(--ease-out-quart);
 }
 
@@ -378,7 +503,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   flex-direction: column;
   gap: var(--space-3);
   padding-left: var(--space-5);
-  border-left: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--rule);
 }
 
 .telemetry__row {
@@ -391,13 +516,13 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   font-family: var(--font-display);
   font-size: 0.6rem;
   letter-spacing: 0.18em;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .telemetry__value {
   font-family: var(--font-display);
   font-size: 0.74rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .telemetry__meter {
@@ -410,7 +535,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   align-items: center;
   gap: var(--space-3);
   min-height: 44px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--rule);
   padding-top: var(--space-3);
 }
 
@@ -427,7 +552,7 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   background: none;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   cursor: pointer;
   transition: color 160ms, background 160ms;
 }
@@ -443,16 +568,31 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   letter-spacing: 0.04em;
 }
 
-.launch-bay__error {
+/* the refusal node of the footer rail — compact, inline, never a banner */
+.launch-bay__notice {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(420px, 55%);
+}
+
+/* the honest restore note — quiet ink, not an error */
+.launch-bay__restored {
+  margin: 0;
   font-size: 0.78rem;
-  color: var(--danger);
+  font-style: italic;
+  color: var(--ink-tertiary);
+}
+
+.launch-bay__notice :deep(.notice) {
+  padding: 6px var(--space-2);
+  font-size: 0.72rem;
 }
 
 .launch-bay__hint {
   font-family: var(--font-display);
   font-size: 0.64rem;
-  color: var(--text-muted);
-  border: 1px solid var(--border-medium);
+  color: var(--ink-tertiary);
+  border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 2px 6px;
 }
@@ -461,13 +601,14 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   font-family: var(--font-display);
   font-size: 0.7rem;
   letter-spacing: 0.18em;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 @media (max-width: 860px) {
   .launch-bay {
     padding: var(--space-4) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    /* bottom sheet: the leading edge stays open — no frame above it */
+    border-top: 0;
   }
 
   .launch-bay__body {
@@ -477,10 +618,19 @@ defineExpose({ focusTitle: () => titleRef.value?.focus() })
   .telemetry {
     display: none;
   }
+
+  /* the rail wraps the refusal node onto its own line */
+  .launch-bay__notice {
+    max-width: 100%;
+    flex-basis: 100%;
+    order: -1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .launch-bay--launched {
+  .launch-bay--launched,
+  .launch-bay__body,
+  .launch-bay__rail {
     animation: none;
   }
 

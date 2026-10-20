@@ -1,5 +1,9 @@
 import type { ApiError } from '@/types'
 
+// Таксономия ошибок передачи (P1-T1): ре-экспорт, чтобы потребители
+// продолжали брать всё из одного `@/api/client`.
+export { classifyError, type TransmitError, type TransmitErrorKind } from './errors'
+
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 
