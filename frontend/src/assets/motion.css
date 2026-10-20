@@ -1,0 +1,118 @@
+/* motion.css — единый источник motion-токенов BMSTUDvach */
+/* Арт-дирекция: «Редакционный архив». Движение — это реакция материала
+   (бумага отзывается на свет, впитывает чернила), а не украшение. */
+
+/* === Кривые: четыре разных характера ===
+   Имя кривой описывает ХАРАКТЕР движения, а не длину: так её можно выбрать
+   по смыслу сцены, а не «подобрать красивое число на глаз». */
+:root {
+  /* Стандарт — основная динамика интерфейса: быстрый старт, мягкая остановка. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* Усиленный — акцент, который должен быть заметен: чернильный след, отклик. */
+  --ease-emphasized: cubic-bezier(0.33, 1, 0.68, 1);
+  /* Вход — появление из-за края или маски: долгий разгон, уверенный финал. */
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Выход — уход элемента: быстрое начало, длинное затухание (уходит в тень). */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* === Роли движения ===
+     Роль = пара «время + кривая». Имя роли отвечает на вопрос «зачем это движение»,
+     а не «насколько оно длинное»: hover ≠ press ≠ reveal ≠ kinetic ≠ magnetic ≠ cinematic. */
+
+  /* Наведение — отклик на курсор. Короткое и незаметное: бумага наклоняется к свету. */
+  --motion-hover-duration: 150ms;
+  --motion-hover-ease: var(--ease-standard);
+  --motion-hover: var(--motion-hover-duration) var(--motion-hover-ease);
+
+  /* Нажатие — палец вдавливает бумагу. Быстрее наведения: палец уже на месте. */
+  --motion-press-duration: 120ms;
+  --motion-press-ease: var(--ease-entrance);
+  --motion-press: var(--motion-press-duration) var(--motion-press-ease);
+
+  /* Появление — контент выходит на страницу. Заметно медленнее, чтобы его успели прочесть. */
+  --motion-reveal-duration: 600ms;
+  --motion-reveal-ease: var(--ease-entrance);
+  --motion-reveal: var(--motion-reveal-duration) var(--motion-reveal-ease);
+
+  /* Кинетика — шаг между словами. Длительность почти не читается: ритм задаёт шаг, а не время. */
+  --motion-kinetic-duration: 28ms;
+  --motion-kinetic-ease: var(--ease-emphasized);
+  --motion-kinetic: var(--motion-kinetic-duration) var(--motion-kinetic-ease);
+
+  /* Магнит — элемент тянется к курсору. Медленно и с весом, иначе он дёргается. */
+  --motion-magnetic-duration: 480ms;
+  --motion-magnetic-ease: var(--ease-emphasized);
+  --motion-magnetic: var(--motion-magnetic-duration) var(--motion-magnetic-ease);
+
+  /* Кинематографичный — смена сцен и миров. Единственное место, где время можно тратить щедро. */
+  --motion-cinematic-duration: 900ms;
+  --motion-cinematic-ease: var(--ease-entrance);
+  --motion-cinematic: var(--motion-cinematic-duration) var(--motion-cinematic-ease);
+
+  /* === Совместимость ===
+     Старые имена живут в сотнях мест — оставляем их как мост к ролям, но разводим
+     по смыслу: раньше все три кривые были одинаковыми и различались только именем. */
+  --ease-out: var(--ease-standard);
+  --ease-out-quart: var(--ease-emphasized);
+  --ease-out-expo: var(--ease-entrance);
+
+  /* Длительности без характера — оставлены как есть, чтобы не менять динамику разом.
+     Постепенно вытесняются ролями (см. M-T13/M-T14). */
+  --duration-fast: var(--motion-hover-duration);
+  --duration-normal: 200ms;
+  --duration-slow: 280ms;
+}
+
+/* === Базовые классы-реакции ===
+   Минимум эффектов: материал отзывается, а не играет. Никакого transform: scale
+   и никакого transition: all — «мусорка» ломает анимации неожиданных свойств. */
+
+/* Нажатие — бумага вдавливается: тень уходит внутрь. Реакция не меняет цвет,
+   поэтому одинаково читается на любой поверхности (бумага, акцент, плашка). */
+.motion-press {
+  transition: box-shadow var(--motion-press);
+}
+
+.motion-press:active {
+  box-shadow: inset 0 1px 2px rgba(28, 26, 20, 0.16);
+}
+
+/* Тихая реакция — только цвет и кромка. Для длинных списков и вторичных ссылок,
+   где любое движение шумит сильнее самой информации. */
+.motion-quiet {
+  transition:
+    color var(--motion-hover),
+    border-color var(--motion-hover);
+}
+
+/* Наложение ролей: transition — одно свойство, поэтому при совмещении тихой
+   реакции и нажатия каждая группа переходов сохраняет свою длительность. */
+.motion-press.motion-quiet {
+  transition:
+    box-shadow var(--motion-press),
+    color var(--motion-hover),
+    border-color var(--motion-hover);
+}
+
+/* Появление — контент выходит на страницу. Стартовое состояние задаётся ТОЛЬКО
+   внутри no-preference: при reduced-motion текст виден сразу, и в DOM не остаётся
+   opacity: 0 — иначе контент исчезает у тех, кто отключил движение. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes motion-reveal-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .motion-reveal {
+    /* fill-mode backwards: во время появления держим стартовое состояние, а после
+       анимации элемент возвращается к обычным стилям (они = финальный кадр).
+       Если анимация по какой-то причине не проиграется, контент всё равно виден. */
+    animation: motion-reveal-in var(--motion-reveal) backwards;
+  }
+}

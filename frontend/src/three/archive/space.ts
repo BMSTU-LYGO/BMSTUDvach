@@ -152,7 +152,7 @@ const HALO_SEGMENTS_LOW = 12
 const DUST_RADIUS = 8
 /** Motes of the dust — the low tier keeps it sparse. */
 const DUST_COUNT_HIGH = 200
-const DUST_COUNT_LOW = 60
+const DUST_COUNT_LOW = 36
 /**
  * The fragment budget of the archive: the scene never places more plates
  * than this, whatever the API returns.
@@ -166,6 +166,13 @@ const DEFAULT_MAX_FRAGMENTS = 60
 const FOCUS_AMOUNT = 0.9
 /** Amplitude of the vertical drift of a plate. */
 const FRAGMENT_DRIFT = 0.35
+/**
+ * How much slower an empty archive drifts.
+ *
+ * A space without stories is a lit void: it breathes, but it does not turn
+ * like a show.
+ */
+const EMPTY_DRIFT = 0.45
 
 /** Idle orbit of the camera: radius and height of the platinum preset. */
 const ORBIT_RADIUS = 12.5
@@ -301,7 +308,15 @@ export function buildArchiveSpace(
   // The uniform bank of this scene: one clock, one focus, one dim. It
   // belongs to the scene, so a second archive on the same page never
   // overwrites the clock of the first one.
-  const uniforms = createArchiveUniforms()
+  //
+  // The bank carries the point the archive gazes at as well: the world
+  // position of the focused plate. Every material compares it with its own
+  // place, so exactly one plate answers the reader — the accent of the
+  // archive stays singular.
+  const focusPoint = new three.Vector3()
+  const uniforms = createArchiveUniforms({
+    uFocusPoint: { value: focusPoint },
+  })
 
   // Everything the scene owns is tracked, so `dispose` can give it back —
   // every geometry and every material exactly once.
@@ -367,10 +382,8 @@ export function buildArchiveSpace(
     new three.Float32BufferAttribute(dustPositions, 3),
   )
   dustGeometry.setAttribute('aSeed', new three.Float32BufferAttribute(dustSeeds, 1))
-  const dust = new three.Points(
-    dustGeometry,
-    keepMaterial(createDustMaterial(three, { quality, uniforms })),
-  )
+  const dustMaterial = keepMaterial(createDustMaterial(three, { quality, uniforms }))
+  const dust = new three.Points(dustGeometry, dustMaterial)
   dust.name = 'archive-dust'
   world.add(dust)
 
@@ -405,6 +418,11 @@ export function buildArchiveSpace(
   const fragmentIndex = new Map<number, FragmentNode>()
   let elapsed = 0
   let presence = 0
+  /**
+   * How much of the dust the archive shows right now: an archive without
+   * stories keeps no motes, a full one drifts in the light of the core.
+   */
+  let dustPresence = 0
   let disposed = false
 
   // --- the camera rig ----------------------------------------------------
@@ -903,8 +921,9 @@ export function buildArchiveSpace(
       return
     }
     if (reducedMotion) return
-    // The idle orbit: the archive turns around the camera.
-    orbit.phase += step * ORBIT_SPEED
+    // The idle orbit: the archive turns around the camera. An archive
+    // without stories drifts slower — a lit void, not a show.
+    orbit.phase += step * ORBIT_SPEED * (fragments.length ? 1 : EMPTY_DRIFT)
     idlePose(pose)
     applyPose(pose)
   }
@@ -920,8 +939,11 @@ export function buildArchiveSpace(
   function update(dt: number, snap: ArchiveSpaceSnapshot): void {
     if (disposed) return
     const step = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.1) : 0
-    elapsed += step
     reducedMotion = opts.reducedMotion === true || snap.reducedMotion === true
+    // Under reduced motion the clock of the shaders stops: the archive keeps
+    // its last frame instead of breathing — the static equivalent of every
+    // animation of the scene.
+    if (!reducedMotion) elapsed += step
 
     // The presence fades the archive in from the very first frame.
     presence += (1 - presence) * Math.min(1, step * 2)
@@ -951,6 +973,20 @@ export function buildArchiveSpace(
       }
       haloMesh.scale.setScalar(1 + Math.sin(elapsed * 0.9) * 0.04)
     }
+
+    // The point the archive gazes at follows the focused plate: the amber
+    // of the archive lights the sheet the reader is on, not the whole
+    // archive. Without a focus the point falls back to the core, where
+    // no plate can reach it.
+    const focused = fragmentById(focusId)
+    if (focused) focused.mesh.getWorldPosition(focusPoint)
+    else focusPoint.set(0, 0, 0)
+
+    // An archive without stories keeps no dust: the space is a lit void
+    // that drifts slowly, not a swarm of motes around nothing.
+    const dustTarget = fragments.length ? 1 : 0
+    dustPresence += (dustTarget - dustPresence) * Math.min(1, step * 2)
+    dustMaterial.uniforms.uDust.value = dustPresence
 
     updateCamera(step)
 

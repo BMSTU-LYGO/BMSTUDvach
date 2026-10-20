@@ -107,6 +107,11 @@ const STEEL = 0x5a6480
 const STEEL_LIGHT = 0x8a94b8
 const DEEP = 0x1a1e2e
 const GLOW = 0xffcc66
+/**
+ * Warm paper — the tone the travelling light mixes towards. The accent is
+ * light on paper, never a saturated hue on black.
+ */
+const PAPER_SHEEN = 0xf2ede0
 
 /** Near edge of the constellation shell. */
 const BASE_RADIUS = 5.0
@@ -143,6 +148,14 @@ const ORBIT_BOB_SPEED = 0.1
 const FOCUS_STRENGTH = 0.2
 /** Look-at anchor of a hover: between the core and the node, not on the node. */
 const FOCUS_LOOK_AT = 0.3
+/**
+ * Radius (world units) around the pointer ray in which a node warms up.
+ * Beyond it the node is cold again — warmth is a local reaction of the
+ * material, not a spotlight that follows the mouse across the map.
+ */
+const POINTER_WARM_RADIUS = 1.6
+/** How fast the cursor warmth fades in and out (per second). */
+const WARM_EASE = 6
 
 function clamp(x: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, x))
@@ -214,6 +227,13 @@ interface BoardNode {
   rotationSpeed: number
   /** Seconds accumulated towards the next ambient pulse. */
   pulseTimer: number
+  /**
+   * Offset of the accent sweep (0..1) — the nodes must not sweep in
+   * unison, otherwise the map reads as one flashing object.
+   */
+  sweepSeed: number
+  /** Eased warmth under the pointer (0..1). */
+  warm: number
 }
 
 interface Pulse {
@@ -268,6 +288,14 @@ export function buildNetwork(
   quality: QualityResolved,
 ): NetworkController {
   const high = quality === 'high'
+  /**
+   * Accent budget of the tier. The low tier draws the plain surface: no
+   * travelling light, no ink grain — the constellation keeps its shape and
+   * only loses the material nuances. Nothing here costs a draw call: the
+   * accents live inside the shaders that were already there.
+   */
+  const sweepStrength = high ? 1 : 0
+  const grainStrength = high ? 0.08 : 0
   const tracked: { dispose: () => void }[] = []
   const keep = <T extends { dispose: () => void }>(x: T): T => {
     tracked.push(x)
@@ -290,36 +318,81 @@ export function buildNetwork(
     varying vec3 vNormal;
     varying vec3 vViewPosition;
     varying float vFresnel;
-    
+    varying vec3 vLocal;
+
     void main() {
       vec3 pos = position;
       float wave = sin(pos.y * 2.0 + uTime * 1.5) * 0.02 * uPulse;
       pos += normal * wave;
-      
+
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
       vViewPosition = -mvPosition.xyz;
       vNormal = normalMatrix * normal;
-      
+
       vec3 viewDir = normalize(vViewPosition);
       vFresnel = 1.0 - abs(dot(viewDir, normalize(vNormal)));
-      
+      // The object-space position is the sheet the light travels over: the
+      // accent sweep and the ink grain are drawn in it, not in screen space,
+      // so they stay glued to the surface while the node turns.
+      vLocal = position;
+
       gl_Position = projectionMatrix * mvPosition;
     }
   `
 
   const glowFragmentShader = /* glsl */ `
     uniform vec3 uColor;
+    uniform vec3 uSheen;
+    uniform vec3 uWarmColor;
     uniform float uOpacity;
     uniform float uGlowIntensity;
     uniform float uTime;
+    uniform float uSweep;
+    uniform float uSweepSeed;
+    uniform float uGrain;
+    uniform float uWarm;
     varying vec3 vNormal;
     varying vec3 vViewPosition;
     varying float vFresnel;
-    
+    varying vec3 vLocal;
+
+    // Cheap value hash — the ink grain must not cost a texture fetch, and it
+    // must survive a mediump fragment (no sine of a huge argument).
+    float inkHash(vec3 p) {
+      vec3 p3 = fract(p * 0.1031);
+      p3 += dot(p3, p3.zyx + 31.32);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+
     void main() {
       float fresnel = pow(vFresnel, 2.5);
       float pulse = 0.8 + 0.2 * sin(uTime * 2.0);
       vec3 color = uColor * (1.0 + fresnel * uGlowIntensity * pulse);
+
+      // Accent sweep: one slow band of light crosses the surface, the way
+      // the light travels over a sheet of paper. The band lives on the rim,
+      // so a node reads as lit — never as a lamp. The amplitude stays small:
+      // the sweep is a nuance of the material, not a highlight.
+      if (uSweep > 0.0) {
+        float travel = (fract(uTime * 0.11 + uSweepSeed) - 0.5) * 1.8;
+        float axis = vLocal.y + vLocal.x * 0.35;
+        float offset = axis - travel;
+        float band = exp(-pow(offset * 6.5, 2.0));
+        color = mix(color, uSheen, band * uSweep * (0.06 + fresnel * 0.20));
+      }
+
+      // Ink grain: the faintest unevenness, so a surface is never dead
+      // flat. The low tier switches it off entirely.
+      if (uGrain > 0.0) {
+        float grain = inkHash(floor(vLocal * 12.0));
+        color *= 1.0 - grain * uGrain;
+      }
+
+      // Cursor warmth: the node the pointer passes close to turns a little
+      // warmer. Warmth, not a highlight — the accent stays a material
+      // reaction and never a neon highlight.
+      color = mix(color, uWarmColor, uWarm * 0.32);
+
       float alpha = uOpacity * (0.6 + fresnel * 0.4);
       gl_FragColor = vec4(color, alpha);
     }
@@ -500,6 +573,14 @@ export function buildNetwork(
         uColor: { value: new three.Color(AMBER_BRIGHT) },
         uOpacity: { value: 0.9 },
         uGlowIntensity: { value: 1.5 },
+        uSheen: { value: new three.Color(PAPER_SHEEN) },
+        uWarmColor: { value: new three.Color(AMBER) },
+        // The hub carries a quieter sweep than the boards — the light
+        // passes over it, it does not compete with them.
+        uSweep: { value: sweepStrength * 0.5 },
+        uSweepSeed: { value: 0.42 },
+        uGrain: { value: 0 },
+        uWarm: { value: 0 },
       },
     }),
   )
@@ -536,6 +617,12 @@ export function buildNetwork(
         uColor: { value: new three.Color(GLOW) },
         uOpacity: { value: 0.15 },
         uGlowIntensity: { value: 2.0 },
+        uSheen: { value: new three.Color(PAPER_SHEEN) },
+        uWarmColor: { value: new three.Color(AMBER) },
+        uSweep: { value: 0 },
+        uSweepSeed: { value: 0 },
+        uGrain: { value: 0 },
+        uWarm: { value: 0 },
       },
     }),
   )
@@ -632,6 +719,12 @@ export function buildNetwork(
           uColor: { value: new three.Color(color) },
           uOpacity: { value: 0.7 },
           uGlowIntensity: { value: 1.2 },
+          uSheen: { value: new three.Color(PAPER_SHEEN) },
+          uWarmColor: { value: new three.Color(AMBER) },
+          uSweep: { value: sweepStrength },
+          uSweepSeed: { value: (seed % 100) / 100 },
+          uGrain: { value: grainStrength },
+          uWarm: { value: 0 },
         },
       })
       nodeOwned.push(nodeMat)
@@ -685,6 +778,8 @@ export function buildNetwork(
         color,
         rotationSpeed,
         pulseTimer: 0,
+        sweepSeed: (seed % 100) / 100,
+        warm: 0,
       })
 
       // Connection edge to core with flow shader
@@ -1190,6 +1285,10 @@ export function buildNetwork(
   // --- camera / pointer / presence state ---------------------------------
   const pointer = new three.Vector2(999, 999)
   const smoothPointer = new three.Vector2(0, 0)
+  /** Scratch point of the warmth measurement — the frame allocates nothing. */
+  const warmScratch = new three.Vector3()
+  /** Amber the node edges lean towards while the pointer is nearby. */
+  const warmEdgeColor = new three.Color(AMBER)
   let cameraKick = 0
   let elapsed = 0
   /**
@@ -1422,6 +1521,20 @@ export function buildNetwork(
       }
     }
 
+    // --- cursor warmth ----------------------------------------------------
+    // The pointer ray is the only source of warmth: the node it passes
+    // closest to turns a little warmer, like paper held near a lamp. A
+    // hovered card outranks it, so the frame never carries two accents.
+    const pointerOnScreen =
+      pointer.x >= -1 && pointer.x <= 1 && pointer.y >= -1 && pointer.y <= 1
+    const warmEnabled = pointerOnScreen && hi === null && networkGroup.visible
+    if (warmEnabled) {
+      // The camera was placed at the end of the last frame: refresh its
+      // matrix so the ray starts from where the user is actually looking.
+      camera.updateMatrixWorld()
+      raycaster.setFromCamera(pointer, camera)
+    }
+
     for (const n of nodes) {
       const isShared = sharedNode !== undefined && n.slug === sharedNode.slug
       const isHi = isShared || (hi !== null && n.slug === hi)
@@ -1440,10 +1553,25 @@ export function buildNetwork(
       n.mat.uniforms.uGlowIntensity.value = isShared ? 2.8 : (glow.get(n.slug) ?? 1.2)
 
       n.edgeMat.opacity = (isHi ? 0.6 : 0.35) * netPresence
-      n.edgeMat.color.setHex(isHi ? AMBER : n.color)
 
       // Gentle floating animation
       n.group.position.y = n.pos.y + Math.sin(elapsed * 0.5 + n.phase) * 0.15
+
+      // Cursor warmth: the node the pointer passes closest to warms up.
+      // The warmth is a material reaction, so it fades in and out instead
+      // of switching — and it fades away completely once the pointer is
+      // gone.
+      let warmTarget = 0
+      if (warmEnabled) {
+        warmScratch.set(n.group.position.x, n.group.position.y, n.group.position.z)
+        const distance = raycaster.ray.distanceToPoint(warmScratch)
+        warmTarget = clamp(1 - distance / POINTER_WARM_RADIUS, 0, 1)
+      }
+      n.warm += (warmTarget - n.warm) * Math.min(1, dt * WARM_EASE)
+      n.mat.uniforms.uWarm.value = n.warm
+
+      n.edgeMat.color.setHex(isHi ? AMBER : n.color)
+      if (n.warm > 0.001) n.edgeMat.color.lerp(warmEdgeColor, n.warm * 0.4)
 
       // Idle spin — each cluster turns at its own hash-chosen pace.
       // Reduced motion: the constellation holds perfectly still.
@@ -1725,8 +1853,7 @@ export function buildNetwork(
       // Eased into the bob, so returning from a hover focus glides instead
       // of popping onto the drift.
       const orbitY =
-        cameraPresets.home.y +
-        Math.sin(elapsed * ORBIT_BOB_SPEED) * ORBIT_BOB_AMPLITUDE
+        cameraPresets.home.y + Math.sin(elapsed * ORBIT_BOB_SPEED) * ORBIT_BOB_AMPLITUDE
       camera.position.y += (orbitY - camera.position.y) * Math.min(1, dt * 2)
       camera.lookAt(0, 0, 0)
     } else {

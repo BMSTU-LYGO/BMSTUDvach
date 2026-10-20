@@ -1,225 +1,359 @@
 <script setup lang="ts">
 /**
- * «ПОИСК СИГНАЛА» — сетевая раскадровка загрузки: пучок пиков + сканирующий
- * луч по шине узлов. Только transform/opacity, моно-подписи в токенах,
- * статичный вариант при prefers-reduced-motion.
+ * «ПОИСК СИГНАЛА» — состояние загрузки в общем языке прибора: рамка с
+ * уголками, моно-подпись, сигнальный трек, строка сообщения. Отличие от
+ * error/empty — только состояние прибора: сканирующий луч и накопление
+ * сигнала. Сам прибор (рамка, трек, типографика) — общий на все три.
  */
 defineProps<{ label?: string }>()
+
+/** Форма сигнала: девять ячеек трека. Прибор один — различается только то,
+ *  что в нём происходит. */
+const SIGNAL: { h?: string; gap?: boolean }[] = [
+  { h: '22%' },
+  { h: '46%' },
+  { h: '78%' },
+  { h: '96%' },
+  { h: '64%' },
+  { h: '84%' },
+  { h: '44%' },
+  { h: '28%' },
+  { h: '14%' },
+]
 </script>
 
 <template>
-  <div class="state-loading" role="status" aria-live="polite" data-testid="loading">
-    <div class="scan" data-testid="state-loading">
-      <span class="scan__tick scan__tick--tl" aria-hidden="true"></span>
-      <span class="scan__tick scan__tick--br" aria-hidden="true"></span>
+  <div
+    class="state state-loading"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+    data-testid="loading"
+  >
+    <div class="state__frame" data-testid="state-loading">
+      <span class="state__corner state__corner--tl" aria-hidden="true"></span>
+      <span class="state__corner state__corner--tr" aria-hidden="true"></span>
+      <span class="state__corner state__corner--bl" aria-hidden="true"></span>
+      <span class="state__corner state__corner--br" aria-hidden="true"></span>
 
-      <p class="scan__caption">SCANNING…</p>
+      <p class="state__label">SCANNING…</p>
 
-      <div class="scan__peaks" aria-hidden="true">
-        <span class="scan__peak"></span>
-        <span class="scan__peak"></span>
-        <span class="scan__peak"></span>
-        <span class="scan__peak"></span>
-        <span class="scan__peak"></span>
+      <div class="state__track" aria-hidden="true">
+        <span v-for="(cell, i) in SIGNAL" :key="i" class="state__cell">
+          <span
+            v-if="cell.h"
+            class="state__bar"
+            :style="{ '--h': cell.h ?? '0%', '--i': i }"
+          ></span>
+          <span v-if="cell.gap" class="state__break"></span>
+        </span>
+        <span class="state__beam"></span>
       </div>
 
-      <div class="scan__bus" aria-hidden="true">
-        <span class="scan__wire"></span>
-        <span class="scan__node"></span>
-        <span class="scan__node scan__node--mid"></span>
-        <span class="scan__node scan__node--far"></span>
-        <span class="scan__beam"></span>
-      </div>
+      <p class="state__message">{{ label ?? 'Загрузка…' }}</p>
 
-      <p class="scan__label">{{ label ?? 'Загрузка…' }}</p>
+      <div class="state__action">
+        <span class="state__live" aria-hidden="true"></span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.state-loading {
+/* === Общий язык состояний: «прибор» ===
+   Одна рамка, один сигнальный трек, одна типографика. Различается только
+   состояние прибора: сканирование, обрыв или тишина. */
+
+.state {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-8);
+  padding: var(--space-8) var(--space-4);
 }
 
-/* === Signal frame === */
-.scan {
+.state__frame {
+  --state-accent: var(--accent);
+  --state-soft: color-mix(in oklab, var(--accent) 38%, var(--rule));
+
+  /* Ритм прибора: оборот сканирования, вдох сигнала, пульс состояния. */
+  --state-scan-cycle: 2.6s;
+  --state-rise-cycle: 2s;
+  --state-pulse-cycle: 2.4s;
+
   position: relative;
   display: grid;
-  gap: var(--space-4);
+  align-content: center;
   justify-items: center;
+  gap: var(--space-3);
   width: 100%;
-  max-width: 320px;
-  padding: var(--space-5);
+  max-width: 360px;
+  min-height: 232px;
+  padding: var(--space-6) var(--space-5) var(--space-5);
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--accent) 10%, transparent);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-sm);
 }
 
-.scan__tick {
+/* === Уголки прибора: рамка, а не карточка === */
+.state__corner {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
+  border: 0 solid var(--state-accent);
   pointer-events: none;
 }
 
-.scan__tick--tl {
+.state__corner--tl {
   top: -1px;
   left: -1px;
-  border-top: 1px solid var(--accent);
-  border-left: 1px solid var(--accent);
+  border-top-width: 1px;
+  border-left-width: 1px;
 }
 
-.scan__tick--br {
+.state__corner--tr {
+  top: -1px;
   right: -1px;
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
+.state__corner--bl {
   bottom: -1px;
-  border-right: 1px solid var(--accent);
-  border-bottom: 1px solid var(--accent);
+  left: -1px;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
 }
 
-.scan__caption {
+.state__corner--br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom-width: 1px;
+  border-right-width: 1px;
+}
+
+/* === Подпись прибора: моно, капс, разрядка === */
+.state__label {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--state-accent);
 }
 
-/* === Peaks: amplitude of the incoming signal === */
-.scan__peaks {
+/* === Сигнальный трек: девять ячеек, одна линия === */
+.state__track {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 44px;
+}
+
+.state__cell {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.state__bar {
+  width: 100%;
+  max-width: 18px;
+  height: max(2px, var(--h, 0%));
+  background: var(--state-soft);
+  transform-origin: bottom;
+}
+
+/* === Обрыв: линия разорвана === */
+.state__break {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  height: 24px;
+  background: var(--state-accent);
+  transform: translateX(-50%) rotate(22deg);
+}
+
+/* === Луч: единственное, что движется при загрузке === */
+.state__beam {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--state-accent) 0 2px,
+    color-mix(in oklab, var(--state-accent) 20%, transparent) 2px 36px,
+    transparent 36px
+  );
+  animation: state-scan var(--state-scan-cycle) var(--ease-emphasized) infinite;
+  pointer-events: none;
+}
+
+@keyframes state-scan {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+
+  12%,
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(calc(100% - 2px));
+    opacity: 0;
+  }
+}
+
+/* === Строка сообщения: единственный голос состояния === */
+.state__message {
+  margin: 0;
+  max-width: 40ch;
+  min-height: 3rem;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+/* === Действие: зарезервированная строка, чтобы высота не прыгала === */
+.state__action {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  height: 32px;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
 }
 
-.scan__peak {
-  width: 3px;
-  height: 100%;
-  background: var(--accent-dim);
-  border-radius: 1px;
-  transform: scaleY(0.3);
-  animation: scan-peak 1.2s var(--ease-out-quart) infinite;
+.state__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--state-accent);
+  background: transparent;
+  border: 1px solid var(--state-soft);
+  cursor: pointer;
+  transition:
+    background var(--motion-hover),
+    border-color var(--motion-hover),
+    transform var(--motion-press);
 }
 
-.scan__peak:nth-child(2) {
-  animation-delay: 0.15s;
+.state__button:hover {
+  background: color-mix(in oklab, var(--state-accent) 10%, transparent);
+  border-color: var(--state-accent);
 }
 
-.scan__peak:nth-child(3) {
-  animation-delay: 0.3s;
+.state__button:focus-visible {
+  outline: 2px solid var(--state-accent);
+  outline-offset: 2px;
 }
 
-.scan__peak:nth-child(4) {
-  animation-delay: 0.45s;
+.state__button:active {
+  transform: translateY(1px);
 }
 
-.scan__peak:nth-child(5) {
-  animation-delay: 0.6s;
+.state__button-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--state-accent);
 }
 
-@keyframes scan-peak {
+/* === Живой индикатор: работа идёт === */
+.state__live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-accent);
+  animation: state-live var(--state-pulse-cycle) var(--ease-emphasized) infinite;
+}
+
+@keyframes state-live {
   0%,
   100% {
-    transform: scaleY(0.25);
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* === Подсказка: что можно сделать === */
+.state__hint {
+  margin: 0;
+  max-width: 40ch;
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+/* === Состояние: сканирование и накопление сигнала === */
+.state-loading .state__frame {
+  --state-accent: var(--accent);
+  --state-soft: color-mix(in oklab, var(--accent) 38%, var(--rule));
+}
+
+.state-loading .state__bar {
+  animation: state-rise var(--state-rise-cycle) var(--ease-emphasized) infinite;
+  animation-delay: calc(var(--i, 0) * -0.11s);
+}
+
+@keyframes state-rise {
+  0%,
+  100% {
+    transform: scaleY(0.24);
     opacity: 0.5;
   }
-  50% {
+
+  45% {
     transform: scaleY(1);
     opacity: 1;
   }
 }
 
-/* === Bus: wire, nodes, sweeping beam === */
-.scan__bus {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 10px;
-}
-
-.scan__wire {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background: var(--border-medium);
-}
-
-.scan__node {
-  position: relative;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow-strong);
-}
-
-.scan__node--mid {
-  background: var(--border-medium);
-  box-shadow: none;
-}
-
-.scan__node--far {
-  background: var(--border-medium);
-  box-shadow: none;
-}
-
-.scan__beam {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 28px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  animation: scan-beam 1.8s var(--ease-out-quart) infinite;
-}
-
-@keyframes scan-beam {
-  0% {
-    transform: translateX(-30px);
-    opacity: 0;
-  }
-  20%,
-  80% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(280px);
-    opacity: 0;
-  }
-}
-
-.scan__label {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-/* === Reduced motion: static waveform, frozen beam === */
+/* === Статичный кадр: прибор замирает, контент виден сразу === */
 @media (prefers-reduced-motion: reduce) {
-  .scan__peak {
-    transform: scaleY(0.55);
+  .state__bar,
+  .state__beam,
+  .state__break,
+  .state__live {
     animation: none;
-    opacity: 0.75;
   }
 
-  .scan__beam {
+  .state__beam {
     display: none;
   }
 
-  .scan__node {
-    box-shadow: none;
+  .state-loading .state__bar {
+    transform: scaleY(0.55);
+    opacity: 1;
+  }
+
+  .state__break,
+  .state__live {
+    opacity: 1;
   }
 }
 </style>

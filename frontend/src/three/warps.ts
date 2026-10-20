@@ -1,4 +1,21 @@
+import { useQuality3D } from '@/composables/useQuality3D'
+
 export type WarpKind = 'signal' | 'tunnel' | 'fracture' | 'soft' | 'dive'
+
+/**
+ * Accent tier of the warp overlay. The low tier draws the plain veil: no
+ * travelling light, no ink grain — the transition still happens, it just
+ * does not spend the frame budget on the material nuances.
+ */
+export type WarpQuality = 'high' | 'low'
+
+export interface WarpMaterialOptions {
+  /**
+   * Accent tier of the overlay. Defaults to the resolved 3D quality of the
+   * app, so the veil follows the same budget as the scene behind it.
+   */
+  quality?: WarpQuality
+}
 
 /**
  * Route transition warps. A fullscreen-shader overlay played on top of the
@@ -41,9 +58,27 @@ const frag = /* glsl */ `
   uniform float uTime;
   uniform float uAspect;
   uniform int uKind;
+  uniform float uAccent;
+  uniform float uGrain;
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  // the accent band: one slow band of warm light crossing the veil, the
+  // way the light travels over a sheet of paper. It replaces the flat fill
+  // — the transition reads as a lit surface, not as a coloured rectangle
+  float accentBand(vec2 p, float t) {
+    float travel = (fract(t * 0.32) - 0.5) * 2.4;
+    float axis = p.y * 1.15 + p.x * 0.55;
+    float offset = axis - travel;
+    return exp(-pow(offset * 2.4, 2.0));
+  }
+
+  // the ink grain: the faintest unevenness over the veil. It hashes the
+  // screen cells, so it never flickers — the veil is paper, not a film
+  float inkGrain(vec2 p) {
+    return hash(floor(p * 240.0));
   }
 
   // signal: nested wavefronts stacked around a front travelling outwards,
@@ -126,7 +161,8 @@ const frag = /* glsl */ `
       float sparkle = step(0.972, hash(cell + floor(uTime * 30.0) * 2.31))
         * smoothstep(1.0, 0.2, d) * uProgress;
 
-      float pulse = 1.0 + 0.22 * sin(uTime * 42.0);
+      // the breath of the front: slow and shallow, a pulse and not a strobe
+      float pulse = 1.0 + 0.12 * sin(uTime * 24.0);
       float veil = smoothstep(1.15, 0.2, d) * 0.10;
 
       a = (body * 0.6 + ray * 0.4 + sparkle * 0.5) * pulse + veil;
@@ -154,7 +190,7 @@ const frag = /* glsl */ `
         * smoothstep(0.05, 0.3, d) * (1.0 - smoothstep(0.9, 1.3, d));
 
       float vignette = 1.0 - smoothstep(0.4, 1.2, d);
-      float horizon = exp(-pow(d * 3.4, 2.0)) * (0.35 + 0.3 * sin(uTime * 30.0));
+      float horizon = exp(-pow(d * 3.4, 2.0)) * (0.38 + 0.18 * sin(uTime * 18.0));
 
       a = clamp((ring * 0.55 + packet * 0.85 + ribs) * vignette + horizon + uProgress * 0.10, 0.0, 1.0);
 
@@ -232,7 +268,7 @@ const frag = /* glsl */ `
       float sb = diveSmear(length(p - dir * ca), spread, reach);
 
       float body = max(sg, max(sr, sb));
-      float core = exp(-d * 4.2) * (0.7 + 0.3 * sin(uTime * 20.0));
+      float core = exp(-d * 4.2) * (0.74 + 0.16 * sin(uTime * 14.0));
       float vignette = (1.0 - smoothstep(0.3, 1.1, d)) * (0.5 + 0.5 * uProgress);
 
       a = clamp(body * 0.55 + core * 0.75 * vignette + uProgress * 0.05, 0.0, 1.0);
@@ -250,6 +286,21 @@ const frag = /* glsl */ `
 
     a *= env;
     if (a < 0.003) discard;
+
+    // the accent band: the veil is lit, not filled
+    if (uAccent > 0.0) {
+      float band = accentBand(p, uProgress);
+      col = mix(col, amber, band * uAccent * 0.30);
+      a *= 0.90 + band * 0.22 * uAccent;
+    }
+
+    // the ink grain: the faintest unevenness over the veil
+    if (uGrain > 0.0) {
+      float grain = inkGrain(uv) - 0.5;
+      col *= 1.0 + grain * uGrain;
+      a *= 1.0 + grain * uGrain * 0.7;
+    }
+
     gl_FragColor = vec4(col, clamp(a, 0.0, 0.92));
   }
 `
@@ -266,7 +317,21 @@ export function warpKindIndex(kind: WarpKind): number {
   return KIND_INDEX[kind]
 }
 
-export function makeWarpMaterial(three: typeof import('three')) {
+/**
+ * The accent tier of the overlay. Without an explicit tier the veil follows
+ * the resolved 3D quality of the app: a scene that runs on the low tier
+ * must not pay for the material nuances of its transition either.
+ */
+function resolveQuality(explicit?: WarpQuality): WarpQuality {
+  if (explicit) return explicit
+  return useQuality3D().resolved.value === 'high' ? 'high' : 'low'
+}
+
+export function makeWarpMaterial(
+  three: typeof import('three'),
+  opts: WarpMaterialOptions = {},
+) {
+  const quality = resolveQuality(opts.quality)
   const mat = new three.ShaderMaterial({
     vertexShader: vert,
     fragmentShader: frag,
@@ -278,6 +343,9 @@ export function makeWarpMaterial(three: typeof import('three')) {
       uTime: { value: 0 },
       uAspect: { value: 1 },
       uKind: { value: KIND_INDEX.soft },
+      // The low tier draws the plain veil: no travelling band, no grain.
+      uAccent: { value: quality === 'high' ? 1 : 0 },
+      uGrain: { value: quality === 'high' ? 0.06 : 0 },
     },
   })
   return mat

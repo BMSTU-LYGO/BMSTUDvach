@@ -300,6 +300,110 @@ describe('archive materials: the register of the archive', () => {
   })
 })
 
+describe('archive materials: the paper and its light', () => {
+  it('gives the plate an amber edge of its own', () => {
+    const plate = fragmentMaterial(three)
+    expect(plate.uniforms.uEdgeColor.value.getHexString()).toBe('d4882a')
+    // The accent of the rim stays the teal one — the amber is the edge.
+    expect(plate.uniforms.uColorB.value.getHexString()).toBe('2f4f4e')
+  })
+
+  it('lets the amber edge wake up only in focus', () => {
+    const plate = fragmentMaterial(three)
+    const source = plate.fragmentShader
+    // The vertex stage tells the fragment stage where the sheet stands...
+    expect(plate.vertexShader).toContain('vCentre')
+    // ...and the edge is mixed with the focus, never with the clock alone.
+    expect(source).toContain('float focus = clamp(uFocus, 0.0, 1.0)')
+    expect(source).toMatch(/mix\(color, uEdgeColor, edge \* focus/)
+  })
+
+  it('keeps the through-light behind the focus', () => {
+    const source = fragmentMaterial(three).fragmentShader
+    // The bleed is multiplied by the focus: without a reader there is no
+    // light in the paper.
+    expect(source).toMatch(/float bleed = uBleed \*[^;]*focus/)
+  })
+
+  it('switches the through-light off on the low tier', () => {
+    const high = fragmentMaterial(three, { quality: 'high' })
+    const low = fragmentMaterial(three, { quality: 'low' })
+    expect(high.uniforms.uBleed.value).toBeGreaterThan(0)
+    // The cheap path really costs less: the bleed is switched off, not
+    // computed and thrown away.
+    expect(low.uniforms.uBleed.value).toBe(0)
+  })
+
+  it('keeps a whisper of the accent on the rim of a resting plate', () => {
+    const plate = fragmentMaterial(three)
+    expect(plate.uniforms.uAccentRest.value).toBeGreaterThan(0)
+    expect(plate.uniforms.uAccentRest.value).toBeLessThan(0.5)
+  })
+
+  it('lets the grain of the paper drift with the clock', () => {
+    const source = fragmentMaterial(three).fragmentShader
+    expect(source).toMatch(/gp \+= vec2\(uTime/)
+  })
+
+  it('takes the focus point of the scene', () => {
+    const bank = createArchiveUniforms()
+    const point = new three.Vector3(1, 2, 3)
+    bank.uFocusPoint = { value: point }
+    const plate = fragmentMaterial(three, { uniforms: bank })
+    const ring = ringMaterial(three, { uniforms: bank })
+    expect(plate.uniforms.uFocusPoint.value).toBe(point)
+    expect(ring.uniforms.uFocusPoint.value).toBe(point)
+  })
+
+  it('keeps a focus point of its own when the scene has none', () => {
+    const first = fragmentMaterial(three)
+    const second = fragmentMaterial(three)
+    expect(first.uniforms.uFocusPoint.value).toBeDefined()
+    expect(first.uniforms.uFocusPoint.value).not.toBe(second.uniforms.uFocusPoint.value)
+  })
+
+  it('declares every uniform it reads in the bag of the material', () => {
+    for (const material of allMaterials()) {
+      for (const source of [material.vertexShader, material.fragmentShader]) {
+        const declared = [...source.matchAll(/uniform\s+\w+\s+(\w+)\s*;/g)].map(
+          (match) => match[1],
+        )
+        for (const name of declared) {
+          expect(material.uniforms[name]).toBeDefined()
+        }
+      }
+    }
+  })
+})
+
+describe('archive materials: the depth of the dust', () => {
+  it('drifts the near motes faster than the far ones', () => {
+    const high = dustMaterial(three, { quality: 'high' })
+    const source = high.vertexShader
+    // The depth of a mote is measured in the view space, so the near ones
+    // race and the far ones crawl.
+    expect(source).toContain('viewPos')
+    expect(source).toContain('pace')
+  })
+
+  it('skips the depth of the cloud on the low tier', () => {
+    const high = dustMaterial(three, { quality: 'high' })
+    const low = dustMaterial(three, { quality: 'low' })
+    // The branch is uniform, so the low tier really skips the probe of the
+    // depth instead of computing it and multiplying it by zero.
+    expect(high.vertexShader).toContain('if (uQuality > 0.5)')
+    expect(low.vertexShader).toContain('if (uQuality > 0.5)')
+    expect(high.uniforms.uQuality.value).toBe(1)
+    expect(low.uniforms.uQuality.value).toBe(0)
+  })
+
+  it('gives the dust its own emptiness dial', () => {
+    const dust = dustMaterial(three)
+    expect(dust.uniforms.uDust).toBeDefined()
+    expect(dust.uniforms.uDust.value).toBe(1)
+  })
+})
+
 describe('archive materials: blending and disposal', () => {
   it('keeps the fragment plate a transparent double-sided sheet', () => {
     const plate = fragmentMaterial(three)

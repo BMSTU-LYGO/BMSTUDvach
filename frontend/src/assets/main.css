@@ -99,13 +99,10 @@
   --z-toast: 500;
   --z-tooltip: 600;
 
-  /* ── Motion ── */
-  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-  --ease-out-quart: cubic-bezier(0.33, 1, 0.68, 1);
-  --ease-out-expo: cubic-bezier(0.33, 1, 0.68, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 200ms;
-  --duration-slow: 280ms;
+  /* ── Motion ──
+     Роли движения (hover / press / reveal / kinetic / magnetic / cinematic),
+     кривые и длительности живут в assets/motion.css — здесь только палитра,
+     типографика, отступы, радиусы, тени и z-index. */
 }
 
 /* === Reset === */
@@ -177,7 +174,7 @@ small,
 a {
   color: var(--accent);
   text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition: color var(--motion-hover);
 }
 
 a:hover {
@@ -218,8 +215,8 @@ select:focus-visible {
   color: var(--ink);
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+    background var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .btn:hover {
@@ -289,7 +286,7 @@ select {
   border: 1px solid var(--rule);
   border-radius: 0;
   transition:
-    border-color var(--duration-fast) var(--ease-out);
+    border-color var(--motion-hover);
 }
 
 input:focus,

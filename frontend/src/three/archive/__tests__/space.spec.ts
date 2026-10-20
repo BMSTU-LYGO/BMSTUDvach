@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type {
+  BufferAttribute,
   LineSegments,
   Mesh,
   Object3D,
@@ -253,6 +254,150 @@ describe('archive space: the empty archive', () => {
       expect(() => {
         for (let i = 0; i < 10; i++) space.update(1 / FPS, snap())
       }).not.toThrow()
+    } finally {
+      space.dispose()
+    }
+  })
+})
+
+describe('archive space: the depth of the dust', () => {
+  it('keeps the dust out of an empty archive and brings it back', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      const dust = space.scene.getObjectByName('archive-dust') as Points
+      const material = dust.material as ShaderMaterial
+
+      space.setStories([])
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+      // An archive without stories is a lit void: it keeps no motes.
+      expect(material.uniforms.uDust.value).toBeLessThan(0.05)
+
+      space.setStories([story(1)])
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+      expect(material.uniforms.uDust.value).toBeGreaterThan(0.9)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('never rebuilds the cloud in the frame', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      const dust = space.scene.getObjectByName('archive-dust') as Points
+      const position = dust.geometry.getAttribute('position') as BufferAttribute
+      const version = position.version
+
+      for (let i = 0; i < 30; i++) space.update(1 / FPS, snap())
+
+      // The motes live in the shader: the buffer of the cloud is written
+      // once and never touched again.
+      expect(position.version).toBe(version)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('drifts an empty archive slower than a full one', () => {
+    const empty = buildArchiveSpace(three, 'low')
+    const full = buildArchiveSpace(three, 'low')
+    try {
+      full.setStories([story(1)])
+      for (let i = 0; i < 5; i++) {
+        empty.update(1 / FPS, snap())
+        full.update(1 / FPS, snap())
+      }
+      const beforeEmpty = Math.atan2(empty.camera.position.z, empty.camera.position.x)
+      const beforeFull = Math.atan2(full.camera.position.z, full.camera.position.x)
+
+      for (let i = 0; i < 30; i++) {
+        empty.update(1 / FPS, snap())
+        full.update(1 / FPS, snap())
+      }
+
+      const driftEmpty = Math.abs(
+        Math.atan2(empty.camera.position.z, empty.camera.position.x) - beforeEmpty,
+      )
+      const driftFull = Math.abs(
+        Math.atan2(full.camera.position.z, full.camera.position.x) - beforeFull,
+      )
+      expect(driftEmpty).toBeGreaterThan(0)
+      expect(driftEmpty).toBeLessThan(driftFull)
+    } finally {
+      empty.dispose()
+      full.dispose()
+    }
+  })
+
+  it('keeps fewer motes on the low tier', () => {
+    const high = buildArchiveSpace(three, 'high')
+    const low = buildArchiveSpace(three, 'low')
+    try {
+      const highDust = high.scene.getObjectByName('archive-dust') as Points
+      const lowDust = low.scene.getObjectByName('archive-dust') as Points
+      expect(lowDust.geometry.getAttribute('position').count).toBeLessThan(
+        highDust.geometry.getAttribute('position').count,
+      )
+      // The cheap tier keeps its motes, it does not drop the cloud.
+      expect(lowDust.geometry.getAttribute('position').count).toBeGreaterThan(0)
+    } finally {
+      high.dispose()
+      low.dispose()
+    }
+  })
+})
+
+describe('archive space: the single accent of the archive', () => {
+  it('points the accent at the focused plate', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      space.update(1 / FPS, snap({ focusedStory: 1 }))
+      const plate = plateOf(space.scene, 1)
+      const material = (plates(space.scene)[0] as Mesh).material as ShaderMaterial
+      const point = material.uniforms.uFocusPoint.value as Vector3
+
+      // The point of the gaze is the plate itself — only that one answers.
+      expect(point.distanceTo(worldOf(plate))).toBeLessThan(0.01)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('takes the gaze away when the focus is gone', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1), story(2)])
+      space.update(1 / FPS, snap({ focusedStory: 1 }))
+      const material = (plates(space.scene)[0] as Mesh).material as ShaderMaterial
+      const point = material.uniforms.uFocusPoint.value as Vector3
+      expect(point.length()).toBeGreaterThan(1)
+
+      space.update(1 / FPS, snap())
+      // Without a focus the gaze falls back to the core, where no plate
+      // can reach it.
+      expect(point.length()).toBeLessThan(0.01)
+      expect(material.uniforms.uFocus.value).toBe(0)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('freezes the clock under reduced motion', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      const dust = space.scene.getObjectByName('archive-dust') as Points
+      const material = dust.material as ShaderMaterial
+
+      space.update(1 / FPS, snap({ reducedMotion: true }))
+      const first = material.uniforms.uTime.value
+      space.update(1 / FPS, snap({ reducedMotion: true }))
+
+      // The archive keeps its last frame instead of breathing.
+      expect(material.uniforms.uTime.value).toBe(first)
+
+      space.update(1 / FPS, snap())
+      expect(material.uniforms.uTime.value).toBeGreaterThan(first)
     } finally {
       space.dispose()
     }
@@ -754,7 +899,9 @@ describe('archive space: the life of the scene', () => {
         space.update(Number.NaN, snap())
         space.update(-1, snap())
       }).not.toThrow()
-      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(true)
+      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(
+        true,
+      )
     } finally {
       space.dispose()
     }
@@ -832,7 +979,9 @@ describe('archive space: the pointer', () => {
       expect(space.camera.position.toArray()).toEqual(before)
 
       space.update(1 / FPS, snap())
-      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(true)
+      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(
+        true,
+      )
       expect(space.pointerStoryId()).toBeNull()
     } finally {
       space.dispose()

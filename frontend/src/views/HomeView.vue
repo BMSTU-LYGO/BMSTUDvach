@@ -159,35 +159,9 @@ function openRecent(event: MouseEvent, threadId: number) {
 </template>
 
 <style scoped>
+/* Палитра, типографика и motion-токены — глобальные (assets/main.css, assets/motion.css).
+   Локальные копии здесь только разъезжались с общей системой при правке палитры. */
 .home {
-  --paper: #F2EDE0;
-  --paper-raised: #EAE4D4;
-  --paper-sunken: #F7F3E8;
-  --ink: #1C1A14;
-  --ink-secondary: #5B5547;
-  --ink-tertiary: #8A8273;
-  --rule: #D4CEB8;
-  --accent: #2F4F4E;
-  --accent-hover: #244140;
-  --font-display: 'Cormorant Garamond', 'Georgia', serif;
-  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --duration-fast: 150ms;
-  --duration-normal: 200ms;
-  --duration-slow: 400ms;
-  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
-
   position: relative;
   min-height: 100vh;
   display: flex;

@@ -1,4 +1,4 @@
-import type { Color, ShaderMaterial } from 'three'
+import type { Color, ShaderMaterial, Vector3 } from 'three'
 
 /**
  * The `three` namespace as a type-only dependency: the scene hands the
@@ -22,7 +22,9 @@ type ThreeModule = typeof import('three')
  *    uniforms are the *same objects* in every material, so the scene drives
  *    the whole archive from one place — see `archiveUniforms` (the default
  *    bank) and `createArchiveUniforms` (a bank of its own, owned by one
- *    scene).
+ *    scene). The point the archive gazes at (`uFocusPoint`) belongs to the
+ *    same bank: it is what turns "something is focused" into "this plate
+ *    answers" — one accent, not sixty of them.
  * 2. **GLSL ES 1.00 only.** The shaders avoid `texture()`, `invert()` and
  *    anything else WebGL1 does not guarantee, and they use `gl_FragColor`.
  *    Quality tiers are baked into the source (no `#define`), so every tier
@@ -89,6 +91,38 @@ const STEEL_LIGHT = 0x8a94b8
 
 /** Noise octaves per tier — 'low' drops the second layer of the grain. */
 const OCTAVES: Record<ArchiveQuality, number> = { high: 3, low: 1 }
+
+/**
+ * How much of the accent the rim of a resting plate keeps.
+ *
+ * The archive is ink first and light second: a plate that nobody reads
+ * shows a whisper of the teal accent on its rim — the printed edge of a
+ * page — and nothing else.
+ */
+const ACCENT_REST = 0.12
+/**
+ * The strength of the paper through-light on the high tier.
+ *
+ * The bleed is the expensive path of the plate: a soft falloff, a drifting
+ * spot of light and a second colour. The low tier sets it to zero — the
+ * picture is honestly simpler, not broken.
+ */
+const BLEED_HIGH = 0.55
+/**
+ * How far the focus of the reader reaches on a plate, in world units.
+ *
+ * The plates of a ring stand a fraction of a unit apart, so a tight reach
+ * keeps the accent on one sheet: the focused one answers, its neighbour
+ * only whispers.
+ */
+const PLATE_FOCUS_REACH = 0.45
+/**
+ * How far the focus reaches along an orbit, in world units.
+ *
+ * An orbit is a long line: the amber walks to the arc around the focused
+ * plate instead of flooding the whole ring.
+ */
+const RING_FOCUS_REACH = 2.4
 
 /**
  * The shared uniform bank. Every factory wires these very objects into its
@@ -161,10 +195,16 @@ const fragmentVert = /* glsl */ `
   varying vec3 vViewPosition;
   varying vec2 vUv;
   varying vec3 vLocal;
+  varying vec3 vCentre;
 
   void main() {
     vUv = uv;
     vLocal = position;
+    // The centre of the sheet in the archive: the model matrix places the
+    // plate, so the centre is the same for every vertex of it. The focus
+    // stage compares it with the point the reader is on — and only that
+    // one plate answers.
+    vCentre = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     vViewPosition = -mvPosition.xyz;
     vNormal = normalMatrix * normal;
@@ -179,16 +219,22 @@ const fragmentFrag = /* glsl */ `
   uniform float uDim;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
+  uniform vec3 uEdgeColor;
   uniform float uQuality;
   uniform float uOctaves;
   uniform float uGrain;
   uniform float uFresnelPower;
   uniform float uOpacity;
+  uniform float uBleed;
+  uniform float uAccentRest;
+  uniform vec3 uFocusPoint;
+  uniform float uFocusRadius;
 
   varying vec3 vNormal;
   varying vec3 vViewPosition;
   varying vec2 vUv;
   varying vec3 vLocal;
+  varying vec3 vCentre;
 
   ${noiseChunk}
 
@@ -203,6 +249,9 @@ const fragmentFrag = /* glsl */ `
     // (uQuality never changes per draw), so the unused layer is really
     // skipped instead of computed and multiplied by zero.
     vec2 gp = vLocal.xy * 3.4 + vec2(vLocal.z * 1.7, vLocal.z * 0.9);
+    // The fibre of the paper drifts a hair with the clock — the sheet is
+    // alive, never a sticker. The drift is slow enough to read as grain.
+    gp += vec2(uTime * 0.02, uTime * -0.014);
     float coarse = uQuality > 0.5 ? fbm(gp) : valueNoise(gp);
     // The fine layer belongs to the high tier alone.
     float fine = uQuality > 0.5 ? hash21(floor(vUv * 320.0)) * step(1.5, uOctaves) : 0.0;
@@ -211,10 +260,34 @@ const fragmentFrag = /* glsl */ `
     vec3 paper = uColorA;
     vec3 base = mix(paper, paper * 0.38, grain);
 
-    // Focus: the accent lights the very edge of the plate, nothing else.
+    // The rim of the sheet is the only place an accent may live.
     float edge = smoothstep(0.30, 1.0, fresnel);
-    float focus = clamp(uFocus, 0.0, 1.0) * (0.86 + 0.14 * sin(uTime * 1.6));
-    vec3 color = mix(base, uColorB, edge * focus * 0.92);
+
+    // At rest the rim keeps a whisper of the accent — ink, not light.
+    vec3 color = mix(base, uColorB, edge * uAccentRest);
+
+    // The focus lights exactly one plate of the archive: the one the
+    // reader is on. Its rim ignites in amber — the single accent of the
+    // moment, and it never leaves the edge.
+    float reach = 1.0 - smoothstep(0.0, uFocusRadius, distance(vCentre, uFocusPoint));
+    // The squared falloff keeps the neighbour of the focused plate a
+    // whisper instead of a second accent.
+    float focus = clamp(uFocus, 0.0, 1.0) * reach * reach;
+    // The edge breathes — a slow swell, never a flash.
+    focus *= 0.86 + 0.14 * sin(uTime * 1.6);
+    color = mix(color, uEdgeColor, edge * focus * 0.9);
+
+    // The paper is thin: where the sheet turns edge-on the warm light of
+    // the core passes through it. The bleed lives on the rim and only
+    // while the plate is in focus — a paper glow, never a neon.
+    float thin = 1.0 - abs(dot(viewDir, n));
+    float bleed = uBleed * smoothstep(0.45, 1.0, thin) * focus;
+    // A slow spot of light wanders over the sheet, so the bleed reads as
+    // a lamp standing over the page.
+    vec2 spot = vec2(0.5 + 0.24 * sin(uTime * 0.21), 0.5 + 0.2 * cos(uTime * 0.17));
+    float lamp = 1.0 - smoothstep(0.05, 0.6, distance(vUv, spot));
+    vec3 bleedColor = mix(uColorA, uEdgeColor, 0.55);
+    color = mix(color, bleedColor, bleed * (0.35 + 0.65 * lamp));
 
     float alpha = uOpacity * (0.55 + fresnel * 0.45) * clamp(uDim, 0.0, 1.0);
     gl_FragColor = vec4(color, alpha);
@@ -230,11 +303,15 @@ const fragmentFrag = /* glsl */ `
 const ringVert = /* glsl */ `
   varying vec3 vLocal;
   varying float vDepth;
+  varying vec3 vWorld;
 
   void main() {
     vLocal = position;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     vDepth = clamp((-mvPosition.z) / 40.0, 0.0, 1.0);
+    // The place of the vertex in the archive: the amber of the focus walks
+    // along the orbit to the arc around the plate the reader is on.
+    vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
     gl_Position = projectionMatrix * mvPosition;
   }
 `
@@ -251,9 +328,12 @@ const ringFrag = /* glsl */ `
   uniform float uPhase;
   uniform float uNoiseScale;
   uniform float uSpeed;
+  uniform vec3 uFocusPoint;
+  uniform float uFocusRadius;
 
   varying vec3 vLocal;
   varying float vDepth;
+  varying vec3 vWorld;
 
   ${noiseChunk}
 
@@ -270,7 +350,12 @@ const ringFrag = /* glsl */ `
     float n = uQuality > 0.5 ? fbm(q) : valueNoise(q);
     float travel = 0.55 + 0.45 * n;
 
-    vec3 color = mix(uColorA, uColorB, clamp(uFocus, 0.0, 1.0) * 0.9);
+    // The amber answers only around the focused plate: the orbit warms up
+    // where the reader stands, it does not flood the archive.
+    float reach = 1.0 - smoothstep(0.0, uFocusRadius, distance(vWorld, uFocusPoint));
+    float focus = clamp(uFocus, 0.0, 1.0) * reach;
+
+    vec3 color = mix(uColorA, uColorB, focus * 0.9);
     float alpha =
       uOpacity * breath * travel * clamp(uDim, 0.0, 1.0) * (1.0 - vDepth * 0.35);
     gl_FragColor = vec4(color * (0.8 + travel * 0.45), alpha);
@@ -353,9 +438,18 @@ const dustVert = /* glsl */ `
   void main() {
     vec3 pos = position;
     float s = aSeed;
-    pos.x += sin(uTime * (0.12 + uSpeed * 0.18) + s * 6.2831) * 0.28;
-    pos.y += cos(uTime * (0.09 + uSpeed * 0.14) + s * 4.1) * 0.2;
-    pos.z += sin(uTime * (0.07 + uSpeed * 0.11) + s * 9.7) * 0.14;
+    // The depth of the mote decides how fast it drifts: the near ones race,
+    // the far ones crawl. The high tier pays for the extra transform, the
+    // low tier keeps every mote on one speed — simpler, not broken.
+    float depth = 0.5;
+    if (uQuality > 0.5) {
+      vec4 viewPos = modelViewMatrix * vec4(pos, 1.0);
+      depth = clamp(1.0 - length(viewPos.xyz) / 34.0, 0.0, 1.0);
+    }
+    float pace = 0.55 + depth * 0.9;
+    pos.x += sin(uTime * (0.12 + uSpeed * 0.18) * pace + s * 6.2831) * 0.28 * pace;
+    pos.y += cos(uTime * (0.09 + uSpeed * 0.14) * pace + s * 4.1) * 0.2 * pace;
+    pos.z += sin(uTime * (0.07 + uSpeed * 0.11) * pace + s * 9.7) * 0.14 * pace;
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     float dist = length(mvPosition.xyz);
@@ -365,7 +459,11 @@ const dustVert = /* glsl */ `
 
     // The low tier keeps every mote the same size.
     float size = mix(1.0, 0.7 + 0.6 * fract(s * 7.31), uQuality);
-    gl_PointSize = uSize * size * (1.0 + 0.18 * sin(uTime * 0.9 + s * 6.28));
+    // The near motes are the big ones: the cloud gets a depth instead of a
+    // swarm.
+    float nearness = mix(0.7, 1.3, depth);
+    gl_PointSize =
+      uSize * size * (1.0 + 0.18 * sin(uTime * 0.9 + s * 6.28)) * nearness;
     gl_Position = projectionMatrix * mvPosition;
   }
 `
@@ -374,6 +472,7 @@ const dustVert = /* glsl */ `
 const dustFrag = /* glsl */ `
   uniform float uFocus;
   uniform float uDim;
+  uniform float uDust;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
   uniform float uOpacity;
@@ -385,8 +484,11 @@ const dustFrag = /* glsl */ `
     float d = length(c);
     if (d > 0.5) discard;
     float soft = 1.0 - smoothstep(0.05, 0.5, d);
-    vec3 color = mix(uColorA, uColorB, clamp(uFocus, 0.0, 1.0) * 0.5);
-    float alpha = soft * vFlicker * uOpacity * clamp(uDim, 0.0, 1.0);
+    vec3 color = mix(uColorA, uColorB, clamp(uFocus, 0.0, 1.0) * 0.4);
+    // The dust follows the presence of the archive and its own emptiness:
+    // an archive without stories keeps no motes at all.
+    float alpha =
+      soft * vFlicker * uOpacity * clamp(uDim, 0.0, 1.0) * clamp(uDust, 0.0, 1.0);
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -459,6 +561,19 @@ export interface FragmentMaterialOptions extends ArchiveMaterialOptions {
   grain?: number
   /** Exponent of the fresnel rim. */
   fresnelPower?: number
+  /** Colour of the ignited edge — the amber of the focus. */
+  edgeColor?: number
+  /**
+   * Strength of the paper through-light.
+   *
+   * The high tier lights the bleed by itself; the low tier keeps it at
+   * zero, so the cheap path really costs less.
+   */
+  bleed?: number
+  /** How much of the accent the rim of a resting plate keeps. */
+  accentRest?: number
+  /** How far the focus of the reader reaches, in world units. */
+  focusRadius?: number
 }
 
 /** Options of an orbit ring. */
@@ -469,6 +584,8 @@ export interface RingMaterialOptions extends ArchiveMaterialOptions {
   noiseScale?: number
   /** Speed of the travelling noise field. */
   speed?: number
+  /** How far the focus reaches along the orbit, in world units. */
+  focusRadius?: number
 }
 
 /** Options of the vault core. */
@@ -548,6 +665,34 @@ function coreUniforms(opts: ArchiveMaterialOptions): ArchiveUniforms {
   return opts.uniforms ?? archiveUniforms()
 }
 
+/** Whether a uniform value is a point of three's vector type. */
+function isVector3(value: unknown): value is Vector3 {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'x' in value &&
+    'y' in value &&
+    'z' in value
+  )
+}
+
+/**
+ * The point the archive gazes at: the place of the plate the reader is on.
+ *
+ * The scene owns the point — it puts it into its uniform bank and moves it
+ * every frame, so every material of the archive answers the same focus. A
+ * material built without such a bank keeps a point of its own, and the
+ * accent simply never reaches it.
+ */
+function focusPointOf(
+  core: ArchiveUniforms,
+  three: ThreeModule,
+): ArchiveUniform<Vector3> {
+  const own = core.uFocusPoint
+  if (own && isVector3(own.value)) return own as ArchiveUniform<Vector3>
+  return { value: new three.Vector3() }
+}
+
 /**
  * A fragment plate: a sheet of warm paper standing in the archive.
  *
@@ -565,15 +710,23 @@ export function fragmentMaterial(
 ): ShaderMaterial {
   const quality = resolveQuality(opts.quality)
   const octaves = OCTAVES[quality]
+  const core = coreUniforms(opts)
   const uniforms: ArchiveUniforms = {
-    ...coreUniforms(opts),
+    ...core,
     uColorA: { value: new three.Color(opts.colorA ?? PAPER) },
     uColorB: { value: new three.Color(opts.colorB ?? ACCENT) },
+    uEdgeColor: { value: new three.Color(opts.edgeColor ?? AMBER) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
     uOctaves: { value: octaves },
     uGrain: { value: opts.grain ?? 0.6 },
     uFresnelPower: { value: opts.fresnelPower ?? 2.4 },
     uOpacity: { value: opts.opacity ?? 0.9 },
+    // The paper through-light is the expensive path of the plate: the low
+    // tier switches it off instead of computing it and throwing it away.
+    uBleed: { value: opts.bleed ?? (quality === 'high' ? BLEED_HIGH : 0) },
+    uAccentRest: { value: opts.accentRest ?? ACCENT_REST },
+    uFocusPoint: focusPointOf(core, three),
+    uFocusRadius: { value: opts.focusRadius ?? PLATE_FOCUS_REACH },
   }
   return new three.ShaderMaterial({
     uniforms,
@@ -597,8 +750,9 @@ export function ringMaterial(
 ): ShaderMaterial {
   const quality = resolveQuality(opts.quality)
   const octaves = OCTAVES[quality]
+  const core = coreUniforms(opts)
   const uniforms: ArchiveUniforms = {
-    ...coreUniforms(opts),
+    ...core,
     uColorA: { value: new three.Color(opts.colorA ?? STEEL) },
     uColorB: { value: new three.Color(opts.colorB ?? AMBER) },
     uQuality: { value: quality === 'high' ? 1 : 0 },
@@ -607,6 +761,8 @@ export function ringMaterial(
     uNoiseScale: { value: opts.noiseScale ?? 1.4 },
     uSpeed: { value: opts.speed ?? 0.25 },
     uOpacity: { value: opts.opacity ?? 0.55 },
+    uFocusPoint: focusPointOf(core, three),
+    uFocusRadius: { value: opts.focusRadius ?? RING_FOCUS_REACH },
   }
   return new three.ShaderMaterial({
     uniforms,
@@ -668,6 +824,9 @@ export function dustMaterial(
     uSize: { value: opts.size ?? (quality === 'high' ? 3.2 : 2.4) },
     uSpeed: { value: opts.speed ?? 1 },
     uOpacity: { value: opts.opacity ?? 0.4 },
+    // How much of the dust the archive shows: an archive without stories
+    // keeps no motes — the space is a lit void, not a swarm.
+    uDust: { value: 1 },
   }
   return new three.ShaderMaterial({
     uniforms,
