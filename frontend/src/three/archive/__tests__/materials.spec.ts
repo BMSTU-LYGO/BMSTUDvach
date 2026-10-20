@@ -236,6 +236,70 @@ describe('archive materials: quality tiers', () => {
   })
 })
 
+describe('archive materials: the two stages of a shader', () => {
+  it('never writes a colour from the vertex stage', () => {
+    // `gl_FragColor` belongs to the fragment stage — a vertex stage that
+    // writes it would not compile.
+    for (const material of allMaterials()) {
+      expect(material.vertexShader).not.toContain('gl_FragColor')
+    }
+  })
+
+  it('declares every uniform it reads', () => {
+    for (const material of allMaterials()) {
+      for (const source of [material.vertexShader, material.fragmentShader]) {
+        const declared = new Set(
+          [...source.matchAll(/uniform\s+\w+\s+(\w+)\s*;/g)].map((match) => match[1]),
+        )
+        for (const name of ['uTime', 'uFocus', 'uDim']) {
+          if (!source.includes(name)) continue
+          expect(declared.has(name)).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('keeps the noise chunk free of any uniform of its own', () => {
+    // The noise is shared by three shaders — it must not ask for a uniform
+    // that only one of them declares.
+    for (const material of allMaterials()) {
+      const source = material.fragmentShader
+      const declared = new Set(
+        [...source.matchAll(/uniform\s+\w+\s+(\w+)\s*;/g)].map((match) => match[1]),
+      )
+      const used = new Set(
+        [...source.matchAll(/\b(u[A-Z][A-Za-z0-9]*)\b/g)].map((match) => match[1]),
+      )
+      for (const name of used) {
+        expect(declared.has(name)).toBe(true)
+      }
+    }
+  })
+})
+
+describe('archive materials: the register of the archive', () => {
+  it('keeps every material transparent and out of the depth buffer', () => {
+    // The archive is a stack of overlapping sheets — it must never write
+    // into the depth of the page behind it.
+    for (const material of allMaterials()) {
+      expect(material.transparent).toBe(true)
+      expect(material.depthWrite).toBe(false)
+    }
+  })
+
+  it('paints the plate in warm paper with the teal accent', () => {
+    const plate = fragmentMaterial(three)
+    expect(plate.uniforms.uColorA.value.getHexString()).toBe('f2ede0')
+    expect(plate.uniforms.uColorB.value.getHexString()).toBe('2f4f4e')
+  })
+
+  it('paints the orbits in cool steel and warm amber', () => {
+    const ring = ringMaterial(three)
+    expect(ring.uniforms.uColorA.value.getHexString()).toBe('5a6480')
+    expect(ring.uniforms.uColorB.value.getHexString()).toBe('d4882a')
+  })
+})
+
 describe('archive materials: blending and disposal', () => {
   it('keeps the fragment plate a transparent double-sided sheet', () => {
     const plate = fragmentMaterial(three)
@@ -304,5 +368,44 @@ describe('archive materials: blending and disposal', () => {
     for (const material of allMaterials()) {
       expect(() => disposeArchiveMaterials([material])).not.toThrow()
     }
+  })
+
+  it('gives a texture of a classic slot back as well', () => {
+    const texture = { isTexture: true, dispose: vi.fn() }
+    const material = { dispose: vi.fn(), map: texture }
+    disposeArchiveMaterials([material])
+    expect(material.dispose).toHaveBeenCalledTimes(1)
+    expect(texture.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives a texture that sits in two slots back only once', () => {
+    const texture = { isTexture: true, dispose: vi.fn() }
+    const material = {
+      dispose: vi.fn(),
+      map: texture,
+      uniforms: { uMap: { value: texture } },
+    }
+    disposeArchiveMaterials([material])
+    expect(texture.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('survives a second disposal of the same list', () => {
+    const spy = vi.fn()
+    const list = [{ dispose: spy }]
+    disposeArchiveMaterials(list)
+    expect(() => disposeArchiveMaterials(list)).not.toThrow()
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('survives a material whose dispose throws the second time', () => {
+    let calls = 0
+    const material = {
+      dispose: () => {
+        calls += 1
+        if (calls > 1) throw new Error('already disposed')
+      },
+    }
+    disposeArchiveMaterials([material])
+    expect(() => disposeArchiveMaterials([material])).not.toThrow()
   })
 })

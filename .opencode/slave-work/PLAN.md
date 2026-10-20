@@ -1,6 +1,6 @@
 # Slave Work Plan — Platinum BMSTUDvach как самостоятельный интерактивный Three.js Archive Space
 
-- Статус: in progress
+- Статус: complete
 - Модель субагентов: `opencode-go/minimax-m3.1-flash-free`
 - Запуск: 2026-10-20
 - Engine: cli (`opencode run --model opencode-go/minimax-m3.1-flash-free --agent build --auto`), parallel: 6, waves: 1
@@ -193,12 +193,12 @@ empty state — с полным сохранением удобства чтен
       замер: нет утечек после unmount (`renderer.dispose()` путь), нет лишних
       rerender-волн; документировать числа в отчёте.
       | Файлы: `src/three/archive/space.ts`, `src/three/archive/materials.ts`, `src/three/archive/layout.ts` | deps: P2-T5, P3-T1 | size: M
-- [ ] P4-T3. Тесты и структурные guard'ы — расширить `verify:3d` (если P2-T5 не закрыл всё):
+- [x] P4-T3. Тесты и структурные guard'ы — расширить `verify:3d` (если P2-T5 не закрыл всё):
       проверка что на platinum рендерится ArchiveSpaceCanvas; юнит-тесты coverage для
       `archive/*` (layout/materials/space) и интеграционный сценарный тест вью;
       удалить мёртвые проверки; `npm run test` зелёный, покрытие не упало.
       | Файлы: `scripts/verify-3d.mjs`, `src/three/archive/__tests__/*.spec.ts`, `src/views/__tests__/PlatinumView.spec.ts` | deps: P4-T1, P4-T2 | size: M
-- [ ] P4-T4. Документация — раздел «Archive Space» в docs/ART_DIRECTION.md (метафора
+- [x] P4-T4. Документация — раздел «Archive Space» в docs/ART_DIRECTION.md (метафора
       колец/фрагментов, палитра, правило «один accent на взаимодействие», reduced-motion),
       запись раунда в docs/PROJECT_NEXT_AUDIT.md (что сделано, какие проверки, след. шаги).
       | Файлы: `docs/ART_DIRECTION.md`, `docs/PROJECT_NEXT_AUDIT.md` | deps: P4-T3 | size: S
@@ -216,4 +216,11 @@ empty state — с полным сохранением удобства чтен
 - 2026-10-21 22:38 батч 5+6 (P2-T5 guard'ы архива, P4-T1 a11y/клавиатура, P4-T2 перф-проход) — DONE, зелёные (verify:3d 66/66, lint 0, build OK, test 60 файлов/862 теста), коммит ниже
 - 2026-10-21 21:30 Гейты Фазы 0 подтверждены в этой сессии: каталоги ✅, slug `opencode-go/minimax-m3.1-flash-free` ✅ (`opencode models`), smoke CLI ✅ (SMOKE_OK, модель в логе, 0 ошибок). Зависшие процессы прошлых раундов (P2-T2, A-T1, A-T2) убиты
 
+- 2026-10-20 23:14 батч 7 (P4-T3 guard'ы+тесты, P4-T4 документация) — DONE, зелёные (verify:3d 116/116, lint 0, build OK, test 60 файлов/898 тестов). ПЛАН ЗАВЕРШЁН
+
 ## Проблемы / заблокировано
+
+- План закрыт полностью: 19/19 задач DONE. Остатки на будущее (из отчётов):
+  - `ArchiveSpaceCanvas` пересоздаёт сцену при каждом входе в архив — при профилировании можно кешировать (P4-T2 отчёт).
+  - Ключ `bmstudvach-archive-3d` и событие `bmstudvach:archive-3d` продублированы в двух файлах — стоит вынести в общий модуль (P4-T1 отчёт).
+  - `verify:3d` вырос до 116 проверок — при следующих раундах следить за временем выполнения.

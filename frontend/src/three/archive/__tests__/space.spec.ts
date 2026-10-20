@@ -650,6 +650,117 @@ describe('archive space: the camera rig', () => {
   })
 })
 
+describe('archive space: the life of the scene', () => {
+  it('runs from the build to the disposal and back', () => {
+    const space = buildArchiveSpace(three, 'low')
+    space.setStories([story(1), story(2)])
+    expect(() => space.update(1 / FPS, snap())).not.toThrow()
+
+    space.dispose()
+
+    // A second disposal is a no-op, and the scene is empty.
+    expect(() => space.dispose()).not.toThrow()
+    expect(() => space.update(1 / FPS, snap())).not.toThrow()
+    expect(space.scene.getObjectByName('archive-space')).toBeUndefined()
+    expect(countObjects(space.scene)).toBe(1)
+  })
+
+  it('starts in the empty mode, with the halo lit', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      // The archive is born empty — it never waits for the first story set.
+      expect(plates(space.scene)).toHaveLength(0)
+      const halo = space.scene.getObjectByName('archive-halo') as Mesh
+      const material = halo.material as ShaderMaterial
+      expect(material.uniforms.uDim.value).toBeGreaterThan(0.5)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('fades the archive in with the presence', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      const plate = plates(space.scene)[0] as Mesh
+      const material = plate.material as ShaderMaterial
+
+      space.update(1 / FPS, snap())
+      const first = material.uniforms.uDim.value
+      expect(first).toBeGreaterThan(0)
+      expect(first).toBeLessThan(1)
+
+      for (let i = 0; i < 120; i++) space.update(1 / FPS, snap())
+      expect(material.uniforms.uDim.value).toBeGreaterThan(0.95)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('lights the fragments while a story is focused', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      const plate = plates(space.scene)[0] as Mesh
+      const material = plate.material as ShaderMaterial
+
+      space.update(1 / FPS, snap())
+      expect(material.uniforms.uFocus.value).toBe(0)
+
+      space.update(1 / FPS, snap({ focusedStory: 1 }))
+      expect(material.uniforms.uFocus.value).toBeGreaterThan(0)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('forgets a story that left the archive', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      expect(space.openStory(1)).not.toBeNull()
+
+      space.setStories([story(2)])
+      expect(space.openStory(1)).toBeNull()
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('does not travel when no fragment is focused', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.update(1 / FPS, snap())
+      const before = space.camera.position.toArray()
+
+      space.travelToFocus()
+      space.update(1 / FPS, snap())
+
+      // The idle orbit keeps drifting — the focus did not pull the camera
+      // anywhere.
+      expect(Math.abs(space.camera.position.x - before[0])).toBeLessThan(0.1)
+      expect(Math.abs(space.camera.position.z - before[2])).toBeLessThan(0.1)
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('does not break the frame on a broken delta', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      expect(() => {
+        space.update(Number.NaN, snap())
+        space.update(-1, snap())
+      }).not.toThrow()
+      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(true)
+    } finally {
+      space.dispose()
+    }
+  })
+})
+
 describe('archive space: the pointer', () => {
   it('finds the plate under the pointer and loses it in the empty space', () => {
     const space = buildArchiveSpace(three, 'low')
@@ -676,6 +787,52 @@ describe('archive space: the pointer', () => {
     try {
       space.setStories([story(1)])
       for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBeNull()
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('reports nothing when the pointer left the canvas', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.setPointer(2, 2)
+      for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBeNull()
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('reports nothing in the empty archive', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([])
+      space.setPointer(0, 0)
+      for (let i = 0; i < 4; i++) space.update(1 / FPS, snap())
+      expect(space.pointerStoryId()).toBeNull()
+      expect(space.openStory(1)).toBeNull()
+    } finally {
+      space.dispose()
+    }
+  })
+
+  it('ignores a broken pointer and a broken drag', () => {
+    const space = buildArchiveSpace(three, 'low')
+    try {
+      space.setStories([story(1)])
+      space.update(1 / FPS, snap())
+      const before = space.camera.position.toArray()
+
+      space.setPointer(Number.NaN, 0)
+      space.orbitBy(Number.NaN, Number.NaN)
+
+      // Neither of them moved the camera.
+      expect(space.camera.position.toArray()).toEqual(before)
+
+      space.update(1 / FPS, snap())
+      expect(space.camera.position.toArray().every((v) => Number.isFinite(v))).toBe(true)
       expect(space.pointerStoryId()).toBeNull()
     } finally {
       space.dispose()

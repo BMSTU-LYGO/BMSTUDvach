@@ -4,7 +4,18 @@ import { nextTick } from 'vue'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
 vi.mock('@/composables/useGsap', () => ({
-  gsap: { from: vi.fn(), to: vi.fn(), fromTo: vi.fn(), set: vi.fn() },
+  gsap: {
+    from: vi.fn(),
+    to: vi.fn(),
+    fromTo: vi.fn(),
+    set: vi.fn(),
+    // The context runs its callback right away and hands back a revertible
+    // handle — the story stage opens its reading layer with it.
+    context: vi.fn((fn: () => void) => {
+      fn()
+      return { revert: vi.fn(), kill: vi.fn() }
+    }),
+  },
   ScrollTrigger: {},
   Flip: {},
   prefersReducedMotion: () => false,
@@ -17,7 +28,8 @@ vi.mock('@/api/platinum', () => ({
 }))
 
 import PlatinumView from '@/views/PlatinumView.vue'
-import { listPlatinumStories, type PlatinumStory } from '@/api/platinum'
+import PlatinumStoryView from '@/views/PlatinumStoryView.vue'
+import { getPlatinumStory, listPlatinumStories, type PlatinumStory } from '@/api/platinum'
 import {
   emitSceneEvent,
   onSceneEvent,
@@ -673,5 +685,168 @@ describe('PlatinumView — the register of the archive: 3D or text alone (P4-T1)
     expect(wrapper.find('[data-testid="platinum-empty"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="archive-mode-toggle"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(0)
+  })
+})
+
+describe('PlatinumView — the way through the archive (P4-T3)', () => {
+  /**
+   * The archive and the story stage behind one router: the reader walks
+   * from the list into a fragment and back to the list.
+   */
+  async function mountArchiveWithStory() {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/platinum', component: PlatinumView },
+        { path: '/platinum/:storyId(\\d+)', component: PlatinumStoryView },
+      ],
+    })
+    await router.push('/platinum')
+    await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [router] } })
+    await flushPromises()
+    await flushPromises()
+    return { wrapper, router }
+  }
+
+  beforeEach(() => {
+    vi.mocked(listPlatinumStories).mockReset()
+    vi.mocked(getPlatinumStory).mockReset()
+    localStorage.clear()
+    resetScene()
+  })
+
+  it('carries the reader from the list into the space and back', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    vi.mocked(getPlatinumStory).mockImplementation(() =>
+      Promise.resolve(
+        story(2, 'Смена на проходной', 'Дежурный по корпусу наблюдает, как гаснет свет.'),
+      ),
+    )
+
+    const { wrapper, router } = await mountArchiveWithStory()
+
+    const events: SceneEvent[] = []
+    const stop = onSceneEvent((ev) => events.push(ev))
+
+    // 1. The list speaks to the space: the row focuses its own fragment.
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    expect(rows).toHaveLength(2)
+    await rows[1].trigger('mouseenter')
+    expect(sceneState.focusedStory).toBe(2)
+    expect(events).toContainEqual({ type: 'archive-focus', target: 2 })
+    expect(rows[1].attributes('data-focused')).toBe('true')
+
+    // 2. The fragment is opened: the space is told and the story comes in.
+    await rows[1].trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/platinum/2')
+    expect(sceneState.selectedStory).toBe(2)
+    expect(sceneState.focusedStory).toBe(2)
+    expect(wrapper.find('[data-testid="platinum-story"]').exists()).toBe(true)
+
+    // 3. The way back: the fragment is closed and the archive starts over.
+    await wrapper.find('a.story-back').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(events).toContainEqual({ type: 'archive-clear' })
+    expect(sceneState.selectedStory).toBe(null)
+    expect(sceneState.focusedStory).toBe(null)
+    expect(router.currentRoute.value.path).toBe('/platinum')
+    expect(wrapper.findAll('[data-testid="fragment-row"]')).toHaveLength(2)
+    expect(sceneState.archiveStories.map((s) => s.id)).toEqual([1, 2])
+
+    stop()
+  })
+
+  it('tells the space that the keyboard opens a fragment', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+
+    const events: SceneEvent[] = []
+    const stop = onSceneEvent((ev) => events.push(ev))
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+    rowElement(rows, 0).focus()
+    await rows[0].trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(events).toContainEqual({ type: 'archive-open', target: 1 })
+    expect(sceneState.selectedStory).toBe(1)
+    stop()
+  })
+
+  it('stops at the edges of the archive', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+
+    // Up from the first row stays on the first row.
+    rowElement(rows, 0).focus()
+    await rows[0].trigger('keydown', { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(rows[0].element)
+    expect(sceneState.focusedStory).toBe(1)
+
+    // Down from the last row stays on the last row.
+    rowElement(rows, 1).focus()
+    await rows[1].trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(rows[1].element)
+    expect(sceneState.focusedStory).toBe(2)
+  })
+
+  it('says the fragment the reader is on — and only when it changes', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchiveInDocument()
+
+    const live = wrapper.find('[data-testid="archive-live"]').element
+    const said: string[] = []
+    const observer = new MutationObserver(() => {
+      said.push(live.textContent ?? '')
+    })
+    observer.observe(live, { childList: true, characterData: true, subtree: true })
+
+    const rows = wrapper.findAll('[data-testid="fragment-row"]')
+
+    // The first fragment: the region speaks once.
+    rowElement(rows, 0).focus()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(said).toHaveLength(1)
+    expect(live.textContent).toContain('Фрагмент 1 из 2')
+
+    // The same fragment again: the region stays quiet.
+    rowElement(rows, 0).blur()
+    rowElement(rows, 0).focus()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(said).toHaveLength(1)
+
+    // The second fragment: the region speaks again.
+    rowElement(rows, 1).focus()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(said).toHaveLength(2)
+    expect(live.textContent).toContain('Фрагмент 2 из 2')
+
+    observer.disconnect()
+  })
+
+  it('remembers the register of the archive over a reload of the view', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { wrapper } = await mountArchive()
+
+    await wrapper.find('[data-testid="archive-mode-toggle"]').trigger('click')
+    expect(localStorage.getItem('bmstudvach-archive-3d')).toBe('off')
+    wrapper.unmount()
+
+    // The archive is opened again — the reader's choice is still there.
+    const { wrapper: again } = await mountArchive()
+    expect(again.find('[data-testid="archive-mode-toggle"]').attributes('aria-pressed')).toBe(
+      'false',
+    )
   })
 })

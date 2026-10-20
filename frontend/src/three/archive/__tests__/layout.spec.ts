@@ -407,6 +407,106 @@ describe('fragmentById', () => {  it('finds a fragment by its story id', () => {
   })
 })
 
+describe('archive layout: the stories of the caller stay untouched', () => {
+  it('does not change the stories it was given', () => {
+    // The stories arrive in any order — the layout must not sort the list
+    // of the caller in place.
+    const stories = [
+      story(3, { publishedAt: DATE_2023 }),
+      story(1, { publishedAt: DATE_2022 }),
+      story(2),
+    ]
+    const before = JSON.stringify(stories)
+
+    placeFragments(stories)
+    ringsFor(stories)
+    archiveLayout(stories)
+
+    expect(JSON.stringify(stories)).toBe(before)
+  })
+
+  it('accepts a frozen list of stories', () => {
+    const stories = Object.freeze([
+      Object.freeze(story(1)),
+      Object.freeze(story(2)),
+    ]) as unknown as LayoutInputStory[]
+
+    expect(() => placeFragments(stories)).not.toThrow()
+    expect(placeFragments(stories)).toHaveLength(2)
+  })
+
+  it('builds its own placements instead of handing the stories back', () => {
+    const stories = [story(1), story(2)]
+    for (const placement of placeFragments(stories)) {
+      expect(stories).not.toContain(placement)
+      expect(Object.keys(placement)).not.toContain('publishedAt')
+      expect(Object.keys(placement)).not.toContain('sourceType')
+    }
+  })
+
+  it('lays equal stories out the same way, whatever objects it is given', () => {
+    const first = [story(1, { publishedAt: DATE_2022 }), story(2)]
+    const second = [story(1, { publishedAt: DATE_2022 }), story(2)]
+
+    expect(placeFragments(first)).toEqual(placeFragments(second))
+    expect(ringsFor(first)).toEqual(ringsFor(second))
+    expect(archiveLayout(first)).toEqual(archiveLayout(second))
+  })
+})
+
+describe('archive layout: the budget of the plates', () => {
+  it('keeps every story on its ring even when the plates are capped', () => {
+    const stories = Array.from({ length: 12 }, (_, i) =>
+      story(i + 1, { publishedAt: i % 2 ? DATE_2022 : DATE_2023 }),
+    )
+
+    const rings = ringsFor(stories, { maxFragments: 5 })
+    expect(rings.flatMap((ring) => ring.stories)).toHaveLength(12)
+    expect(placeFragments(stories, { maxFragments: 5 })).toHaveLength(5)
+  })
+
+  it('keeps every story when the budget is larger than the archive', () => {
+    const stories = [story(1), story(2)]
+    expect(placeFragments(stories, { maxFragments: 100 })).toHaveLength(2)
+  })
+
+  it('rounds a fractional budget down', () => {
+    const stories = [story(1), story(2), story(3)]
+    expect(placeFragments(stories, { maxFragments: 2.9 })).toHaveLength(2)
+  })
+
+  it('cuts the layout of the archive to the budget as well', () => {
+    const stories = Array.from({ length: 9 }, (_, i) => story(i + 1))
+    expect(archiveLayout(stories, { maxFragments: 4 }).placements).toHaveLength(4)
+  })
+})
+
+describe('archive layout: the empty and the broken input', () => {
+  it('survives a missing list of stories', () => {
+    const missing = undefined as unknown as LayoutInputStory[]
+
+    expect(ringsFor(missing)).toEqual([])
+    expect(placeFragments(missing)).toEqual([])
+    expect(archiveLayout(missing)).toEqual({ rings: [], placements: [] })
+  })
+
+  it('skips the stories without a usable id', () => {
+    const stories = [
+      { id: Number.NaN },
+      { id: 1 },
+    ] as LayoutInputStory[]
+
+    expect(placeFragments(stories).map((p) => p.id)).toEqual([1])
+    expect(ringsFor(stories).flatMap((ring) => ring.stories)).toEqual([1])
+  })
+
+  it('survives a story that is not an object at all', () => {
+    const stories = [null, story(1)] as unknown as LayoutInputStory[]
+
+    expect(placeFragments(stories).map((p) => p.id)).toEqual([1])
+  })
+})
+
 describe('layoutSignature', () => {
   it('is empty for an empty set', () => {
     expect(layoutSignature([])).toBe('')
