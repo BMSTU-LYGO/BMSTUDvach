@@ -14,6 +14,17 @@
  * относительно элемента и дешево — один слушатель, один rAF, никаких
  * вечных `will-change` и никакого `transform: scale`.
  *
+ * Перф-дисциплина (правила модуля, а не пожелания):
+ * - ни одного `setInterval` и ни одного rAF, который живёт без причины:
+ *   цикл крутится только пока элемент едет;
+ * - в кадре нет лишней работы: координаты пишутся в стиль только когда они
+ *   заметно изменились, а не на каждый кадр;
+ * - `will-change` навешивается на время смещения и снимается в покое;
+ * - тяжёлые реакции ограничены капом (см. `--motion-cap` в `motion.css`),
+ *   поэтому страница не может превратиться в коллекцию прожекторов;
+ * - каждая подписка снимается симметрично: ушедший элемент не оставляет
+ *   за собой ни слушателей, ни запланированных кадров.
+ *
  * Контракт с CSS (см. `src/assets/material.css`):
  * - `usePointerLight` пишет `--mx` / `--my` — координаты курсора в процентах
  *   от левого верхнего угла элемента (50% / 50% — центр);
@@ -27,36 +38,44 @@ import {
   onMounted,
   onScopeDispose,
   onUnmounted,
-  readonly,
-  ref,
   watch,
   type Ref,
 } from 'vue'
 
-import { isTouchDevice, prefersReducedMotion } from './useGsap'
-import { useQuality3D } from './useQuality3D'
+import { inBrowser, motionAllowed, useMotionPreference } from './useGsap'
 
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 const FINE_POINTER_QUERY = '(pointer: fine)'
 
-/** Радиус светового пятна: это пятно, а не прожектор — край должен оставаться бумагой. */
+/** Радиус светового пятна: это пятно, а не прожектор — край должен остаться бумагой. */
 const DEFAULT_LIGHT_RADIUS = 180
 /** Максимальная тяга magnetic: смещение в несколько пикселей, а не прыжок. */
-const DEFAULT_MAGNETIC_STRENGTH = 8
+const DEFAULT_MAGNETIC_STRENGTH = 6
 /** Радиус, в котором курсор вообще тянет элемент к себе. */
 const DEFAULT_MAGNETIC_RADIUS = 120
 /** Коэффициент сглаживания тяги: меньше — «тяжелее», больше — «резче». */
 const MAGNETIC_EASING = 0.2
 /** Порог, ниже которого разница считается нулём и кадр-за-кадром цикл встаёт. */
 const MAGNETIC_EPSILON = 0.05
+/**
+ * Порог заметного изменения света: меньше половины процента глаз не видит,
+ * а лишняя запись в стиль перерисовывает слой света целиком.
+ */
+const LIGHT_EPSILON = 0.5
+/**
+ * Кап одновременных «тяжёлых» реакций (см. `--motion-cap` в `motion.css`):
+ * свет по кромке живёт максимум на двух поверхностях страницы.
+ */
+const LIGHT_CAP = 2
+/** Магнит в приложении один: тяга — это внимание, а внимания должно быть мало. */
+const MAGNETIC_CAP = 1
 
 /**
- * Признак «мы в браузере». Нужен для SSR-безопасности: composable-ы
- * вызываются и на сервере, где нет ни `window`, ни `document`.
+ * Живые «тяжёлые» реакции: считаем их, чтобы кап был настоящим, а не
+ * декларацией в CSS. Записи удаляются в обвязке элемента, поэтому счётчик
+ * не растёт при переходах роутера.
  */
-function inBrowser(): boolean {
-  return typeof window !== 'undefined' && typeof document !== 'undefined'
-}
+const liveLights = new Set<HTMLElement>()
+const liveMagnetics = new Set<HTMLElement>()
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min
@@ -70,27 +89,12 @@ function round2(value: number): number {
 }
 
 /**
- * Можно ли двигать прямо сейчас.
- *
- * Три стоп-фактора: системная настройка «меньше движения», тач-устройство
- * (там нет курсора — значит нет и реакции на него) и выключенное 3D-качество
- * (пользователь попросил облегчить страницу — лишние пиксельные эффекты
- * на ней не нужны).
- */
-function motionAllowed(): boolean {
-  if (!inBrowser()) return false
-  if (prefersReducedMotion()) return false
-  if (isTouchDevice()) return false
-  return useQuality3D().resolved.value !== 'off'
-}
-
-/**
  * Обвязка примитива с элементом: подписка, отписка и правильный жизненный цикл.
  *
  * Зачем так сложно: ref в Vue заполняется ПОСЛЕ setup, а сам элемент может
  * появиться позже (`v-if`, `v-for`). Поэтому подписка делается в `onMounted`,
  * а `watch` следит за сменой узла — иначе примитив молча не работал бы на
- * динамически созданных элементах. Отписка обязана быть симметричной:
+ * динамически создаваемых элементах. Отписка обязана быть симметричной:
  * иначе «мёртвые» слушатели копятся на каждом переходе роутера.
  */
 function useElementBinding(
@@ -151,7 +155,8 @@ export interface PointerLightOptions {
  *
  * Обновление идёт через `requestAnimationFrame`: события указателя приходят
  * чаще, чем кадры, поэтому в кадр попадает только последнее значение.
- * В самом кадре нет аллокаций объектов — только две записи в стиль.
+ * В кадре нет аллокаций наших объектов — только запись в стиль, и только
+ * если значение заметно изменилось.
  */
 export function usePointerLight(
   el: Ref<HTMLElement | null>,
@@ -161,26 +166,53 @@ export function usePointerLight(
 
   let node: HTMLElement | null = null
   let frame: number | null = null
+  let clientX = 0
+  let clientY = 0
   let pendingX = 50
   let pendingY = 50
+  let appliedX = 50
+  let appliedY = 50
+  let active = false
 
+  /**
+   * Запись в кадр. Пишем только то, что заметно изменилось: и лишняя запись
+   * в стиль, и лишняя сборка строки — работа, которой никто не видит.
+   */
   const write = () => {
+    if (!node) return
+    const nextX = round2(pendingX)
+    const nextY = round2(pendingY)
+    if (Math.abs(nextX - appliedX) >= LIGHT_EPSILON) {
+      appliedX = nextX
+      node.style.setProperty('--mx', `${nextX}%`)
+    }
+    if (Math.abs(nextY - appliedY) >= LIGHT_EPSILON) {
+      appliedY = nextY
+      node.style.setProperty('--my', `${nextY}%`)
+    }
+  }
+
+  /**
+   * Кадр света: замер, пересчёт в проценты, запись. Замер именно здесь:
+   * к моменту кадра браузер уже посчитал раскладку, поэтому чтение
+   * прямоугольника не форсирует пересчёт посреди отрисовки.
+   */
+  const measure = () => {
     frame = null
     if (!node) return
-    node.style.setProperty('--mx', `${round2(pendingX)}%`)
-    node.style.setProperty('--my', `${round2(pendingY)}%`)
+    const rect = node.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+    pendingX = clamp(((clientX - rect.left) / rect.width) * 100, 0, 100)
+    pendingY = clamp(((clientY - rect.top) / rect.height) * 100, 0, 100)
+    write()
   }
 
   const onPointerMove = (event: PointerEvent) => {
     if (!node) return
-    // Замер здесь, а не в кадре: прямоугольник нужен свежим (страница могла
-    // уехать), но читать layout внутри rAF — значит заставлять браузер
-    // пересчитывать раскладку в середине отрисовки.
-    const rect = node.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return
-    pendingX = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100)
-    pendingY = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100)
-    if (frame === null) frame = requestAnimationFrame(write)
+    // Только координаты: всё остальное считается в кадре.
+    clientX = event.clientX
+    clientY = event.clientY
+    if (frame === null) frame = requestAnimationFrame(measure)
   }
 
   useElementBinding(
@@ -190,12 +222,17 @@ export function usePointerLight(
       // пользователя с отключённым движением в разметке останется свет,
       // которого он не заказывал.
       if (disabled || !motionAllowed()) return
+      // Кап: свет — это внимание, и на странице ему место только у героя
+      // и у одной детали. Остальные поверхности остаются статичными.
+      if (liveLights.size >= LIGHT_CAP) return
       node = bound
+      active = true
+      liveLights.add(bound)
       // Статичный эквивалент: пока курсор не над поверхностью, свет в центре.
-      node.style.setProperty('--mx', '50%')
-      node.style.setProperty('--my', '50%')
-      node.style.setProperty('--m-light-radius', `${round2(radius)}px`)
-      node.addEventListener('pointermove', onPointerMove, { passive: true })
+      bound.style.setProperty('--mx', '50%')
+      bound.style.setProperty('--my', '50%')
+      bound.style.setProperty('--m-light-radius', `${round2(radius)}px`)
+      bound.addEventListener('pointermove', onPointerMove, { passive: true })
     },
     (bound) => {
       if (frame !== null) {
@@ -206,6 +243,10 @@ export function usePointerLight(
       bound.style.removeProperty('--mx')
       bound.style.removeProperty('--my')
       bound.style.removeProperty('--m-light-radius')
+      if (active) {
+        liveLights.delete(bound)
+        active = false
+      }
       node = null
     },
   )
@@ -231,6 +272,8 @@ export interface MagneticOptions {
  *
  * Сглаживание живёт в JS (экспоненциальное сближение к цели), а не в CSS:
  * примитив обязан работать сам по себе, без обязательного `material.css`.
+ * Цель считается в кадре, а не в событии: события указателя приходят чаще
+ * кадров, и в кадр попадает только последнее положение курсора.
  */
 export function useMagnetic(
   el: Ref<HTMLElement | null>,
@@ -244,29 +287,79 @@ export function useMagnetic(
 
   let node: HTMLElement | null = null
   let frame: number | null = null
+  let clientX = 0
+  let clientY = 0
   let targetX = 0
   let targetY = 0
   let currentX = 0
   let currentY = 0
+  let writtenX = 0
+  let writtenY = 0
+  let released = false
+  let active = false
 
-  const write = () => {
-    if (!node) return
-    node.style.setProperty('--mag-x', `${round2(currentX)}px`)
-    node.style.setProperty('--mag-y', `${round2(currentY)}px`)
-  }
-
+  /** Кадр тяги: замер, цель, сглаживание, запись. */
   const step = () => {
     frame = null
     if (!node) return
+
+    if (released) {
+      // Указатель ушёл из окна (cancel/blur) — тяги больше нет.
+      targetX = 0
+      targetY = 0
+    } else {
+      const rect = node.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) {
+        targetX = 0
+        targetY = 0
+      } else {
+        const halfWidth = rect.width / 2
+        const halfHeight = rect.height / 2
+        // Смещение самого элемента (translate) сдвигает и прямоугольник —
+        // вычитаем его, иначе получится петля обратной связи и дрейф.
+        const centerX = rect.left + halfWidth - currentX
+        const centerY = rect.top + halfHeight - currentY
+        const dx = clientX - centerX
+        const dy = clientY - centerY
+        // Расстояние до кромки элемента: 0 — курсор над самим элементом.
+        const outsideX = Math.max(0, Math.abs(dx) - halfWidth)
+        const outsideY = Math.max(0, Math.abs(dy) - halfHeight)
+        const distance = Math.hypot(outsideX, outsideY)
+
+        if (distance > radius) {
+          targetX = 0
+          targetY = 0
+        } else {
+          const falloff = 1 - distance / radius
+          targetX = clamp(dx / halfWidth, -1, 1) * strength * falloff
+          targetY = clamp(dy / halfHeight, -1, 1) * strength * falloff
+        }
+      }
+    }
+
     currentX += (targetX - currentX) * MAGNETIC_EASING
     currentY += (targetY - currentY) * MAGNETIC_EASING
     if (Math.abs(targetX - currentX) < MAGNETIC_EPSILON) currentX = targetX
     if (Math.abs(targetY - currentY) < MAGNETIC_EPSILON) currentY = targetY
-    write()
+
+    const nextX = round2(currentX)
+    const nextY = round2(currentY)
+    if (nextX !== writtenX || nextY !== writtenY) {
+      writtenX = nextX
+      writtenY = nextY
+      // Слой готовим только на время движения: постоянный `will-change`
+      // заставляет браузер держать лишний слой композитора всё время.
+      node.style.willChange = 'translate'
+      node.style.setProperty('--mag-x', `${nextX}px`)
+      node.style.setProperty('--mag-y', `${nextY}px`)
+    }
+
     // Кадр нужен только пока элемент едет; как только он пришёл в цель,
     // цикл останавливается — «вечный» rAF в проекте не приветствуется.
     if (currentX !== targetX || currentY !== targetY) {
       frame = requestAnimationFrame(step)
+    } else {
+      node.style.removeProperty('will-change')
     }
   }
 
@@ -276,34 +369,14 @@ export function useMagnetic(
 
   const onPointerMove = (event: PointerEvent) => {
     if (!node) return
-    const rect = node.getBoundingClientRect()
-    const halfWidth = rect.width / 2
-    const halfHeight = rect.height / 2
-    // Смещение самого элемента (translate) сдвигает и прямоугольник —
-    // вычитаем его, иначе получится петля обратной связи и дрейф.
-    const centerX = rect.left + halfWidth - currentX
-    const centerY = rect.top + halfHeight - currentY
-    const dx = event.clientX - centerX
-    const dy = event.clientY - centerY
-    // Расстояние до кромки элемента: 0 — курсор над самим элементом.
-    const outsideX = Math.max(0, Math.abs(dx) - halfWidth)
-    const outsideY = Math.max(0, Math.abs(dy) - halfHeight)
-    const distance = Math.hypot(outsideX, outsideY)
-
-    if (distance > radius) {
-      targetX = 0
-      targetY = 0
-      schedule()
-      return
-    }
-
-    const falloff = 1 - distance / radius
-    targetX = clamp(dx / halfWidth, -1, 1) * strength * falloff
-    targetY = clamp(dy / halfHeight, -1, 1) * strength * falloff
+    released = false
+    clientX = event.clientX
+    clientY = event.clientY
     schedule()
   }
 
-  const onPointerLeave = () => {
+  const onRelease = () => {
+    released = true
     targetX = 0
     targetY = 0
     schedule()
@@ -318,13 +391,17 @@ export function useMagnetic(
       // Тяга — только там, где есть настоящий курсор: на тач-экране
       // «курсор» = палец, и элемент дёргался бы под пальцем.
       if (!window.matchMedia(FINE_POINTER_QUERY).matches) return
+      // Кап: тяга в приложении одна. Второй претендент остаётся статичным.
+      if (liveMagnetics.size >= MAGNETIC_CAP) return
       node = bound
+      active = true
+      liveMagnetics.add(bound)
       bound.style.setProperty('--mag-x', '0px')
       bound.style.setProperty('--mag-y', '0px')
       bound.style.translate = 'var(--mag-x) var(--mag-y)'
       window.addEventListener('pointermove', onPointerMove, { passive: true })
-      window.addEventListener('pointercancel', onPointerLeave, { passive: true })
-      window.addEventListener('blur', onPointerLeave)
+      window.addEventListener('pointercancel', onRelease, { passive: true })
+      window.addEventListener('blur', onRelease)
     },
     (bound) => {
       if (frame !== null) {
@@ -332,11 +409,16 @@ export function useMagnetic(
         frame = null
       }
       window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointercancel', onPointerLeave)
-      window.removeEventListener('blur', onPointerLeave)
+      window.removeEventListener('pointercancel', onRelease)
+      window.removeEventListener('blur', onRelease)
+      if (active) {
+        liveMagnetics.delete(bound)
+        active = false
+      }
       bound.style.removeProperty('--mag-x')
       bound.style.removeProperty('--mag-y')
       bound.style.removeProperty('translate')
+      bound.style.removeProperty('will-change')
       node = null
     },
   )
@@ -350,8 +432,9 @@ export function useMagnetic(
  * Никакого масштабирования: нажатие должно ощущаться как вмятина в бумаге,
  * а не как «элемент стал больше».
  *
- * Клавиатура работает наравне с мышью: Space и Enter держат состояние,
- * пока клавиша нажата.
+ * Здесь нет ни rAF, ни замеров: нажатие — это переключение состояния,
+ * а всю анимацию тени делает CSS. Клавиатура работает наравне с мышью:
+ * Space и Enter держат состояние, пока клавиша нажата.
  */
 export function usePress(el: Ref<HTMLElement | null>): void {
   let node: HTMLElement | null = null
@@ -364,7 +447,7 @@ export function usePress(el: Ref<HTMLElement | null>): void {
       node.dataset.pressed = 'true'
       node.style.setProperty('--press', '1')
     } else {
-      delete node.dataset.pressed
+      node.removeAttribute('data-pressed')
       node.style.removeProperty('--press')
     }
   }
@@ -404,7 +487,7 @@ export function usePress(el: Ref<HTMLElement | null>): void {
       bound.removeEventListener('blur', onBlur)
       // Снятое состояние: на размонтированном элементе «залипшее» нажатие
       // выглядело бы как забытый след чернил.
-      delete bound.dataset.pressed
+      bound.removeAttribute('data-pressed')
       bound.style.removeProperty('--press')
       pressed = false
       node = null
@@ -415,34 +498,11 @@ export function usePress(el: Ref<HTMLElement | null>): void {
 /**
  * Единый ответ на вопрос «можно ли двигать».
  *
- * Значение кэшируется: пересчитывать его на каждый вызов дорого, а между
- * кадрами оно не меняется. Исключение — системная настройка «меньше
- * движения»: на неё подписан `matchMedia`, и подписка снимается, когда
- * потребитель (scope) исчезает.
+ * Источник — `useMotionPreference` из `useGsap`: он следит за системной
+ * настройкой «меньше движения» и за качеством 3D, а подписки снимает
+ * вместе со scope потребителя. Здесь только тонкая обёртка, чтобы
+ * примитивы и вью говорили об одном и том же.
  */
 export function useMotionEnabled(): Readonly<Ref<boolean>> {
-  const enabled = ref(false)
-
-  if (inBrowser()) {
-    enabled.value = !prefersReducedMotion() && !isTouchDevice()
-    if (window.matchMedia) {
-      const query = window.matchMedia(REDUCED_MOTION_QUERY)
-      const onChange = () => {
-        enabled.value = !prefersReducedMotion() && !isTouchDevice()
-      }
-      if (typeof query.addEventListener === 'function') {
-        query.addEventListener('change', onChange)
-        if (getCurrentScope()) {
-          onScopeDispose(() => query.removeEventListener('change', onChange))
-        }
-      } else if (typeof query.addListener === 'function') {
-        query.addListener(onChange)
-        if (getCurrentScope()) {
-          onScopeDispose(() => query.removeListener(onChange))
-        }
-      }
-    }
-  }
-
-  return readonly(enabled) as Readonly<Ref<boolean>>
+  return useMotionPreference()
 }

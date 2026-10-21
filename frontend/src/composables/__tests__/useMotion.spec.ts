@@ -8,6 +8,7 @@ import {
   usePointerLight,
   usePress,
 } from '@/composables/useMotion'
+import { useQuality3D } from '@/composables/useQuality3D'
 
 /**
  * jsdom не умеет matchMedia (его ставит глобальный setup заглушкой, которая
@@ -175,6 +176,9 @@ beforeEach(() => {
   installMatchMedia()
   setMaxTouchPoints(0)
   setTouchDevice(false)
+  // Качество 3D — синглтон приложения: возвращаем его в «auto», чтобы
+  // тесты не зависели от порядка выполнения.
+  useQuality3D().setting.value = 'auto'
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(RECT)
 })
 
@@ -213,12 +217,81 @@ describe('usePointerLight', () => {
     wrapper.unmount()
   })
 
+  it('не пишет в DOM до кадра: запись отложена до requestAnimationFrame', () => {
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 100 }))
+
+    // Событие указателя не пишет в стиль: это делает кадр.
+    expect(el.style.getPropertyValue('--mx')).toBe('50%')
+    expect(el.style.getPropertyValue('--my')).toBe('50%')
+
+    flushFrames()
+
+    expect(el.style.getPropertyValue('--mx')).toBe('100%')
+    expect(el.style.getPropertyValue('--my')).toBe('100%')
+    wrapper.unmount()
+  })
+
+  it('не переписывает значение, если оно почти не изменилось', () => {
+    // Крупная поверхность: здесь один пиксель — это меньше порога заметности.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...RECT,
+      width: 1000,
+      height: 1000,
+      right: 1000,
+      bottom: 1000,
+    } as DOMRect)
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 500 }))
+    flushFrames()
+    expect(el.style.getPropertyValue('--mx')).toBe('50%')
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 504, clientY: 500 }))
+    flushFrames()
+
+    // 4 пикселя из 1000 — меньше половины процента: перерисовка не нужна.
+    expect(el.style.getPropertyValue('--mx')).toBe('50%')
+    wrapper.unmount()
+  })
+
+  it('отменяет запланированный кадр при размонтировании', () => {
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+    const cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame')
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 10, clientY: 10 }))
+    wrapper.unmount()
+
+    expect(cancelSpy).toHaveBeenCalled()
+    // Стили очищены, и никакой оставшийся кадр не вернёт их обратно.
+    flushFrames()
+    expect(el.style.getPropertyValue('--mx')).toBe('')
+    expect(el.style.getPropertyValue('--my')).toBe('')
+  })
+
   it('не пишет координаты при prefers-reduced-motion: reduce', () => {
     installMatchMedia({ '(prefers-reduced-motion: reduce)': true })
     const wrapper = mount(LightProbe)
     const el = wrapper.element as HTMLElement
 
     el.dispatchEvent(new MouseEvent('pointermove', { clientX: 20, clientY: 20 }))
+    flushFrames()
+
+    expect(el.style.getPropertyValue('--mx')).toBe('')
+    expect(el.style.getPropertyValue('--my')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('не пишет координаты при выключенном качестве 3D', () => {
+    useQuality3D().setting.value = 'off'
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 100 }))
     flushFrames()
 
     expect(el.style.getPropertyValue('--mx')).toBe('')
@@ -311,6 +384,49 @@ describe('useMagnetic', () => {
     wrapper.unmount()
   })
 
+  it('выключен при выключенном качестве 3D', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    useQuality3D().setting.value = 'off'
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+
+    expect(el.style.getPropertyValue('--mag-x')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('останавливает кадровый цикл, когда элемент доехал до цели', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame')
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(60)
+    const scheduled = rafSpy.mock.calls.length
+    expect(scheduled).toBeGreaterThan(1)
+
+    // Элемент доехал: цикл больше не планирует кадров.
+    flushFrames(30)
+    expect(rafSpy.mock.calls.length).toBe(scheduled)
+    wrapper.unmount()
+  })
+
+  it('навешивает will-change только на время смещения', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(2)
+    expect(el.style.getPropertyValue('will-change')).toBe('translate')
+
+    flushFrames(80)
+    expect(el.style.getPropertyValue('will-change')).toBe('')
+    wrapper.unmount()
+  })
+
   it('снимает слушатель после размонтирования', () => {
     installMatchMedia({ '(pointer: fine)': true })
     const removeSpy = vi.spyOn(window, 'removeEventListener')
@@ -374,6 +490,18 @@ describe('usePress', () => {
     expect(el.hasAttribute('data-pressed')).toBe(false)
     expect(el.style.getPropertyValue('--press')).toBe('')
   })
+
+  it('не планирует кадров: нажатие — это переключение состояния', () => {
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame')
+    const wrapper = mount(PressProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new MouseEvent('pointerdown'))
+    el.dispatchEvent(new MouseEvent('pointerup'))
+
+    expect(rafSpy).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })
 
 describe('useMotionEnabled', () => {
@@ -394,6 +522,26 @@ describe('useMotionEnabled', () => {
     installMatchMedia()
 
     expect(useMotionEnabled().value).toBe(true)
+  })
+
+  it('выключается при выключенном качестве 3D', () => {
+    installMatchMedia()
+    useQuality3D().setting.value = 'off'
+
+    expect(useMotionEnabled().value).toBe(false)
+  })
+
+  it('реагирует на смену качества 3D', async () => {
+    installMatchMedia()
+    const wrapper = mount(MotionEnabledProbe)
+    expect(wrapper.text()).toBe('true')
+
+    useQuality3D().setting.value = 'off'
+    await nextTick()
+    await nextTick()
+
+    expect(wrapper.text()).toBe('false')
+    wrapper.unmount()
   })
 
   it('реагирует на смену prefers-reduced-motion', async () => {
@@ -431,5 +579,35 @@ describe('примитивы без окна (SSR) и с пустым ref', () =
     expect(useMotionEnabled().value).toBe(false)
 
     vi.unstubAllGlobals()
+  })
+})
+
+describe('бюджет внимания', () => {
+  // Тест идёт последним: кап считает живые реакции, поэтому он зависит от
+  // того, что все предыдущие примитивы уже сняты.
+  it('кап тяжёлых реакций: лишние поверхности остаются статичными', () => {
+    const first = mount(LightProbe)
+    const second = mount(LightProbe)
+    const third = mount(LightProbe)
+
+    const firstEl = first.element as HTMLElement
+    const secondEl = second.element as HTMLElement
+    const thirdEl = third.element as HTMLElement
+
+    firstEl.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 100 }))
+    secondEl.dispatchEvent(
+      new MouseEvent('pointermove', { clientX: 200, clientY: 100 }),
+    )
+    thirdEl.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 100 }))
+    flushFrames()
+
+    // Две поверхности получили свет (это и есть кап), третья осталась статичной.
+    expect(firstEl.style.getPropertyValue('--mx')).toBe('100%')
+    expect(secondEl.style.getPropertyValue('--mx')).toBe('100%')
+    expect(thirdEl.style.getPropertyValue('--mx')).toBe('')
+
+    first.unmount()
+    second.unmount()
+    third.unmount()
   })
 })

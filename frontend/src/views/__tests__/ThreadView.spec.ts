@@ -12,6 +12,10 @@ vi.mock('@/composables/useGsap', () => ({
   Flip: {},
   prefersReducedMotion: () => true,
   isTouchDevice: () => false,
+  // Единая точка правды «можно ли двигать» (см. `useGsap`): в этой подмене
+  // движение выключено — как и при `prefers-reduced-motion: reduce`.
+  motionAllowed: () => false,
+  useMotionPreference: () => ({ value: false }),
 }))
 vi.mock('@/composables/usePageMorph', () => ({
   captureMorph: vi.fn(),

@@ -216,7 +216,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 
 ### Фаза 5 — Дедупликация, перф, a11y, guard'ы, документация
 
-- [ ] M-T13. Motion guard — `scripts/verify-motion.mjs` (new, рядом с `verify-3d.mjs`) + npm-скрипт
+- [x] M-T13. Motion guard — `scripts/verify-motion.mjs` (new, рядом с `verify-3d.mjs`) + npm-скрипт
       `verify:motion` в `package.json` (единственное разрешённое изменение package.json). Проверки:
       запрет `transition: all`; запрет «сырых» `cubic-bezier(...)` и `NNms` в `.vue` (кроме самого motion.css
       и точечных исключений, перечисленных явным списком); запрет `transform: scale(...)` в `:hover`-правилах
@@ -232,7 +232,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       плюс `src/components/thread/*`, `src/components/composer/*` — НЕ трогать `src/three/*` и `src/views/PlatinumView.vue`
       (они в M-T12) и не трогать `src/components/platinum/ArchiveEmpty.vue`.
       | Файлы: `frontend/src/**` (.vue/.css, кроме исключений выше) | deps: M-T13 | size: L
-- [ ] M-T15. Перф-дисциплина motion — `src/composables/useMotion.ts`, `src/composables/useGsap.ts`,
+- [x] M-T15. Перф-дисциплина motion — `src/composables/useMotion.ts`, `src/composables/useGsap.ts`,
       `src/assets/motion.css`, `src/assets/material.css`. Правила: только compositor-свойства
       (transform/opacity) в анимациях; `box-shadow`/`filter` — не в горячем пути; `will-change` — только
       на время анимации, не «навсегда на элементе»; кап одновременных анимаций (магнит — 1, pointer-light — 2);
@@ -265,5 +265,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 - 2026-10-21 00:22 батч 3 запущен: M-T5 (главная/карточки/шапка), M-T6 (тред/композер), M-T7 (launch/report/scan/watch/служебные вью) — файлы не пересекаются
 - 2026-10-21 00:58 батч 3 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 тестов) → коммит ниже. Масштабирование вычищено из hover-реакций (LaunchBay, ReportProbe, TransmitControl, SignalDock)
 - 2026-10-21 00:58 батч 4 запущен: M-T13 (motion guard), M-T15 (перф-дисциплина) — файлы не пересекаются
+- 2026-10-21 09:46 батч 4 DONE + верификация зелёная (verify:3d 116/116, verify:motion 35 проверок + реестр долгов, lint 0, build OK, test 68 файлов/1041 тест) → коммит ниже
+- 2026-10-21 09:46 батч 5 запущен: M-T14 (финальная дедупликация), M-T16 (a11y-аудит motion) — файлы не пересекаются
 
 ## Проблемы / заблокировано

@@ -15,6 +15,10 @@ vi.mock('@/composables/useGsap', () => ({
   Flip: {},
   prefersReducedMotion: () => false,
   isTouchDevice: () => false,
+  // Единая точка правды «можно ли двигать» (см. `useGsap`): здесь движение
+  // разрешено — как и при `prefers-reduced-motion: no-preference`.
+  motionAllowed: () => true,
+  useMotionPreference: () => ({ value: true }),
 }))
 
 const DRAFT_KEY = 'draft:report-42'
