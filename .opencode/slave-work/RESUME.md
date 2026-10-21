@@ -1,4 +1,4 @@
 resume_decision: fresh
-goal: UX-переосмысление основных пользовательских форм (Signal Dock / Launch Bay / Report Probe)
-ts: 2026-10-15T12:16
-note: план ThreadView redesign заархивирован по выбору пользователя (PLAN-1792055778.md); задачи по reply/report/созданию треда войдут в новый план.
+goal: Motion design system — масштабная художественная полировка всех пользовательских взаимодействий BMSTUDvach
+ts: 2026-10-21T11:36
+note: волна 1 «Archive Space» закрыта (19/19) и заархивирована; волна 2 «Motion system» закрыта (19/19, M-T1…M-T18b). План complete, следующая цель — новая.
