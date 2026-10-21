@@ -1,282 +1,228 @@
-# Slave Work Plan — Motion Design System BMSTUDvach: премиальная полировка всех взаимодействий
+# Slave Work Plan — Visual QA & Performance Audit BMSTUDvach (desktop + mobile)
 
-- Статус: complete
+- Статус: in progress
 - Модель субагентов: `opencode-go/minimax-m3.1-flash-free`
-- Запуск: 2026-10-20 (волна 2; волна 1 «Archive Space» завершена и заархивирована)
+- Запуск: 2026-10-21 (волна 3; волны 1 «Archive Space» и 2 «Motion system» завершены и заархивированы)
 - Engine: cli (`opencode run --model opencode-go/minimax-m3.1-flash-free --agent build --auto`), parallel: 6, waves: 1
 
 ## Цель (одной строкой)
 
-Собрать премиальную систему motion design для всего продукта: единые токены и примитивы
-(kinetic typography, material reactions, magnetic interactions, reactive lighting), оригинальные
-состояния loading/error/empty, shader-акценты в 3D — и вычистить дублирующиеся стандартные
-hover/fade/scale так, чтобы страницы стали легче, а не тяжелее.
-
-## Художественный закон (обязателен для всех задач)
-
-Метафора продукта — **«редакционный архив»**: тёплая бумага, чернила, один печатный акцент.
-Значит и движение должно быть материальным, а не «конфетным»:
-
-- **Движение = реакция материала, а не украшение.** Бумага не «прыгает» — она отзывается на свет,
-  впитывает чернила при нажатии, слегка приподнимается под пальцем.
-- **Никакого масштаба ради масштаба.** Hover не должен увеличивать элемент. Реакция = свет по краю,
-  тень, чернильный акцент, сдвиг на 1–2px максимум. `transform: scale(1.05)` — запрещённый приём.
-- **Один акцент на взаимодействие.** За один момент времени в кадре — максимум один акцентный цвет
-  (`--accent` #2F4F4E) и максимум один янтарный (`--amber` #d4882a) «отклик».
-- **Тишина важнее эффекта.** Если анимация не читается как «бумага/чернила/свет» — её убрать.
-- **Никакого неона, CRT-эффектов и sci-fi свечения** (CRT в проекте есть, но он opt-in и по умолчанию выключен).
-- **Бюджет внимания:** magnetic — максимум 1 элемент в зоне видимости; kinetic-типографика — максимум
-  3 места в приложении; pointer-light — только на «герой»-поверхностях; длинные списки — только opacity.
-- **Каждый элемент, который двигается, обязан иметь статичный эквивалент** (final frame) для
-  `prefers-reduced-motion: reduce` и для первого кадра до запуска анимации (никакого FOUC/«засвеченного» текста).
+Провести настоящий визуальный QA и performance-аудит всего продукта в реальном браузере
+(desktop + mobile): снять все страницы и состояния, найти визуальную непоследовательность,
+слабую композицию, дешёвые эффекты, разрывы анимаций, проблемы WebGL/FPS/памяти — исправить
+их и закрепить воспроизводимыми visual regression checks.
 
 ## Контекст для субагентов
 
-- **Стек:** Vue 3 + TS + Vite + Pinia + GSAP 3.15 (+ ScrollTrigger, Flip) + Three.js 0.186.
-  Работа только во `frontend/` (+ `docs/` для документации). Backend не трогаем. **Новые зависимости запрещены** —
-  `package.json` не менять.
-- **Дизайн-система:** `frontend/src/assets/main.css` (токены: палитра, типографика, spacing, motion-токены),
-  `frontend/src/assets/animations.css` (keyframes + utility-классы), `frontend/src/assets/fonts.css`.
-  Стили подключаются в `frontend/src/main.ts` (`import './assets/main.css'`, `import './assets/animations.css'`).
-- **Палитра:** бумага `--paper #F2EDE0`, `--paper-raised #EAE4D4`, `--paper-sunken #F7F3E8`;
-  чернила `--ink #1C1A14`, `--ink-secondary #5B5547`, `--ink-tertiary #8A8273`; правило `--rule #D4CEB8`;
-  акцент `--accent #2F4F4E` (+`--accent-hover #244140`); янтарь в 3D — `AMBER 0xd4882a` (в DOM-токенах
-  янтаря пока нет — его можно завести как `--amber #d4882a`); опасность `--danger #9C2A1F`, успех `--success #3D7A5A`.
-  Шрифты: Cormorant Garamond (display), Inter (body), JetBrains Mono (micro-labels).
-- **Существующие motion-примитивы (НЕ дублировать, а переиспользовать/развивать):**
-  `composables/useGsap.ts` (`gsap`, `ScrollTrigger`, `Flip`, `prefersReducedMotion()`, `isTouchDevice()`),
-  `useScrollReveal.ts` (GSAP + ScrollTrigger.batch, `.reveal`), `usePostReveal.ts` (GSAP stagger по новым постам),
-  `usePageMorph.ts` (shared-element переходы), `useTilt.ts` (наклон по курсору — это уже 3D-tilt, не magnetic),
-  `useParallax.ts` (координаты мыши), `useQuality3D.ts` (качество 3D: `off|low|high`), `useSound.ts`.
-- **Состояния:** `components/LoadingState.vue` (225 стр., «ПОИСК СИГНАЛА»), `components/ErrorState.vue` (211),
-  `components/EmptyState.vue` (96, «ПУСТОЙ УЗЕЛ»), `components/platinum/ArchiveEmpty.vue` (язык архива).
-  Стабильные `data-testid`: `loading`, `state-loading`, `empty`, `state-empty`, `error` (проверь в файлах), `archive-empty`.
-- **3D:** `src/three/archive/{layout,materials,space}.ts` (архив платинума: кольца-эпохи, пластины-истории,
-  процедурные материалы с GLSL), `src/three/network.ts` (сеть: доски/посты/сигналы), `src/three/warps.ts`
-  (шейдерные переходы), `src/three/sceneState.ts` (режимы `home|board|thread|platinum|error` + шина событий),
-  `src/composables/useThreeScene.ts` (ленивый `import('three')`, `MAX_ACTIVE_CONTEXTS = 2`, пауза по
-  visibility/IntersectionObserver, деградация по FPS, `dispose()`), `src/components/three/*Canvas.vue`.
-  Конвенция: `three/`-модули — чистые билдеры + юнит-тесты; канвасы — тонкие Vue-обёртки.
-- **Масштаб проблемы (инвентаризация):** 99 `:hover`-правил в 40 .vue-файлах, 151 `transition:`, 35 `@keyframes`,
-  23 «сырых» `transition: ... Nms`, 15 «сырых» `cubic-bezier(...)` в .vue, 2 `transition: all 220ms`
-  (`components/launch/LaunchBay.vue`, `components/composer/SignalDock.vue`). Токены `--ease-out`,
-  `--ease-out-quart`, `--ease-out-expo` объявлены ОДИНАКОВО (`cubic-bezier(0.33, 1, 0.68, 1)`) — смысла в трёх
-  именах нет. `views/HomeView.vue` дублирует все токены локально в `.home { --paper: ...; }` — дублирование
-  надо убрать. `components/composer/SignalDock.vue` — 1480 строк, `views/ThreadView.vue` — 1273: правки точечные.
-- **Команды верификации (запускать из `frontend/`):**
-  - `npm run verify:3d` (116 структурных проверок — НЕ должны падать; новые пилюли добавляем в M-T13/M-T14)
+- **Стек:** Vue 3 + TS + Vite 5 + Pinia + GSAP 3.15 (+ScrollTrigger, Flip) + Three.js 0.186.
+  Работа только во `frontend/` (+ `docs/`). Backend не трогать. **Новые зависимости запрещены** —
+  `package.json` не менять, кроме ОДНОГО владельца (см. Q-T10).
+- **Дизайн-система:** `src/assets/main.css` (палитра/типографика/spacing), `src/assets/motion.css`
+  (роли движения), `src/assets/material.css` (материальные реакции). Арт-дирекшн — `docs/ART_DIRECTION.md`.
+- **Маршруты (src/router/index.ts):** `/` (home), `/boards/:boardSlug`, `/threads/:threadId`,
+  `/platinum`, `/platinum/:storyId`, `/about`, `/moderation`, `/stats`, `*` (404).
+  Сцена 3D меняется по `meta.scene`: `home|board|thread|platinum|error`.
+- **API:** фронт ходит в `http://localhost:8000/api/v1` (`src/api/client.ts`, `API_BASE_URL`).
+  Эндпоинты: `/boards/`, `/boards/:slug/`, `/boards/:slug/threads/`, `/threads/recent/?limit=`,
+  `/threads/:id/`, `/posts/:id/`, `/posts/:id/reports/`, `/platinum/`, `/platinum/:id/`,
+  `/telemetry/`, `/telemetry/activity/?days=`, `/mentions/`, `/announcements/`, `/search/?`,
+  `/staff/...`. **Бэкенд в QA не поднимаем** — данные подменяются перехватом запросов в браузере
+  (см. Q-T1/Q-T2): это даёт ДЕТЕРМИНИРОВАННЫЕ снимки (нужно для visual regression).
+- **3D:** `src/three/archive/{layout,materials,space}.ts`, `src/three/network.ts`, `src/three/warps.ts`,
+  `src/composables/useThreeScene.ts` (ленивый `import('three')`, `MAX_ACTIVE_CONTEXTS = 2`,
+  пауза по visibilitychange/IntersectionObserver, деградация по FPS, `dispose()`),
+  `src/components/three/*Canvas.vue`. Конвенция: `three/` — чистые билдеры + юнит-тесты,
+  канвасы — тонкие Vue-обёртки.
+- **Состояния:** `components/{LoadingState,ErrorState,EmptyState,NotFoundState}.vue`,
+  `components/platinum/ArchiveEmpty.vue`; стабильные `data-testid`: `loading`, `state-loading`,
+  `empty`, `state-empty`, `error`, `not-found`, `archive-empty`, `fragment-row`, `platinum-story`.
+- **Команды верификации (из `frontend/`):**
+  - `npm run verify:3d` (116 структурных проверок — не должны падать)
+  - `npm run verify:motion` (47 проверок motion-системы — не должны падать)
   - `npm run lint` (`eslint --max-warnings 0`)
-  - `npm run build` (`vue-tsc --noEmit` + `vite build`; three в отдельном чанке)
-  - `npm run test` (vitest; сейчас 60 файлов / 898 тестов — покрытие только растить)
-  - `npm run format:check` (prettier) — не забывать формат
+  - `npm run build` (`vue-tsc --noEmit` + `vite build`)
+  - `npm run test` (vitest; сейчас 69 файлов / 1074 теста — покрытие только растить)
 - **Грабли:**
-  - `verify-3d.mjs` жёстко проверяет: `network.ts` содержит `TorusGeometry` + `setStoryCount` + `Raycaster` +
-    `lostNode` + `pulseAt`/`sendReply`; `sceneState.ts` — все 5 режимов + `onSceneEvent`/`emitSceneEvent`;
-    `PlatinumView.vue` — `setStoryCount` + `listPlatinumStories`; роуты — `scene: 'platinum'`; three в manualChunks.
-    Эти проверки НЕЛЬЗЯ ломать.
-  - `sceneState.ts` — общий файл: новые поля/события добавлять АДИТИВНО, существующие экспорты
-    (`setStoryCount`, `syncBoards`, `highlightBoard`, `setSceneMode`) не удалять и не переименовывать.
-  - Тип `SceneEvent` — union: новые варианты дописывать в конец.
-  - Тесты завязаны на `data-testid` — сохранять: `fragment-row`, `platinum-empty`, `platinum-story`,
-    `loading`, `state-loading`, `empty`, `state-empty`, `error`, `archive-live`, `archive-mode-toggle`.
-  - `prefersReducedMotion()` + `@media (prefers-reduced-motion: reduce)` — обязательны во всех новых анимациях.
-  - Mobile 320px+: 3D и motion не должны съедать контент; тач-устройства — без hover-зависимостей.
-  - `gsap.context(fn, scope)` + `revert()` при unmount — конвенция проекта для GSAP-анимаций.
-  - Мок `defineAsyncComponent` в vitest требует `__esModule: true` (см. `components/three/__tests__/AmbientField.spec.ts`).
-  - Файлы сцен обязаны чистить: `keep()`/dispose-паттерн, как в `network.ts`.
-  - Мусорка `transition: all` ломает анимации неожиданных свойств — запрещено.
+  - `verify:3d` жёстко проверяет `network.ts` (`TorusGeometry`, `setStoryCount`, `Raycaster`,
+    `lostNode`, `pulseAt`, `sendReply`), `sceneState.ts` (5 режимов + `onSceneEvent`/`emitSceneEvent`),
+    `PlatinumView.vue` (`setStoryCount` + `listPlatinumStories`), роуты (`scene: 'platinum'`), three в manualChunks.
+  - `verify:motion` запрещает: `transition: all`, сырые `cubic-bezier(...)`/`NNms`, `transform: scale(...)`
+    в `:hover`, дубли `@keyframes`, локальные копии токенов палитры, вечный `will-change`,
+    локальные объявления ритмов. Любая правка CSS обязана это учитывать.
+  - `sceneState.ts` — общий файл: новые поля/события только АДИТИВНО, существующие экспорты не переименовывать.
+  - `prefersReducedMotion()` + `@media (prefers-reduced-motion: reduce)` — обязательны.
+  - Мок `defineAsyncComponent` в vitest требует `__esModule: true`.
+  - `data-testid` не удалять и не переименовывать.
+
+## Железные правила QA (для всех задач)
+
+1. **Никаких правок UI «на глаз».** Сначала снимок/замер → потом вывод → потом правка.
+   Каждое замечание должно иметь: маршрут, вьюпорт, координаты/селектор, что именно не так, как
+   исправлено, чем проверено.
+2. **Реальный браузер обязателен.** Правка считается проверенной только если: (а) сделана в реальном
+   Chrome через CDP-харнесс (Q-T1), (б) сделан новый снимок ДО/ПОСЛЕ, (в) дефект на новом снимке исчез,
+   (г) остальные проверки зелёные. «На глаз по коду» — не проверка.
+3. **Фикстуры детерминированы.** Никаких дат «сейчас», случайных id, Math.random в фикстурах —
+   иначе снимки нельзя сравнивать.
+4. **Ничего не «для галочки».** Мёртвый код, заглушки и «зелёные» проверки, которые ничего не
+   проверяют, — хуже, чем их отсутствие. Guard должен ловить реальный дефект (проверяй мутацией).
+5. **Бюджет ресурсов:** не добавлять ни одного постоянного слушателя/таймера/rAF-цикла;
+   3D-контексты — в рамках `MAX_ACTIVE_CONTEXTS = 2`.
 
 ## Общие правила для каждого субагента
 
-- Работать автономно, вопросы не задавать. Неизвестное решать самому по конвенциям проекта.
-- Сначала прочитать этот PLAN.md (разделы «Художественный закон», «Контекст», «Общие правила»), затем целевые
-  файлы И СОСЕДНИЕ с ними — чтобы соблюсти стиль (комментарии в коде объясняют ПОЧЕМУ, а не ЧТО).
-- Следовать конвенциям: `three/`-модули — чистые билдеры + юнит-тесты; канвасы — тонкие Vue-обёртки;
-  Vue-компоненты — `<script setup lang="ts">` + `<template>` + `<style scoped>`.
-- НЕ коммитить и НЕ пушить. Не трогать файлы вне списка своей задачи. Не трогать PLAN.md и `results/` других задач.
-- Один файл = один владелец в батче: не редактировать файл задачи, идущей параллельно.
-- После правок прогнать (из `frontend/`): `npm run verify:3d && npm run lint && npm run build && npm run test`
-  и починить последствия СВОИХ правок (pre-existing/конкурентные падения — зафиксировать в отчёте, НЕ чинить чужие файлы).
+- Работать автономно, вопросы не задавать. Сначала прочитать этот PLAN.md, потом целевые файлы
+  и соседние с ними — чтобы соблюсти стиль (комментарии по-русски объясняют «почему»).
+- НЕ коммитить и НЕ пушить. Не трогать файлы вне списка своей задачи. Не трогать PLAN.md и
+  `results/` других задач. Один файл = один владелец в батче.
+- После правок прогнать (из `frontend/`): `npm run verify:3d && npm run verify:motion && npm run lint
+  && npm run build && npm run test` и починить последствия СВОИХ правок.
 - Не расширять scope; идеи — в FOLLOWUPS.
-- Отчёт строго по формату промпта, обязательно записать `results/<TASK-ID>.md`.
-- Комментарии в коде — по-русски, в стиле проекта; объясняют «почему», а не «что».
+- Отчёт строго по формату промпта + обязательно `results/<TASK-ID>.md`.
 
 ## Задачи
 
-### Фаза 1 — Фундамент: токены, примитивы, кинетическая типографика
+### Фаза 1 — Харнесс: реальный браузер, фикстуры, перф-проба
 
-- [x] M-T1. Motion-токены и шкала времени — `src/assets/motion.css` (new) + правки `src/assets/main.css`
-      и `src/main.ts` (импорт). Ввести СЕМАНТИЧЕСКИЕ РОЛИ (не «fast/medium/slow», а по смыслу):
-      `--motion-hover` (150ms, стандартная кривая), `--motion-press` (120ms, кривая входа),
-      `--motion-reveal` (600ms, entrance), `--motion-kinetic` (per-word 28ms), `--motion-magnetic` (spring 480ms),
-      `--motion-cinematic` (900ms) + 4 кривые с РАЗНЫМИ характерами: `--ease-standard` (cubic-bezier(0.2,0,0,1)),
-      `--ease-emphasized` (0.33,1,0.68,1), `--ease-entrance` (0.16,1,0.3,1), `--ease-exit` (0.4,0,1,1).
-      Старые `--ease-out/--ease-out-quart/--ease-out-expo` оставить как алиасы (их используют 100+ мест),
-      но развести по смыслу: `--ease-out` → standard, `--ease-out-quart` → emphasized, `--ease-out-expo` → entrance.
-      Убрать локальные копии токенов из `views/HomeView.vue` (`.home { --paper: ... }`) и подобных мест —
-      токены живут в `main.css`. Добавить в `motion.css` базовые классы-хелперы: `.motion-press`,
-      `.motion-reveal` (появление без FOUC: стартовое состояние + финальный кадр), `.motion-quiet`.
-      | Файлы: `src/assets/motion.css` (new), `src/assets/main.css`, `src/main.ts`, `src/views/HomeView.vue` | deps: none | size: M
-- [x] M-T2. Motion-примитивы — `src/composables/useMotion.ts` (new). Экспортируемые хуки:
-      `usePointerLight(el, opts)` — реактивное освещение: пишет в CSS custom properties `--mx/--my` (в %),
-      обновление через rAF-throttle, без аллокаций в кадре, отключено при reduced-motion/тач-устройстве;
-      `useMagnetic(el, opts)` — magnetic interaction: элемент смещается к курсору (порог + радиус + сила),
-      плавный возврат, `pointer: fine` only, reduced-motion → выключено;
-      `usePress(el)` — материальная реакция нажатия (data-атрибут `--pressed` + короткий импульс);
-      `useMotionEnabled()` — единая проверка «можно ли двигать» (reduced-motion + тач + `useQuality3D`).
-      Обязательно: подписки снимаются в `onUnmounted`, никаких глобальных слушателей без разбора.
-      | Файлы: `src/composables/useMotion.ts` (new), `src/composables/__tests__/useMotion.spec.ts` (new) | deps: M-T1 | size: M
-- [x] M-T3. Kinetic typography — `src/components/ui/KineticText.vue` (new) + тест. Кинетический текст
-      как МАСКА: строка/слово выезжает из-под «бумажной» маски (clip/overflow) с лёгким смещением и
-      blur-остатком; props: `text`, `mode: 'lines'|'words'`, `delay`, `stagger`, `as` (тег), `ease`.
-      A11y: на контейнере `aria-label` с полным текстом, визуальные куски `aria-hidden`, без дублей для скринридера.
-      Reduced-motion: текст виден сразу, без `opacity: 0` в DOM. Без FOUC: до запуска — финальный кадр,
-      анимация только при появлении в вью. Компонент НЕ применяется массово — он будет использован в M-T5.
-      | Файлы: `src/components/ui/KineticText.vue` (new), `src/components/ui/__tests__/KineticText.spec.ts` (new) | deps: M-T1 | size: M
+- [ ] Q-T1. Browser QA харнесс — `frontend/scripts/browser-qa.mjs` (new), `frontend/scripts/qa-fixtures.mjs` (new).
+      Сделать РАБОЧИЙ, воспроизводимый инструмент на голом Node (зависимости не добавлять!):
+      (1) **CDP-клиент:** встроенный в Node `WebSocket` (Node ≥ 22) + `fetch` к `http://127.0.0.1:<port>/json/*`.
+      Подключение к уже запущенному Chrome ИЛИ запуск своего: ищи Chrome в
+      `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, `google-chrome`, `chromium`,
+      `CHROME_PATH` из env. Флаги для 3D в headless: `--headless=new --hide-scrollbars
+      --enable-unsafe-swiftshader --use-gl=angle --use-angle=swiftshader --remote-debugging-port=0`
+      (проверено: WebGL 2.0 работает через SwiftShader).
+      (2) **Перехват API:** через CDP `Fetch.enable` подменять запросы на `http://localhost:8000/api/v1/*`
+      ответами из `qa-fixtures.mjs` (детерминированные данные: доски, треды, посты, платинум,
+      телеметрия, упоминания, анонсы, поиск). Режимы фикстур: `ok` (данные есть), `empty` (пустые
+      списки), `error` (500 на выбранных эндпоинтах), `offline` (сетевая ошибка).
+      (3) **Обход маршрутов:** CLI-флаги `--routes=/,/platinum,...`, `--viewport=desktop|mobile|narrow`
+      (1440×900, 390×844, 320×720), `--out=<dir>`, `--mode=ok|empty|error|offline`, `--wait=ms`.
+      Для каждого маршрута: скриншот PNG, console-ошибки/варнинги, page errors, неудачные запросы,
+      тайминги (DOMContentLoaded, load), «первый кадр» (когда в DOM появился контент вью).
+      (4) **Артефакты:** `frontend/.qa-artifacts/` (добавить в `.gitignore`!), структура
+      `<out>/<viewport>/<route-slug>[-<mode>].png` + `report.json` (сводка по всем маршрутам).
+      (5) Скрипт обязан работать: `node scripts/browser-qa.mjs --routes=/ --viewport=desktop` →
+      PNG на диске + `report.json`; при отсутствии Chrome — понятная ошибка и код выхода 1.
+      (6) Никаких изменений в `src/` на этом этапе (инструмент — отдельный слой).
+      | Файлы: `frontend/scripts/browser-qa.mjs` (new), `frontend/scripts/qa-fixtures.mjs` (new), `.gitignore` | deps: none | size: L
+- [ ] Q-T2. Перф-проба — `frontend/scripts/perf-audit.mjs` (new) на том же CDP-клиенте:
+      (1) **FPS/frame-time:** измерять в реальном времени (НЕ virtual-time) окном ≥ 3 с: считать
+      кадры через `requestAnimationFrame`, отсчитывать время до первого содержательного кадра
+      (появление вью-контента), p50/p95 frame-time; снимать при переходе между маршрутами.
+      ВАЖНО: headless идёт на SwiftShader (программный рендер) — FPS там НЕ показателен для реального
+      железа; измерять относительные вещи (стабильность, деградация, отсутствие «провалов»),
+      а абсолютные числа помечать как software-renderer.
+      (2) **Память:** `performance.memory` (usedJSHeapSize) — снимок после каждого маршрута;
+      «утечка» = рост heap при 5–10 повторных переходах назад и вперёд (порог зафиксировать в отчёте).
+      (3) **WebGL:** через `WEBGL_debug_renderer_info` — renderer/версия/DPR; плюс счётчики three.js:
+      добавить в приложение НЕЛЬЗЯ без согласования — вместо этого снимать `renderer.info` через
+      публичный доступ? Если публичного доступа нет — считать через перехват `WebGLRenderingContext`
+      вызовов (drawElements/drawArrays/createTexture/createBuffer) с подсчётом: это честный и внешний
+      способ, не требующий правок приложения.
+      (4) **Контексты:** считать `WEBGL_lose_context`/активные контексты (Chrome: `chrome://gpu` недоступен —
+      использовать перехват `getContext('webgl2')`), фиксировать, сколько контекстов создаётся при
+      навигации (лимит проекта — `MAX_ACTIVE_CONTEXTS = 2`).
+      (5) Вывод: `frontend/.qa-artifacts/perf/report.json` + человекочитаемый отчёт в консоли.
+      | Файлы: `frontend/scripts/perf-audit.mjs` (new) | deps: Q-T1 | size: M
 
-### Фаза 2 — Материальные реакции и реактивное освещение (DOM)
+### Фаза 2 — Съёмка и анализ (правок в `src/` на этом этапе НЕТ)
 
-- [x] M-T4. Material layer — `src/assets/material.css` (new) + импорт в `src/main.ts`. Единый язык
-      реакций поверхностей: `.surface-paper` (бумага: очень мягкая тень + 1px кромка `--rule`),
-      `.react-lift` (наведение: тень растёт, кромка светлеет, сдвиг 0 — БЕЗ scale),
-      `.react-press` (нажатие: элемент «впитывается» — тень сжимается, кромка темнеет, 1px вниз),
-      `.react-edge` (свет по кромке со стороны курсора через `--mx/--my`),
-      `.react-ink` (чернильный акцент: тонкая линия/подчёркивание, проявляющаяся от края).
-      Токены: `--material-shadow-1/2`, `--material-edge`, `--material-press-delta`.
-      Всё без `transform: scale`, без `transition: all`; только transition/opacity/box-shadow/border-color.
-      | Файлы: `src/assets/material.css` (new), `src/main.ts` | deps: M-T1 | size: S
-- [x] M-T5. Применение: главная и карточки — `src/views/HomeView.vue`, `src/components/ui/BoardCard3D.vue`,
-      `src/components/ui/DepthCard.vue`, `src/components/layout/AppHeader.vue`, `src/components/ui/DepthCard.vue`.
-      Что делать: (а) hero-CTA получает material-реакцию + pointer-light (реактивное освещение бумаги),
-      (б) карточки досок — `.react-lift` + `.react-edge` вместо текущих ad-hoc hover (убери `transform: scale`
-      и дублирующие `transition`), (в) `KineticText` — на ОДНОМ заголовке (hero-kicker или заголовок раздела
-      «Разделы»), (г) шапка — тихая реакция, без параллакса. Обязательно: `useTilt` в карточках оставить
-      (это наклон, а не magnetic) — не дублировать наклон через material-классы.
-      | Файлы: `src/views/HomeView.vue`, `src/components/ui/BoardCard3D.vue`, `src/components/ui/DepthCard.vue`, `src/components/layout/AppHeader.vue` | deps: M-T2, M-T3, M-T4 | size: M
-- [x] M-T6. Применение: тред и композер — `src/views/ThreadView.vue`, `src/components/thread/ThreadRow.vue`,
-      `src/components/thread/PostBody.vue`, `src/components/composer/SignalDock.vue`.
-      Что делать: (а) строки треда и посты — material-реакция (кромка/тень), никакого scale;
-      (б) `SignalDock` (1480 стр.) — точечно: убрать `transition: all 220ms`, заменить на семантические
-      токены, добавить press-реакцию на `TransmitControl`; (в) на длинных списках — только opacity-появление,
-      без per-row transform (иначе страница «перегрузится»).
-      | Файлы: `src/views/ThreadView.vue`, `src/components/thread/ThreadRow.vue`, `src/components/thread/PostBody.vue`, `src/components/composer/SignalDock.vue` | deps: M-T2, M-T4 | size: M
-- [x] M-T7. Применение: остальные поверхности — `src/components/launch/LaunchBay.vue`,
-      `src/components/report/ReportProbe.vue`, `src/components/scan/ScanLens.vue`,
-      `src/components/watch/WatchPanel.vue`, `src/views/AboutView.vue`, `src/views/StatsView.vue`,
-      `src/views/ModerationView.vue`, `src/components/composer/TransmitControl.vue`.
-      Что делать: заменить ad-hoc hover/transition на material-слой; в `LaunchBay` — magnetic на главной
-      кнопке запуска (единственный magnetic в приложении!) + `.react-press`; в `ReportProbe` — реакция
-      «чернила» на выборе причины; в `StatsView/AboutView/ModerationView` — тихие реакции, без анимации
-      длинных списков.
-      | Файлы: перечисленные 8 файлов | deps: M-T2, M-T4 | size: M
+- [ ] Q-T3. Desktop-съёмка и визуальный разбор — артефакты + находки.
+      Снять ВСЕ маршруты и состояния в desktop (1440×900) и wide (1920×1080): home, board, thread,
+      platinum, platinum story, about, stats, moderation, 404, плюс состояния loading/error/empty
+      (через режимы фикстур Q-T1) и оверлеи (Command Lens, Launch Bay, Report Probe, Scan Lens,
+      Watch Panel, Drafts). Каждый снимок ПРОСМОТРЕТЬ (Read по PNG) и разобрать по чек-листу:
+      композиция и иерархия, выравнивание и ритм отступов, типографика (кегль/трекинг/мера/контраст),
+      цвет и «один акцент», плотность, дешёвые эффекты (лишние тени/свечения/градиенты/«эффекты ради
+      эффекта»), разрывы анимаций (элемент, застрявший в стартовом состоянии — `opacity: 0`,
+      съехавший transform), переполнения, обрезанный текст, «плавающая» вёрстка.
+      Результат: `frontend/.qa-artifacts/findings/Q-T3-desktop.md` — нумерованный список находок
+      (ID, маршрут, вьюпорт, селектор, суть, severity: blocker|major|minor, предложение).
+      | Файлы: `frontend/.qa-artifacts/findings/Q-T3-desktop.md` (new) | deps: Q-T1 | size: L
+- [ ] Q-T4. Mobile-съёмка и визуальный разбор (390×844 и 320×720): те же маршруты и состояния.
+      Чек-лист: горизонтальные переполнения (скролл по X), тач-таргеты (< 44px — отметить),
+      читаемость (кегль, мера строки, длинные слова), 3D-слой не перекрывает контент,
+      шапка/подвал на узком экране, модалки (Launch Bay, Command Lens) на 320px, composer (Signal Dock)
+      на мобильном, кегль mono-микро-лейблов, состояния без layout shift.
+      Результат: `frontend/.qa-artifacts/findings/Q-T4-mobile.md` — тот же формат.
+      | Файлы: `frontend/.qa-artifacts/findings/Q-T4-mobile.md` (new) | deps: Q-T1 | size: L
+- [ ] Q-T5. Аудит 3D/WebGL — `frontend/.qa-artifacts/findings/Q-T5-webgl.md`.
+      По маршрутам: сколько контекстов, сколько draw calls/текстур/геометрий, растёт ли счётчик при
+      навигации (утечка), есть ли `dispose()` на unmount, что происходит при `quality: low|off`,
+      как ведёт себя сцена при быстрой навигации (гонка инициализации), «прыгает» ли камера,
+      читается ли архив без указателя, не «мигает» ли фон. Плюс: «дешёвые эффекты» в 3D
+      (однотонкие материалы, отсутствие тени/глубины, шум ценой кадров, additive-глоу без причины).
+      Использовать перф-пробу Q-T2. Результат — находки того же формата + числа.
+      | Файлы: `frontend/.qa-artifacts/findings/Q-T5-webgl.md` (new) | deps: Q-T1, Q-T2 | size: L
+- [ ] Q-T6. Аудит анимаций и консистентности — `frontend/.qa-artifacts/findings/Q-T6-motion.md`.
+      (1) Снять серию кадров (0/100/300/600/1200 мс) на ключевых переходах (появление треда, открытие
+      модалки, переход маршрута, раскрытие панели) и проверить: нет ли «прыжка» в финальном кадре,
+      нет ли элемента, застрявшего вне маски/за `opacity: 0`, нет ли двойной анимации одного свойства
+      (CSS + GSAP), нет ли `transition: all` (проверка guard'ом), нет ли анимации `box-shadow` на крупных
+      поверхностях, нет ли вечных `will-change`, все ли `prefers-reduced-motion` ветки дают статичный кадр.
+      (2) Консистентность: одинаковые ли отступы/радиусы/рамки у кнопок и панелей на всех вью,
+      одинаковы ли микро-лейблы, единый ли «приборный» язык состояний, не разъезжаются ли заголовки.
+      | Файлы: `frontend/.qa-artifacts/findings/Q-T6-motion.md` (new) | deps: Q-T1 | size: L
 
-### Фаза 3 — Shader accents (3D) и свет
+### Фаза 3 — Исправления находок (по отчётам Q-T3…Q-T6)
 
-- [x] M-T8. Shader accents архива — `src/three/archive/materials.ts`, `src/three/archive/space.ts`.
-      Что делать: (а) «бумажный просвет» — мягкий backlight/пропускание света у пластин (subsurface-lite
-      в шейдере, без неона); (б) янтарная кромка, загорающаяся только в фокусе (уже есть частично — довести
-      до «одного акцента»); (в) пыль с параллаксом относительно камеры (глубина без тяжести);
-      (г) `quality: 'low'` — отключить дорогие октавы/подсветку, бюджет ниже.
-      Шейдеры остаются с `gl_FragColor` (это проверяет `verify:3d`), uniform-контракт `uTime/uFocus/uDim`
-      НЕ ЛОМАТЬ (проверяется тестами), публичные фабрики `fragmentMaterial/ringMaterial/vaultMaterial/
-      dustMaterial/emptyHaloMaterial` и `disposeArchiveMaterials` — сохранить сигнатуры.
-      | Файлы: `src/three/archive/materials.ts`, `src/three/archive/space.ts` | deps: none | size: M
-- [x] M-T9. Shader accents сети и переходов — `src/three/network.ts`, `src/three/warps.ts`.
-      Что делать: (а) accent sweep (проходящий по узлу свет) — вместо равномерного свечения;
-      (б) «чернильный» шум в шейдерах — мизерная неоднородность, чтобы плоскость не была мёртвой;
-      (в) реакция на указатель: узел рядом с курсором чуть теплее (amber) — «тепло», а не «неон»;
-      (г) бюджет: `quality: 'low'` — без шума/свечения; `TorusGeometry`, `setStoryCount`, `Raycaster`,
-      `lostNode`, `pulseAt`, `sendReply` НЕ ТРОГАТЬ (на них guard'ы `verify:3d`).
-      | Файлы: `src/three/network.ts`, `src/three/warps.ts` | deps: none | size: M
+- [ ] Q-T7. Правки: главная, разделы, шапка/подвал — по находкам Q-T3/Q-T4/Q-T6.
+      Композиция, иерархия, ритм отступов, типографика, «дешёвые» эффекты, мобильная вёрстка.
+      Каждая правка — с пометкой, какой ID находки закрывает; после правок — новый снимок ДО/ПОСЛЕ.
+      | Файлы: `frontend/src/views/HomeView.vue`, `frontend/src/views/BoardView.vue`, `frontend/src/components/layout/AppHeader.vue`, `frontend/src/components/layout/AppFooter.vue`, `frontend/src/components/ui/BoardCard3D.vue`, `frontend/src/components/ui/DepthCard.vue` | deps: Q-T3, Q-T4, Q-T6 | size: L
+- [ ] Q-T8. Правки: тред, композер, запуск, жалоба, сканер — по находкам Q-T3/Q-T4/Q-T6.
+      | Файлы: `frontend/src/views/ThreadView.vue`, `frontend/src/components/thread/*.vue`, `frontend/src/components/composer/*.vue`, `frontend/src/components/launch/LaunchBay.vue`, `frontend/src/components/report/ReportProbe.vue`, `frontend/src/components/scan/ScanLens.vue` | deps: Q-T3, Q-T4, Q-T6 | size: L
+- [ ] Q-T9. Правки: платинум, 3D-сцена, WebGL/память — по находкам Q-T5 + Q-T3/Q-T4.
+      ВАЖНО: публичный API `buildArchiveSpace` и контроллера НЕ ЛОМАТЬ (guard'ы и тесты),
+      `verify:3d`/`verify:motion` должны остаться зелёными. Проверить: утечки геометрий/материалов,
+      число контекстов, деградация по FPS, поведение при быстрой навигации.
+      | Файлы: `frontend/src/three/archive/*.ts`, `frontend/src/three/network.ts`, `frontend/src/three/warps.ts`, `frontend/src/components/three/*.vue`, `frontend/src/composables/useThreeScene.ts`, `frontend/src/views/PlatinumView.vue`, `frontend/src/views/PlatinumStoryView.vue` | deps: Q-T5 | size: L
+- [ ] Q-T10. Правки: состояния, модалки, служебные вью — по находкам Q-T3/Q-T4/Q-T6.
+      Единый язык состояний (loading/error/empty/404/оффлайн), модалки на мобильном,
+      about/stats/moderation — композиция и консистентность.
+      | Файлы: `frontend/src/components/{LoadingState,ErrorState,EmptyState,NotFoundState}.vue`, `frontend/src/components/ui/*.vue`, `frontend/src/views/{AboutView,StatsView,ModerationView,NotFoundView}.vue` | deps: Q-T3, Q-T4, Q-T6 | size: L
 
-### Фаза 4 — Оригинальные состояния loading / error / empty
+### Фаза 4 — Visual regression + перф-бюджет
 
-- [x] M-T10. Единый язык состояний — `src/components/LoadingState.vue`, `src/components/ErrorState.vue`,
-      `src/components/EmptyState.vue`. Переработать ТРИ состояния в ОДИН визуальный язык (сейчас они
-      стилистически разные): общая «сигнальная» графика на бумаге, одна иконографика, одна типографика
-      (mono-подпись + строка сообщения), один акцент на состояние (loading — accent, error — danger,
-      empty — приглушённый accent). Сохранить `data-testid`: `loading`, `state-loading`, `empty`, `state-empty`,
-      `error` (сверься по файлам) и существующие пропсы (`label`, `message`, `on-retry`).
-      Плюс: состояния должны честно показывать прогресс/повтор, а не «серый текст».
-      | Файлы: `src/components/LoadingState.vue`, `src/components/ErrorState.vue`, `src/components/EmptyState.vue`, `src/components/__tests__/States.spec.ts` | deps: M-T1, M-T4 | size: M
-- [x] M-T11. Новые состояния — `src/components/NotFoundState.vue` (new) + подключение в
-      `src/views/NotFoundView.vue`, `src/views/ModerationView.vue`, `src/views/StatsView.vue`.
-      Что делать: (а) «оригинальное» 404-состояние в том же языке (след потерянного фрагмента);
-      (б) оффлайн-состояние — если есть `components/ui/OfflineBadge.vue`, привести к тому же языку;
-      (в) состояние «доступ закрыт» для модерации — вежливое, без страха.
-      Все состояния — без layout shift, reduced-motion safe, с `role="status"`/`aria-live` там, где уместно.
-      | Файлы: `src/components/NotFoundState.vue` (new), `src/views/NotFoundView.vue`, `src/views/ModerationView.vue`, `src/views/StatsView.vue`, `src/components/ui/OfflineBadge.vue` | deps: M-T10 | size: M
-- [x] M-T12. 3D-хореография состояний — `src/three/archive/space.ts`, `src/components/three/ArchiveSpaceCanvas.vue`,
-      `src/views/PlatinumView.vue`. Что делать: сцена должна одинаково говорить «загружаю / ошибка / пусто»:
-      (а) loading — кольца светятся по очереди (мягкое ожидание), (б) error — сцена «гаснет»/остаётся
-      статичной, (в) empty — медленный дрейф без пыли. Не ломать `buildArchiveSpace` API и сигнатуры
-      `setStories/focus/travelToFocus/releaseFocus/openStory/orbitBy/setPointer/pointerStoryId/update/dispose`
-      (на них guard'ы и тесты). Публичный `data-testid` вью не менять.
-      | Файлы: `src/three/archive/space.ts`, `src/components/three/ArchiveSpaceCanvas.vue`, `src/views/PlatinumView.vue` | deps: M-T8 | size: M
-
-### Фаза 5 — Дедупликация, перф, a11y, guard'ы, документация
-
-- [x] M-T13. Motion guard — `scripts/verify-motion.mjs` (new, рядом с `verify-3d.mjs`) + npm-скрипт
-      `verify:motion` в `package.json` (единственное разрешённое изменение package.json). Проверки:
-      запрет `transition: all`; запрет «сырых» `cubic-bezier(...)` и `NNms` в `.vue` (кроме самого motion.css
-      и точечных исключений, перечисленных явным списком); запрет `transform: scale(...)` в `:hover`-правилах
-      .vue; запрет дублирующихся `@keyframes` с одинаковым именем в разных файлах; проверка, что
-      `motion.css` и `material.css` подключены в `main.ts`; проверка, что `--motion-*` роли объявлены.
-      Все проверки — по КОДУ (комментарии вырезать), с внятными английскими именами, в стиле `verify-3d.mjs`.
-      | Файлы: `src/scripts/verify-motion.mjs` (new), `package.json` | deps: M-T1, M-T5, M-T6, M-T7 | size: M
-- [x] M-T14. Финальная дедупликация — по всему `frontend/src` (`.vue` + `.css`): убрать оставшиеся
-      `transition: all`, «сырые» `cubic-bezier`/`ms`, дублирующиеся keyframes с одинаковым именем, дубли
-      hover-правил, локальные копии токенов. Каждую замену — на семантический токен из `motion.css`.
-      Проверяемо: `npm run verify:motion` зелёный, `npm run verify:3d` не сломана, тесты зелёные.
-      Затрагивать можно ТОЛЬКО `.vue`/`.css` файлы, уже переработанные в M-T5..M-T7 и M-T10..M-T12,
-      плюс `src/components/thread/*`, `src/components/composer/*` — НЕ трогать `src/three/*` и `src/views/PlatinumView.vue`
-      (они в M-T12) и не трогать `src/components/platinum/ArchiveEmpty.vue`.
-      | Файлы: `frontend/src/**` (.vue/.css, кроме исключений выше) | deps: M-T13 | size: L
-- [x] M-T15. Перф-дисциплина motion — `src/composables/useMotion.ts`, `src/composables/useGsap.ts`,
-      `src/assets/motion.css`, `src/assets/material.css`. Правила: только compositor-свойства
-      (transform/opacity) в анимациях; `box-shadow`/`filter` — не в горячем пути; `will-change` — только
-      на время анимации, не «навсегда на элементе»; кап одновременных анимаций (магнит — 1, pointer-light — 2);
-      отключение всего при `prefers-reduced-motion` и при `quality: 'off'|'low'` (3D); никаких
-      `setInterval`/`requestAnimationFrame` без остановки; замер: зафиксируй в отчёте, сколько слушателей
-      и rAF-циклов добавляет новая система на страницу.
-      | Файлы: `src/composables/useMotion.ts`, `src/composables/useGsap.ts`, `src/assets/motion.css`, `src/assets/material.css` | deps: M-T2, M-T5 | size: M
-- [x] M-T16. A11y-аудит motion — `src/components/__tests__/States.spec.ts`,
-      `src/composables/__tests__/useMotion.spec.ts`, `src/components/ui/__tests__/KineticText.spec.ts`
-      + точечные правки найденного. Проверить: (а) при `prefers-reduced-motion: reduce` в DOM нет
-      `opacity: 0` для контента (текст виден всегда); (б) фокус виден и не теряется; (в) `aria-live`
-      не спамит; (г) контраст подписей ≥ 4.5:1; (д) клавиатура работает без мыши; (е) `aria-busy`
-      на загрузке, где уместно. Тесты — на реальных поведениях, не на снапшотах классов.
-      | Файлы: перечисленные 3 тест-файла + точечные правки по результатам аудита | deps: M-T5, M-T6, M-T7, M-T10, M-T11 | size: M
-- [x] M-T17. Документация — `docs/ART_DIRECTION.md` (раздел «Motion system»: роли и кривые, материальные
-      реакции, кинетическая типографика и где она ДОПУСТИМА, magnetic, реактивное освещение, состояния,
-      shader-акценты, бюджет внимания, reduced-motion, «как добавить новую реакцию»),
-      `docs/PROJECT_NEXT_AUDIT.md` (запись раунда: что было/стало, решения, проверки, ограничения, следующие шаги).
-      Числа — только из кода и отчётов, ничего не выдумывать.
-      | Файлы: `docs/ART_DIRECTION.md`, `docs/PROJECT_NEXT_AUDIT.md` | deps: M-T13, M-T14, M-T15, M-T16 | size: S
+- [ ] Q-T11. Воспроизводимые visual regression checks — `frontend/scripts/visual-regression.mjs` (new),
+      `frontend/scripts/png.mjs` (new — свой PNG-декодер/энкодер на `node:zlib`, без зависимостей!),
+      базовые снимки `frontend/tests/visual/baselines/<viewport>/<route>.png`,
+      npm-скрипты в `frontend/package.json` (`verify:visual`, `verify:visual:update`).
+      Требования: (1) свой PNG-ридер (IHDR/IDAT, unfilter 0–4) и писатель; (2) сравнение по пикселям
+      с порогом «доля изменившихся пикселей» (по умолчанию 0.1%) и допуском по цвету; (3) при расхождении
+      писать `diff-картинку` (подсветка изменившихся пикселей) рядом с отчётом; (4) отчёт: список
+      маршрутов, что разошлось, сколько пикселей; (5) `--update` перезаписывает базу;
+      (6) режим без Chrome → понятный exit code 1 и объяснение, а не «зелёный» прогон;
+      (7) базовые снимки — ДЕТЕРМИНИРОВАННЫЕ (фикстуры Q-T1, без анимаций в моменте съёмки:
+      снимать ПОСЛЕ завершения анимаций или в reduced-motion-режиме, иначе diff будет шумным).
+      ВАЖНО: `package.json` в этой задаче — твой; больше никто его в этом батче не трогает.
+      | Файлы: `frontend/scripts/visual-regression.mjs` (new), `frontend/scripts/png.mjs` (new), `frontend/tests/visual/baselines/**` (new), `frontend/package.json` | deps: Q-T1, Q-T3, Q-T4 | size: L
+- [ ] Q-T12. Перф-бюджет и его проверка — `frontend/scripts/perf-budget.mjs` (new):
+      читает `frontend/.qa-artifacts/perf/report.json` (из Q-T2) и проверяет пороги, объявленные
+      как константы в самом скрипте и продублированные в `docs/ART_DIRECTION.md`:
+      (1) память: рост heap за цикл навигации ≤ порога; (2) 3D: число активных WebGL-контекстов ≤ 2;
+      (3) draw calls/текстуры — не растут при повторных переходах; (4) «первый содержательный кадр»
+      ≤ порога (мс) на software-рендерере — с явной пометкой, что это software-рендерер;
+      (5) отсутствие ошибок/исключений в консоли на всех маршрутах.
+      Вывод: PASS/FAIL по каждому порогу с числами. `package.json` НЕ трогать (владелец — Q-T11).
+      | Файлы: `frontend/scripts/perf-budget.mjs` (new) | deps: Q-T2, Q-T9 | size: M
+- [ ] Q-T13. Тесты харнесса — `frontend/scripts/__tests__/` (или `frontend/src/**/__tests__` по конвенции
+      проекта) на чистые части: PNG-декодер (свой round-trip), порог сравнения, разбор `report.json`,
+      фикстуры (детерминированность: два вызова дают одинаковые данные; нет `Date.now()`/`Math.random()`),
+      разбор аргументов CLI. Тесты БЕЗ браузера (юнит), чтобы `npm run test` не зависел от Chrome.
+      | Файлы: `frontend/scripts/__tests__/*.spec.ts` (new) | deps: Q-T11, Q-T12 | size: M
+- [ ] Q-T14. Документация и финальная приёмка — `docs/ART_DIRECTION.md` (раздел «Visual QA»:
+      как снимать, как читать находки, что считается дефектом), `docs/PROJECT_NEXT_AUDIT.md`
+      (запись раунда: что нашли, что исправили, какие числа до/после, что осталось).
+      Плюс: инструкция в `README.md` или `docs/` — как запустить QA локально (команды).
+      | Файлы: `docs/ART_DIRECTION.md`, `docs/PROJECT_NEXT_AUDIT.md`, `README.md` | deps: Q-T7, Q-T8, Q-T9, Q-T10, Q-T11, Q-T12 | size: M
 
 ## Прогресс
 
-- 2026-10-20 21:30 старт волны 2; волна 1 «Archive Space» закрыта (19/19, коммиты `a0aedfd`…`51713e8`) и заархивирована
-- 2026-10-20 21:30 Гейты Фазы 0: каталоги ✅, slug `opencode-go/minimax-m3.1-flash-free` ✅, smoke CLI ✅ (SMOKE_OK)
-- 2026-10-20 21:30 батч 1 запущен: M-T1 (motion-токены), M-T8 (shader-акценты архива), M-T9 (shader-акценты сети/переходов), M-T10 (единый язык состояний) — файлы не пересекаются
-- 2026-10-20 23:58 батч 1 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 61 файлов/952 теста) → коммит ниже. `format:check` падает и на baseline (82 исходных файла, включая main.css с uppercase-hex конвенцией) — регрессии нет
-- 2026-10-20 23:58 батч 2 запущен: M-T2 (useMotion), M-T3 (KineticText), M-T4 (material.css), M-T11 (NotFound/оффлайн-состояния), M-T12 (3D-хореография состояний) — файлы не пересекаются
-- 2026-10-21 00:22 батч 2 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 теста) → коммит ниже
-- 2026-10-21 00:22 батч 3 запущен: M-T5 (главная/карточки/шапка), M-T6 (тред/композер), M-T7 (launch/report/scan/watch/служебные вью) — файлы не пересекаются
-- 2026-10-21 00:58 батч 3 DONE + верификация зелёная (verify:3d 116/116, lint 0, build OK, test 68 файлов/1030 тестов) → коммит ниже. Масштабирование вычищено из hover-реакций (LaunchBay, ReportProbe, TransmitControl, SignalDock)
-- 2026-10-21 00:58 батч 4 запущен: M-T13 (motion guard), M-T15 (перф-дисциплина) — файлы не пересекаются
-- 2026-10-21 09:46 батч 4 DONE + верификация зелёная (verify:3d 116/116, verify:motion 35 проверок + реестр долгов, lint 0, build OK, test 68 файлов/1041 тест) → коммит ниже
-- 2026-10-21 09:46 батч 5 запущен: M-T14 (финальная дедупликация), M-T16 (a11y-аудит motion) — файлы не пересекаются
-- 2026-10-21 11:20 батч 7: M-T17 (документация: раздел «Motion system» в ART_DIRECTION.md, запись раунда в аудит-лог) — DONE. Финальная верификация главного агента: verify:motion 47/47, verify:3d 116/116, lint 0, build OK, test 69 файлов/1074 теста
-- 2026-10-21 11:35 Визуальная проверка в реальном Chrome (CDP, реальное время): главная (hero + KineticText-кикер + material-реакция CTA), 404 (новое состояние «СИГНАЛ ПОТЕРЯН» с приборной рамкой), платинум (состояние ошибки) — рендер корректный, без FOUC
-- 2026-10-21 11:00 батч 6 (M-T18a долг по таймингам/keyframes/устаревшим анимациям, M-T18b долг в защищённых файлах + доработка guard'а) — DONE: реестр долга 18 → 0, verify:motion 47 проверок, verify:3d 116/116, lint 0, build OK, test 69 файлов/1074 теста. Последние 2 нарушения (`linear` в ScanLens/GlitchText) закрыты главным агентом вручную
-- 2026-10-21 10:40 батч 5 DONE + верификация зелёная (verify:3d 116/116, verify:motion 35 проверок, lint 0, build OK, test 69 файлов/1072 теста) → коммит ниже. Осталось 18 нарушений в «реестре долга» guard'а (защищённые файлы) — их закрывает M-T18
+- 2026-10-21 11:50 старт волны 3; волны 1 («Archive Space») и 2 («Motion system») закрыты и заархивированы
+- 2026-10-21 11:50 Гейты Фазы 0: каталоги ✅, slug `opencode-go/minimax-m3.1-flash-free` ✅, Chrome найден ✅,
+  WebGL 2.0 в headless через SwiftShader ✅ (проверено вручную), smoke CLI — запущен
+- 2026-10-21 11:50 батч 1 запущен: Q-T1 (харнесс + фикстуры)
 
 ## Проблемы / заблокировано
-
-- План завершён полностью: 19/19 задач DONE (M-T1…M-T18b).
-- Осознанные ограничения, зафиксированные в отчётах:
-  - magnetic — ровно в одном месте (главная кнопка запуска), pointer-light — только на hero-поверхности; это бюджет, а не недоделка;
-  - `verify:motion` держит «реестр долга» — сейчас он пуст, но механизм оставлен, чтобы новые нарушения не проходили молча;
-  - `docs/BMSTUDVACH_UI_3D_REDESIGN_01.md` обновлён в части устаревших keyframes (M-T18a);
-  - `useTilt` (наклон) оставлен как есть — это 3D-наклон, а не magnetic; длительность переведена на CSS-токены.
