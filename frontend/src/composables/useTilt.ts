@@ -39,10 +39,22 @@ export function useTilt(
     el.style.transform = `perspective(800px) rotateX(${tiltX.value}deg) rotateY(${tiltY.value}deg) scale3d(${scale}, ${scale}, ${scale})`
   }
 
+  /**
+   * Тайминг наклона — из motion-системы: длительность и кривую наклон берёт
+   * из общих токенов, а скорость (параметр хука) кладёт в токен длительности
+   * на самом элементе. Имя роли и кривая остаются в системе, а параметр
+   * остаётся живым: без него хук врал бы, что скорость можно менять.
+   * `fallback` в инлайне — страховка, если motion.css не загрузился.
+   */
+  function applyTiming(target: HTMLElement) {
+    target.style.setProperty('--motion-tilt-duration', `${speed}ms`)
+    target.style.transition = `transform var(--motion-tilt-duration, ${speed}ms) var(--motion-tilt-ease, var(--ease-emphasized))`
+  }
+
   function handleMouseEnter() {
     if (!el) return
     isHovered.value = true
-    el.style.transition = `transform ${speed}ms cubic-bezier(0.25, 1, 0.5, 1)`
+    applyTiming(el)
   }
 
   function handleMouseLeave() {
@@ -50,8 +62,9 @@ export function useTilt(
     isHovered.value = false
     tiltX.value = 0
     tiltY.value = 0
-    el.style.transition = `transform ${speed}ms cubic-bezier(0.25, 1, 0.5, 1)`
-    el.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)'
+    applyTiming(el)
+    el.style.transform =
+      'perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)'
   }
 
   onMounted(() => {

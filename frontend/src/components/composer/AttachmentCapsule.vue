@@ -122,7 +122,9 @@ function size() {
 @keyframes capsule-arrive {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.94);
+    /* Капсула приходит сверху, с магнитной кромки. Масштаба нет: элемент
+       не растёт — он просто приезжает и встаёт на место. */
+    transform: translateY(-6px);
   }
   to {
     opacity: 1;

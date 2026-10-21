@@ -102,17 +102,34 @@ describe('RuleSheet — the margin note', () => {
 
     const unveiled = ruleBlock('.rule-sheet--open .rule-sheet__row')
     expect(unveiled).toContain('visibility: visible')
-    expect(unveiled).toContain('animation: rule-sheet-unveil')
+    expect(unveiled).toContain('animation: rule-sheet-unveil var(--motion-reveal)')
     // one row after another, not one block at once
     expect(unveiled).toContain('calc(var(--row) * 55ms)')
 
     const more = ruleBlock('.rule-sheet__more')
     expect(more).toContain('grid-template-rows: 0fr')
     expect(ruleBlock('.rule-sheet--open .rule-sheet__more')).toContain('grid-template-rows: 1fr')
-    expect(more).toContain('transition: grid-template-rows 320ms')
+    expect(more).toContain('transition: grid-template-rows var(--motion-reveal)')
 
     // the ruler draws itself downward while the note opens
     expect(ruleBlock('.rule-sheet--open .rule-sheet__fill')).toContain('height: 100%')
+  })
+
+  it('opens the whole note in one tempo — the role of appearance, not a number', () => {
+    // the ruler, the unfolding mask and the rows ruled in after them are one
+    // movement: the same role carries all three, so they cannot drift apart
+    const fill = ruleBlock('.rule-sheet__fill')
+    const more = ruleBlock('.rule-sheet__more')
+    const rows = ruleBlock('.rule-sheet--open .rule-sheet__row')
+
+    expect(fill).toContain('transition: height var(--motion-reveal)')
+    expect(more).toContain('transition: grid-template-rows var(--motion-reveal)')
+    expect(rows).toContain('animation: rule-sheet-unveil var(--motion-reveal)')
+
+    // and no duration is written by hand next to them
+    expect(fill).not.toMatch(/transition:\s*height\s+\d/)
+    expect(more).not.toMatch(/transition:\s*grid-template-rows\s+\d/)
+    expect(rows).not.toMatch(/animation:\s*rule-sheet-unveil\s+\d/)
   })
 
   it('keeps the marker a ≥44px tap zone on mobile', () => {

@@ -66,7 +66,7 @@ onMounted(() => {
 .glitch-text {
   /* Сбой живёт 0.18 с — это его собственный ритм (и линейная кривая,
      чтобы дёрганье не растягивалось), а не роль движения системы. */
-  --glitch-rhythm: 0.18s linear;
+  --glitch-rhythm: 0.18s var(--ease-linear);
   position: relative;
   display: inline-block;
   font-family: var(--font-display);

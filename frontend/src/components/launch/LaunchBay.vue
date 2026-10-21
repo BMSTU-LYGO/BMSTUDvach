@@ -453,10 +453,13 @@ defineExpose({
 }
 
 /* the sheet is laid down while its title flies in — only the furniture
-   fades, so the shared element never dims behind its own sheet */
+   fades, so the shared element never dims behind its own sheet.
+   The furniture arrives with the reveal tempo of the system (600ms): the
+   bay must finish settling in the same time the board takes to recede,
+   otherwise the two halves of the gesture drift apart. */
 .launch-bay__body,
 .launch-bay__rail {
-  animation: bay-fade-in 320ms var(--ease-emphasized);
+  animation: bay-fade-in var(--motion-reveal);
 }
 
 @keyframes bay-fade-in {

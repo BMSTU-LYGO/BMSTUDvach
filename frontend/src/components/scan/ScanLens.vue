@@ -482,7 +482,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   /* the instrument works: the ring turns while the scan runs —
      равномерное вращение требует линейной кривой, иначе кольцо
      дёргается на стыке цикла */
-  --scan-spin-rhythm: var(--motion-cinematic-duration) linear;
+  --scan-spin-rhythm: var(--motion-cinematic-duration) var(--ease-linear);
   width: 13px;
   height: 13px;
   border-radius: 50%;

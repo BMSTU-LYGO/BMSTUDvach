@@ -217,15 +217,17 @@ describe('LoadingState', () => {
     const wrapper = mount(LoadingState)
 
     expect(wrapper.find('.state__beam').exists()).toBe(true)
-    expect(LoadingStateSource).toContain('@keyframes state-scan')
+    expect(LoadingStateSource).toContain('@keyframes loading-state-scan')
     expect(LoadingStateSource).toMatch(
-      /@keyframes state-scan\s*\{[^}]*transform:\s*translateX/,
+      /@keyframes loading-state-scan\s*\{[^}]*transform:\s*translateX/,
     )
   })
 
   it('animates the signal with transform and opacity only', () => {
     const keyframes =
-      LoadingStateSource.match(/@keyframes state-rise\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
+      LoadingStateSource.match(
+        /@keyframes loading-state-rise\s*\{([\s\S]*?)\n\}/,
+      )?.[1] ?? ''
 
     expect(keyframes).toContain('transform: scaleY(')
     expect(keyframes).not.toMatch(/\b(width|height|top|left|right):/)
@@ -387,17 +389,49 @@ describe('Единый язык состояний', () => {
   })
 
   it('делит буквально один и тот же блок стилей прибора', () => {
+    // Имена keyframes у каждого состояния свои — иначе один и тот же кадр
+    // объявлен в трёх файлах. Сравниваем поэтому блок по существу: имя
+    // прибора приводится к общему виду, всё остальное должно совпасть
+    // символ в символ.
     const shared = (source: string): string =>
-      source.slice(
-        source.indexOf('/* === Общий язык состояний'),
-        source.indexOf('/* === Состояние:'),
-      )
+      source
+        .slice(
+          source.indexOf('/* === Общий язык состояний'),
+          source.indexOf('/* === Состояние:'),
+        )
+        .replace(/\b(?:empty|error|loading)-state-(scan|live|rise)\b/g, 'state-$1')
 
     const reference = shared(sources.loading)
 
     expect(reference.length).toBeGreaterThan(0)
     expect(shared(sources.error)).toBe(reference)
     expect(shared(sources.empty)).toBe(reference)
+  })
+
+  it('не объявляет одно и то же имя keyframes дважды', () => {
+    // Закон системы: имя keyframes принадлежит одному файлу. Состояния
+    // делят прибор, но не делят имена кадров.
+    const names = (source: string): string[] =>
+      [...source.matchAll(/@keyframes\s+([\w-]+)/g)].map((match) => match[1])
+
+    const all = [
+      ...names(sources.loading),
+      ...names(sources.error),
+      ...names(sources.empty),
+    ]
+
+    expect(all.length).toBeGreaterThan(0)
+    expect(new Set(all).size).toBe(all.length)
+    // и каждое имя принадлежит своему состоянию
+    expect(names(sources.loading)).toEqual(
+      expect.arrayContaining([expect.stringContaining('loading-state-')]),
+    )
+    expect(names(sources.error)).toEqual(
+      expect.arrayContaining([expect.stringContaining('error-state-')]),
+    )
+    expect(names(sources.empty)).toEqual(
+      expect.arrayContaining([expect.stringContaining('empty-state-')]),
+    )
   })
 
   it('берёт время и кривую из семантических motion-токенов', () => {

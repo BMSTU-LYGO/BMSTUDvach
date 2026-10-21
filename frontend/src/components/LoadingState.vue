@@ -196,11 +196,11 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
     color-mix(in oklab, var(--state-accent) 20%, transparent) 2px 36px,
     transparent 36px
   );
-  animation: state-scan var(--state-scan-cycle) var(--ease-emphasized) infinite;
+  animation: loading-state-scan var(--state-scan-cycle) var(--ease-emphasized) infinite;
   pointer-events: none;
 }
 
-@keyframes state-scan {
+@keyframes loading-state-scan {
   0% {
     transform: translateX(0);
     opacity: 0;
@@ -288,10 +288,10 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
   height: 6px;
   border-radius: 50%;
   background: var(--state-accent);
-  animation: state-live var(--state-pulse-cycle) var(--ease-emphasized) infinite;
+  animation: loading-state-live var(--state-pulse-cycle) var(--ease-emphasized) infinite;
 }
 
-@keyframes state-live {
+@keyframes loading-state-live {
   0%,
   100% {
     opacity: 0.35;
@@ -320,11 +320,11 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
 }
 
 .state-loading .state__bar {
-  animation: state-rise var(--state-rise-cycle) var(--ease-emphasized) infinite;
+  animation: loading-state-rise var(--state-rise-cycle) var(--ease-emphasized) infinite;
   animation-delay: calc(var(--i, 0) * -0.11s);
 }
 
-@keyframes state-rise {
+@keyframes loading-state-rise {
   0%,
   100% {
     transform: scaleY(0.24);

@@ -755,7 +755,7 @@ onBeforeUnmount(() => {
 .stat-node.idle {
   background: var(--text-muted);
   box-shadow: none;
-  animation: pulseIdle 2.4s ease-in-out infinite;
+  animation: pulseIdle var(--motion-idle-pulse) var(--ease-soft) infinite;
 }
 
 @keyframes pulseIdle {
@@ -954,7 +954,7 @@ onBeforeUnmount(() => {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: archive-pulse 1.2s var(--ease-out-quart) infinite;
+  animation: archive-pulse var(--motion-archive-pulse) var(--ease-emphasized) infinite;
 }
 
 @keyframes archive-pulse {

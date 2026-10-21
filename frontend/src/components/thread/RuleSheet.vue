@@ -142,7 +142,10 @@ function toggle() {
   height: 0;
   margin-left: -0.5px;
   background: var(--accent);
-  transition: height 320ms var(--ease-out);
+  /* One tempo for the whole gesture: the ruler, the unfolding mask and the
+     rows ruled in after it are a single movement — role of appearance
+     (600ms), not a duration written by hand in three places. */
+  transition: height var(--motion-reveal);
 }
 
 .rule-sheet__notch {
@@ -236,7 +239,7 @@ function toggle() {
 .rule-sheet__more {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 320ms var(--ease-out);
+  transition: grid-template-rows var(--motion-reveal);
 }
 
 .rule-sheet__rows {
@@ -263,7 +266,9 @@ function toggle() {
 
 .rule-sheet--open .rule-sheet__row {
   visibility: visible;
-  animation: rule-sheet-unveil 300ms var(--ease-out) both;
+  /* The same tempo as the mask and the ruler: the rows are ruled in while
+     the sheet unfolds, not after it. */
+  animation: rule-sheet-unveil var(--motion-reveal) both;
   /* one row after another, like a note being ruled in */
   animation-delay: calc(var(--row) * 55ms);
 }

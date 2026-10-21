@@ -597,14 +597,18 @@ describe('BoardView — the launch stage (P3-T2)', () => {
     expect(wrapper.find('.catalog-grid').classes()).toContain('board-feed--receded')
   })
 
-  it('recedes with opacity + scale in 320 ms — no blur on a long list', () => {
+  it('recedes with opacity + pull-back on the reveal tempo — no blur on a long list', () => {
     const receded = ruleBlock('.board-feed--receded')
     expect(receded).toContain('opacity: 0.25')
     expect(receded).toContain('transform: scale(0.985)')
     expect(receded).toContain('pointer-events: none')
     expect(receded).not.toContain('blur')
-    expect(BoardViewSource).toContain('opacity 320ms')
-    expect(BoardViewSource).toContain('transform 320ms')
+    // the recede shares the tempo of the bay that takes the stage and leaves
+    // with the curve of an exit — the duration comes from the role, not from
+    // a number written by hand
+    expect(BoardViewSource).toContain('opacity var(--motion-reveal-duration) var(--ease-exit)')
+    expect(BoardViewSource).toContain('transform var(--motion-reveal-duration) var(--ease-exit)')
+    expect(BoardViewSource).not.toMatch(/transition:\s*(opacity|transform)\s+\d/)
     // reduced motion: the board recedes, it just does not drift
     const reduced = BoardViewSource.slice(
       BoardViewSource.indexOf('@media (prefers-reduced-motion: reduce)'),

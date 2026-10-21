@@ -92,7 +92,8 @@ frontend/src/
 ├── assets/
 │   ├── main.css              # ← ПОЛНАЯ ЗАМЕНА: CSS custom properties + reset
 │   ├── fonts.css              # NEW: @font-face declarations
-│   └── animations.css         # NEW: keyframes, transition utilities
+│   ├── motion.css             # motion-система: роли, кривые, базовые классы
+│   └── material.css           # материальные реакции поверхностей
 ├── composables/
 │   ├── useParallax.ts         # NEW: mouse-tracking parallax
 │   ├── useScrollReveal.ts     # NEW: GSAP ScrollTrigger wrapper
@@ -150,8 +151,10 @@ frontend/src/
 - `useParallax.ts` — отслеживание мыши, возвращает `{ x, y }` для transform
 - `useScrollReveal.ts` — обёртка над GSAP ScrollTrigger, fadeIn + translateY
 - `useTilt.ts` — 3D-наклон карточки при hover (perspective + rotateX/Y)
-- `animations.css` — keyframes: `fadeInUp`, `glowPulse`, `float`, `slideIn`
-- Utility-классы: `.reveal`, `.tilt`, `.float`
+- `motion.css` — семантические роли движения (`--motion-hover`, `--motion-press`, `--motion-reveal`, `--motion-kinetic`, `--motion-magnetic`, `--motion-cinematic`) и четыре кривые (`--ease-standard`, `--ease-emphasized`, `--ease-entrance`, `--ease-exit`)
+- `material.css` — материальные реакции поверхностей: `.surface-paper`, `.react-lift`, `.react-press`, `.react-edge`, `.react-ink`
+- Базовые классы движения: `.motion-press`, `.motion-reveal`, `.motion-quiet`
+- Keyframes живут рядом с теми, кого двигают: `motion-reveal-in` — в `motion.css`, остальные — в самих компонентах (`bay-fade-in`, `rule-sheet-unveil`, `empty-state-scan`, `loading-state-rise`, …)
 
 **Зависимости:** `npm install gsap`
 

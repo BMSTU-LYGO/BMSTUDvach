@@ -17,7 +17,8 @@
  *     A waiver excuses ONE known violation in ONE file, is printed in the
  *     "motion debt" report with a reason, and stops being an excuse the
  *     moment the violation is gone — so the debt can be paid off instead of
- *     being quietly forgotten.
+ *     being quietly forgotten. A waiver that excuses nothing is reported as
+ *     a warning: a promise that nothing keeps is a lie about the system.
  *
  * Usage:
  *   node scripts/verify-motion.mjs          # the checks
@@ -34,6 +35,7 @@ const srcRoot = join(root, 'src')
 const results = []
 const details = []
 const debt = []
+const warnings = []
 
 function file(path) {
   const full = join(root, path)
@@ -71,6 +73,39 @@ function code(path) {
   )
 }
 
+/**
+ * The value of a declaration with every var() call blanked out — the fallback
+ * included. A duration that hides inside a var() is a token with a safety
+ * net; a duration written by hand is a decision of the component. The same
+ * rule holds in a stylesheet and in a script: the two are read the same way.
+ */
+function blankVars(value) {
+  let out = ''
+  let i = 0
+  while (i < value.length) {
+    if (value.startsWith('var(', i)) {
+      let depth = 0
+      let j = i
+      for (; j < value.length; j++) {
+        if (value[j] === '(') depth++
+        else if (value[j] === ')') {
+          depth--
+          if (depth === 0) {
+            j++
+            break
+          }
+        }
+      }
+      out += ' var() '
+      i = j
+      continue
+    }
+    out += value[i]
+    i++
+  }
+  return out
+}
+
 function check(name, cond) {
   results.push({ name, ok: !!cond })
 }
@@ -87,269 +122,79 @@ function exported(src, name) {
 // a permission to keep writing new violations in the file: a violation that
 // does not match the pattern is not waived and fails the check.
 //
-// The reasons say WHO can pay the debt off:
-//   - "in the M-T14 allow-list"   — M-T14 replaces it with a semantic token;
-//   - "out of the M-T14 allow-list" — the file is protected, it needs a
-//     decision of its own;
-//   - "the plan does not reach the file" — the allow-list of M-T14 has to be
-//     extended, otherwise the debt can never be closed.
+// The reasons say WHO can pay the debt off. Every entry of the registry
+// names the file, the shape of the violation and the way out of it — a
+// waiver without a way out is not a waiver, it is a postponement.
 // ---------------------------------------------------------------------------
-
-/** A file that M-T14 may touch: the composer and the thread layers, plus the
- *  files that were reworked in M-T5..M-T7 and M-T10..M-T12. */
-const M_T14_SCOPE =
-  'the file is in the M-T14 allow-list — M-T14 replaces the timing with a semantic token'
-/** A file that M-T14 may not touch. */
-const PROTECTED_SCOPE =
-  'the file is explicitly out of the M-T14 allow-list — it needs a decision of its own'
-/** A file that no task of the plan touches. */
-const ORPHAN_SCOPE =
-  'no task of the plan reaches the file — the M-T14 allow-list has to be extended, otherwise the debt stays forever'
 
 const WAIVERS = {
   // The timing that was written by hand: a duration that is not a token, a
   // curve that is not a token, a keyword easing in place of a role.
-  rawTiming: [
-    {
-      file: 'src/components/composer/AttachmentCapsule.vue',
-      pattern: /^animation:\s*capsule-arrive\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/AttachmentCapsule.vue',
-      pattern: /^transition:\s*opacity\s+160ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/AttachmentRail.vue',
-      pattern: /^transition:\s*opacity\s+220ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/AttachmentRail.vue',
-      pattern: /^animation:\s*fiber-stretch\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/AttachmentRail.vue',
-      pattern: /^animation:\s*socket-open\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/AttachmentRail.vue',
-      pattern: /^animation:\s*magnet-breathe\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/CommandLens.vue',
-      pattern: /^animation:\s*lens-caret\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/CommandLens.vue',
-      pattern: /^transition:\s*opacity\s+160ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/ContextFiber.vue',
-      pattern: /^animation:\s*fiber-flow\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/DraftBeacon.vue',
-      pattern: /^animation:\s*beacon-blink\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/IdentityCapsule.vue',
-      pattern: /^transition:\s*color\s+160ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/SignalMeter.vue',
-      pattern: /^transition:\s*background\s+200ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/SignalMeter.vue',
-      pattern: /^animation:\s*broken-line\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/SignalSurface.vue',
-      pattern: /^transition:\s*color\s+200ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/TransmitControl.vue',
-      pattern: /^animation:\s*break-ring\s/,
-      reason:
-        'the shorthand is invalid CSS: the role already carries a curve, the extra ease-in-out breaks the declaration and the ring never breaks — M-T14 has to write one role',
-    },
-    {
-      file: 'src/components/composer/TransmitControl.vue',
-      pattern: /^animation:\s*charge-spin\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/TransmitNotice.vue',
-      pattern: /^transition:\s*border-color\s+160ms/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/composer/TransmitNotice.vue',
-      pattern: /^animation:\s*notice-in\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/home/MentionsBeacon.vue',
-      pattern: /^--ease-out\s*:/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/home/TelemetryRail.vue',
-      pattern: /^--ease-out\s*:/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/launch/LaunchBay.vue',
-      pattern: /^animation:\s*bay-fade-in\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/composables/useTilt.ts',
-      pattern: /^style\.transition\s*=/,
-      reason:
-        'the tilt writes the timing inline, because the speed is a parameter of the hook; the composables are not in the M-T14 allow-list',
-    },
-    {
-      file: 'src/components/platinum/ArchiveEmpty.vue',
-      pattern: /^animation:\s*archive-orbit\s/,
-      reason: PROTECTED_SCOPE,
-    },
-    {
-      file: 'src/components/report/ReasonConstellation.vue',
-      pattern: /^transition:\s*stroke\s+220ms/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/report/ReasonConstellation.vue',
-      pattern: /^transition:\s*border-color\s+200ms/,
-      reason:
-        'the declaration carries a hand-written cubic-bezier next to a hand-written duration — the constellation has no role of its own yet',
-    },
-    {
-      file: 'src/components/report/ReasonConstellation.vue',
-      pattern: /^transition:\s*opacity\s+160ms/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/scan/ScanLens.vue',
-      pattern: /^animation:\s*scan-spin\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/thread/LoadMoreNode.vue',
-      pattern: /^animation:\s*load-more-pulse\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/thread/RuleSheet.vue',
-      pattern: /^transition:\s*height\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/thread/RuleSheet.vue',
-      pattern: /^transition:\s*grid-template-rows\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/thread/RuleSheet.vue',
-      pattern: /^animation:\s*rule-sheet-unveil\s/,
-      reason: M_T14_SCOPE,
-    },
-    {
-      file: 'src/components/ui/GlitchText.vue',
-      pattern: /^animation:\s*glitch-before\s/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/ui/GlitchText.vue',
-      pattern: /^animation:\s*glitch-after\s/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/components/ui/GlitchText.vue',
-      pattern: /^animation:\s*glitch-main\s/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/views/BoardView.vue',
-      pattern: /^transition:\s*opacity\s+320ms/,
-      reason: ORPHAN_SCOPE,
-    },
-    {
-      file: 'src/views/PlatinumView.vue',
-      pattern: /^animation:\s*pulseIdle\s/,
-      reason: PROTECTED_SCOPE,
-    },
-    {
-      file: 'src/views/PlatinumView.vue',
-      pattern: /^animation:\s*archive-pulse\s/,
-      reason: PROTECTED_SCOPE,
-    },
-  ],
+  rawTiming: [],
   // A hover that grows the element: the element that is scaled is a tile of
   // the interface, not a sheet of paper.
-  hoverScale: [
-    {
-      file: 'src/components/report/ReasonConstellation.vue',
-      pattern: /^transform:\s*scale\(/,
-      reason: ORPHAN_SCOPE,
-    },
-  ],
-  // The name of a keyframe must belong to one file only.
-  duplicateKeyframes: [
+  hoverScale: [],
+  // The name of a keyframe must belong to one file only — but only when the
+  // clash is real at runtime (see the keyframe check below).
+  duplicateKeyframes: [],
+  // A layer that is promoted for good and never demoted.
+  eternalWillChange: [],
+  // The palette is defined once, in main.css.
+  localPalette: [],
+  // A rhythm that is declared in two places is two truths about the same
+  // tempo: the day one of them changes, the parts drift apart.
+  rhythmDuplicates: [
     {
       file: 'src/components/EmptyState.vue',
-      pattern: /^state-(scan|live|rise)$/,
+      pattern: /^--state-(scan|rise|pulse)-cycle:/,
       reason:
-        'the three states share the names of their keyframes; Vue scopes them at runtime, but the names must become unique in the source',
+        'the three states breathe in one shared rhythm under one name: the token must either move to the shared state language (motion.css) or be renamed per state — the files are out of the boundaries of M-T18b, so the choice is a human one',
     },
     {
       file: 'src/components/ErrorState.vue',
-      pattern: /^state-(scan|live)$/,
+      pattern: /^--state-(scan|rise|pulse)-cycle:/,
       reason:
-        'the three states share the names of their keyframes; Vue scopes them at runtime, but the names must become unique in the source',
+        'the three states breathe in one shared rhythm under one name: the token must either move to the shared state language (motion.css) or be renamed per state — the files are out of the boundaries of M-T18b, so the choice is a human one',
     },
     {
       file: 'src/components/LoadingState.vue',
-      pattern: /^state-(scan|live|rise)$/,
+      pattern: /^--state-(scan|rise|pulse)-cycle:/,
       reason:
-        'the three states share the names of their keyframes; Vue scopes them at runtime, but the names must become unique in the source',
+        'the three states breathe in one shared rhythm under one name: the token must either move to the shared state language (motion.css) or be renamed per state — the files are out of the boundaries of M-T18b, so the choice is a human one',
     },
   ],
-  // A layer that is promoted for good and never demoted.
-  eternalWillChange: [
+  // A rhythm that carries its own curve must NAME that curve: a keyword
+  // written by hand is a decision of the component, not of the system.
+  rawRhythmCurve: [
     {
-      file: 'src/components/thread/ThreadProgress.vue',
-      pattern: /^will-change/,
-      reason: M_T14_SCOPE,
-    },
-  ],
-  // The palette is defined once, in main.css.
-  localPalette: [
-    {
-      file: 'src/components/home/MentionsBeacon.vue',
-      pattern:
-        /^--(paper|paper-raised|paper-sunken|ink|ink-secondary|ink-tertiary|rule|accent|accent-hover|danger|success)\s*:/,
-      reason: ORPHAN_SCOPE,
+      file: 'src/components/composer/ContextFiber.vue',
+      pattern: /^--fiber-flow-rhythm:/,
+      reason:
+        'the flow of the fiber is linear and the word is written by hand; the fix is one line (var(--ease-linear)), but the composer layer is out of the boundaries of M-T18b',
     },
     {
-      file: 'src/components/home/TelemetryRail.vue',
-      pattern:
-        /^--(paper|paper-raised|paper-sunken|ink|ink-secondary|ink-tertiary|rule|accent|accent-hover|danger|success)\s*:/,
-      reason: ORPHAN_SCOPE,
+      file: 'src/components/composer/DraftBeacon.vue',
+      pattern: /^--beacon-blink-rhythm:/,
+      reason:
+        'the blink of the beacon is a soft curve and the word is written by hand; the fix is one line (var(--ease-soft)), but the composer layer is out of the boundaries of M-T18b',
+    },
+    {
+      file: 'src/components/composer/TransmitControl.vue',
+      pattern: /^--charge-spin-rhythm:/,
+      reason:
+        'the spin of the charge is linear and the word is written by hand; the fix is one line (var(--ease-linear)), but the composer layer is out of the boundaries of M-T18b',
+    },
+    {
+      file: 'src/components/scan/ScanLens.vue',
+      pattern: /^--scan-spin-rhythm:/,
+      reason:
+        'the spin of the instrument is linear and the word is written by hand; the fix is one line (var(--ease-linear)), but the file is out of the boundaries of M-T18b',
+    },
+    {
+      file: 'src/components/ui/GlitchText.vue',
+      pattern: /^--glitch-rhythm:/,
+      reason:
+        'the glitch is linear and the word is written by hand; the fix is one line (var(--ease-linear)), but the file is out of the boundaries of M-T18b',
     },
   ],
 }
@@ -375,15 +220,21 @@ const sources = walk(srcRoot).filter(
 const styleFiles = sources.filter((p) => /\.(vue|css)$/.test(p))
 
 /** The <style> blocks of a component (or the whole file of a stylesheet),
- *  each with the offset of the block inside the file. */
+ *  each with the offset of the block inside the file and whether the block is
+ *  scoped: a scoped block lives in the namespace of its component, and Vue
+ *  renames its keyframes with the id of that component. */
 function styleBlocks(path, src) {
-  if (path.endsWith('.css')) return [{ text: src, offset: 0 }]
+  if (path.endsWith('.css')) return [{ text: src, offset: 0, scoped: false }]
   const blocks = []
-  for (const m of src.matchAll(/<style[^>]*>/g)) {
+  for (const m of src.matchAll(/<style([^>]*)>/g)) {
     const start = m.index + m[0].length
     const end = src.indexOf('</style>', start)
     if (end === -1) continue
-    blocks.push({ text: src.slice(start, end), offset: start })
+    blocks.push({
+      text: src.slice(start, end),
+      offset: start,
+      scoped: /\bscoped\b/.test(m[1]),
+    })
   }
   return blocks
 }
@@ -455,7 +306,7 @@ function readStyles(path) {
       rules.push({ ...rule, declarations: parseDecls(rule.body) })
     }
   }
-  return { path, src, rules }
+  return { path, src, rules, blocks }
 }
 
 const styles = styleFiles.map(readStyles).filter(Boolean)
@@ -473,7 +324,9 @@ function finding(path, src, offset, text) {
 /** Whether a finding is already on the books of the debt. */
 function isWaived(group, item) {
   const list = WAIVERS[group] ?? []
-  return list.some((w) => w.file === item.file && w.pattern.test(item.text))
+  const hit = list.find((w) => w.file === item.file && w.pattern.test(item.text))
+  if (hit) hit.used = true
+  return !!hit
 }
 
 /** The reason of the waiver that excuses the finding. */
@@ -514,6 +367,11 @@ function report(group, name, items) {
   return open
 }
 
+/** A finding that does not break the build, but must be seen. */
+function warn(name, items) {
+  for (const item of items) warnings.push({ name, ...item })
+}
+
 // ---------------------------------------------------------------------------
 // 1. the motion layer is wired
 // ---------------------------------------------------------------------------
@@ -547,7 +405,7 @@ for (const role of ['hover', 'press', 'reveal', 'kinetic', 'magnetic', 'cinemati
     new RegExp(`--motion-${role}\\s*:`).test(motionCss),
   )
 }
-for (const curve of ['standard', 'emphasized', 'entrance', 'exit']) {
+for (const curve of ['standard', 'emphasized', 'entrance', 'exit', 'linear', 'soft']) {
   check(
     `motion curve: --ease-${curve} is declared`,
     new RegExp(`--ease-${curve}\\s*:`).test(motionCss),
@@ -559,6 +417,24 @@ check(
     new RegExp(`${name}\\s*:`).test(motionCss),
   ),
 )
+for (const rhythm of [
+  'archive-orbit-slow',
+  'archive-orbit-mid',
+  'archive-orbit-fast',
+  'archive-pulse',
+  'idle-pulse',
+]) {
+  check(
+    `motion rhythm: --motion-${rhythm} is declared`,
+    new RegExp(`--motion-${rhythm}\\s*:`).test(motionCss),
+  )
+}
+for (const token of ['--motion-tilt-duration', '--motion-tilt-ease']) {
+  check(
+    `motion role: ${token} is declared`,
+    new RegExp(`${token}\\s*:`).test(motionCss),
+  )
+}
 for (const token of [
   '--material-shadow-1',
   '--material-shadow-2',
@@ -615,13 +491,13 @@ for (const style of styles.filter((s) => s.path.endsWith('.vue'))) {
       const offset = rule.bodyOffset + decl.offset
       const isMotion = MOTION_PROP.test(decl.prop) && !DELAY_PROP.test(decl.prop)
       // a duration that hides inside a var() is a token with a safety net
-      const bare = decl.value.replace(/var\([^)]*\)/g, ' var() ')
+      const bare = blankVars(decl.value)
       if (isMotion && /\b\d+(\.\d+)?m?s\b/.test(bare)) {
         rawDuration.push(finding(style.path, style.src, offset, declarationText(decl)))
       }
       // a curve that hides inside a var() is a token; a curve written by hand
-      // is a decision that belongs to the system, not to the component
-      if (decl.value.includes('cubic-bezier(')) {
+      // is a decision that belongs to the system, not the component
+      if (bare.includes('cubic-bezier(')) {
         rawEasing.push(finding(style.path, style.src, offset, declarationText(decl)))
       } else if (isMotion) {
         const timings = bare
@@ -646,11 +522,18 @@ for (const path of sources.filter((p) => p.endsWith('.ts'))) {
   for (const m of src.matchAll(/style\.(transition|animation)\w*\s*=\s*([^\n;]+)/g)) {
     const value = m[2].trim()
     const text = `style.${m[1]} = ${value}`
-    if (/(?:\$\{[^}]*\}|\b\d[\d.]*)\s*(?:ms|s)\b/.test(value)) {
+    // the same rule as in a stylesheet: a var() is a token with a safety net
+    const bare = blankVars(value)
+    if (/(?:\$\{[^}]*\}|\b\d[\d.]*)\s*(?:ms|s)\b/.test(bare)) {
       rawScriptDuration.push(finding(path, src, m.index, text))
     }
-    if (value.includes('cubic-bezier(')) {
+    if (bare.includes('cubic-bezier(')) {
       rawScriptEasing.push(finding(path, src, m.index, text))
+    } else {
+      const timings = bare.replace(/steps\([^)]*\)/g, ' ')
+      if (/\b(ease-in-out|ease-in|ease-out|ease|linear)(?![\w-])/.test(timings)) {
+        rawScriptEasing.push(finding(path, src, m.index, text))
+      }
     }
     if (/^all\b/.test(value)) {
       transitionAll.push(finding(path, src, m.index, text))
@@ -686,27 +569,163 @@ for (const style of styles.filter((s) => s.path.endsWith('.vue'))) {
 report('hoverScale', 'law: no hover grows the element', hoverScale)
 
 // ---------------------------------------------------------------------------
-// 4. the keyframes of the system
+// 4. the tokens of the system are declared once
+//
+// A rhythm that lives in two places is two truths about the same tempo: the
+// day one component changes its own period, the parts drift apart and nobody
+// notices. The reference of the system is motion.css; a component that
+// redeclares a rhythm under the same name breaks that contract.
+//
+// A rhythm is a token whose NAME says so (`*-duration`, `*-rhythm`,
+// `*-period`, `*-cycle`) or whose VALUE holds a time (`38s`).
+// ---------------------------------------------------------------------------
+
+/** Every custom property of the sources, with the place it was declared. */
+const customProps = []
+for (const style of styles) {
+  for (const rule of style.rules) {
+    for (const decl of rule.declarations) {
+      if (!decl.prop.startsWith('--')) continue
+      customProps.push({
+        name: decl.prop,
+        value: decl.value,
+        file: style.path,
+        line: lineAt(style.src, rule.bodyOffset + decl.offset),
+      })
+    }
+  }
+}
+
+const RHYTHM_NAME = /-(duration|rhythm|period|cycle)$/
+const TIME_VALUE = /\b\d+(\.\d+)?m?s\b/
+/** A token that carries a rhythm. */
+const isRhythm = (prop) => RHYTHM_NAME.test(prop.name) || TIME_VALUE.test(prop.value)
+/** A token that carries a curve. */
+const isCurve = (prop) => prop.name.startsWith('--ease-')
+
+/** The places where a name is declared, grouped by the name. */
+function declarationsOf(predicate) {
+  const byName = new Map()
+  for (const prop of customProps) {
+    if (!predicate(prop)) continue
+    if (!byName.has(prop.name)) byName.set(prop.name, [])
+    byName.get(prop.name).push(prop)
+  }
+  return byName
+}
+
+/** The declarations that break the "one name — one place" rule. */
+function duplicateFindings(byName) {
+  const found = []
+  for (const [, props] of byName) {
+    if (props.length < 2) continue
+    for (const prop of props) {
+      found.push({
+        file: prop.file,
+        line: prop.line,
+        text: `${prop.name}: ${prop.value}`,
+      })
+    }
+  }
+  return found
+}
+
+report(
+  'rhythmDuplicates',
+  'law: a rhythm is declared in one place only',
+  duplicateFindings(declarationsOf(isRhythm)),
+)
+report(
+  'curveDuplicates',
+  'law: a curve is declared in one place only',
+  duplicateFindings(declarationsOf(isCurve)),
+)
+
+// 4.2 a rhythm that carries its own curve must NAME that curve: a keyword
+// written by hand is a decision of the component, not of the system. The one
+// exception is a discrete curve (steps) — a blinking caret has no character.
+const rawRhythmCurve = []
+for (const prop of customProps) {
+  if (!isRhythm(prop)) continue
+  if (prop.file === 'src/assets/motion.css') continue // the reference file
+  const bare = blankVars(prop.value)
+  const timings = bare.replace(/steps\([^)]*\)/g, ' ')
+  if (bare.includes('cubic-bezier(')) {
+    rawRhythmCurve.push({
+      file: prop.file,
+      line: prop.line,
+      text: `${prop.name}: ${prop.value}`,
+    })
+    continue
+  }
+  if (/\b(ease-in-out|ease-in|ease-out|ease|linear)(?![\w-])/.test(timings)) {
+    rawRhythmCurve.push({
+      file: prop.file,
+      line: prop.line,
+      text: `${prop.name}: ${prop.value}`,
+    })
+  }
+}
+report(
+  'rawRhythmCurve',
+  'law: a rhythm names its curve (var(--ease-*), not a keyword)',
+  rawRhythmCurve,
+)
+
+// ---------------------------------------------------------------------------
+// 5. the keyframes of the system
+//
+// A keyframe name is a global name — UNLESS the style block is scoped: Vue
+// then renames it with the id of the component (`state-scan` becomes
+// `state-scan-8bac6346`), so two components may hold the same name without
+// meeting at runtime.
+//
+// The clash that is real:
+//   - the same name twice in the global sheetsheets (the last one wins);
+//   - the same name twice in ONE scoped block (one scope id, the last wins).
+// Those are violations. A clash between two scoped blocks of two components
+// is only a clash in the source: it is a warning, not a broken system.
 // ---------------------------------------------------------------------------
 
 const keyframes = new Map()
 for (const style of styles) {
-  for (const m of style.src.matchAll(/@keyframes\s+([\w-]+)/g)) {
-    const name = m[1]
-    if (!keyframes.has(name)) keyframes.set(name, [])
-    keyframes.get(name).push(finding(style.path, style.src, m.index, name))
+  for (const block of style.blocks) {
+    for (const m of block.text.matchAll(/@keyframes\s+([\w-]+)/g)) {
+      const name = m[1]
+      if (!keyframes.has(name)) keyframes.set(name, [])
+      keyframes.get(name).push({
+        file: style.path,
+        line: lineAt(style.src, block.offset + m.index),
+        scoped: block.scoped,
+        text: name,
+      })
+    }
   }
 }
 const duplicateKeyframes = []
+const scopedKeyframeClashes = []
 for (const [, found] of keyframes) {
-  const files = new Set(found.map((f) => f.file))
-  if (files.size < 2) continue
-  duplicateKeyframes.push(...found)
+  if (found.length < 2) continue
+  const globals = found.filter((f) => !f.scoped)
+  const scopedByFile = new Map()
+  for (const f of found.filter((f) => f.scoped)) {
+    scopedByFile.set(f.file, (scopedByFile.get(f.file) ?? 0) + 1)
+  }
+  const sameScope = [...scopedByFile.values()].some((n) => n >= 2)
+  const clash = globals.length >= 2 || sameScope
+  for (const f of found) {
+    if (clash) duplicateKeyframes.push(f)
+    else scopedKeyframeClashes.push(f)
+  }
 }
 report('duplicateKeyframes', 'law: no keyframe name is used twice', duplicateKeyframes)
+warn(
+  'keyframe names that clash in the source only (Vue scopes them by data-v)',
+  scopedKeyframeClashes,
+)
 
 // ---------------------------------------------------------------------------
-// 5. the primitives of the motion system
+// 6. the primitives of the motion system
 // ---------------------------------------------------------------------------
 
 const useMotion = code('src/composables/useMotion.ts')
@@ -719,10 +738,10 @@ check(
 )
 
 // ---------------------------------------------------------------------------
-// 6. the performance and the a11y of the motion
+// 7. the performance and the a11y of the motion
 // ---------------------------------------------------------------------------
 
-// 6.1 will-change forever — a promoted layer that is never demoted keeps the
+// 7.1 will-change forever — a promoted layer that is never demoted keeps the
 // memory of the browser busy for nothing.
 const eternalWillChange = []
 for (const style of styles) {
@@ -747,7 +766,7 @@ for (const style of styles) {
 }
 report('eternalWillChange', 'perf: no will-change that never ends', eternalWillChange)
 
-// 6.2 the palette is defined once — a local copy of the colours is a second
+// 7.2 the palette is defined once — a local copy of the colours is a second
 // truth about the paper of the product.
 const PALETTE_TOKENS = new Set([
   '--paper',
@@ -780,7 +799,7 @@ for (const style of styles.filter((s) => s.path.endsWith('.vue'))) {
 }
 report('localPalette', 'law: the palette is defined once, in main.css', localPalette)
 
-// 6.3 reduced motion — everything that moves needs a static twin for the
+// 7.3 reduced motion — everything that moves needs a static twin for the
 // people who asked the system to stand still.
 const moves = (style) =>
   /@keyframes\s/.test(style.src) ||
@@ -821,8 +840,42 @@ for (const style of missingStylesheetGuard) {
 }
 
 // ---------------------------------------------------------------------------
+// 8. the promises that nothing keeps
+//
+// A waiver that excuses no violation is a promise the system does not keep:
+// the debt is paid, and the promise only hides that fact. It is reported as
+// a warning — it does not break the build, but it must not stay silent.
+// ---------------------------------------------------------------------------
+
+for (const [group, list] of Object.entries(WAIVERS)) {
+  for (const waiver of list) {
+    if (waiver.used) continue
+    warnings.push({
+      name: `the waiver of ${group} excuses nothing — the debt is paid, remove it`,
+      file: waiver.file,
+      line: 0,
+      text: waiver.pattern.source,
+    })
+  }
+}
+
+// ---------------------------------------------------------------------------
 // report
 // ---------------------------------------------------------------------------
+
+/**
+ * What this revision of the guard changed. The report prints it, so a reader
+ * of the output knows which rule now means what — a guard that silently
+ * changes its mind is a guard nobody can trust.
+ */
+const RULE_CHANGES = [
+  'ритм объявляется ровно один раз: токен с именем *-duration/-rhythm/-period/-cycle (или с временем в значении) не может быть объявлен в двух местах',
+  'кривая объявляется ровно один раз: все --ease-* живут в motion.css',
+  'ритм называет свою кривую: в токене ритма кривая — это var(--ease-*) (или дискретная steps()), а не литерал',
+  '«linear» — токен --ease-linear: литерал в свойстве движения по-прежнему нарушение, но путь к исправлению теперь назван',
+  'дубль @keyframes: нарушение — только настоящий конфликт (два глобальных имени или одно имя в одном скоупе); дубль двух скоуп-компонентов — предупреждение, потому что Vue переименовывает keyframes по data-v',
+  'waiver, который ничего не извиняет, попадает в отчёт как предупреждение: обещание, которое никто не держит, — это ложь о системе',
+]
 
 const failed = results.filter((r) => !r.ok)
 
@@ -844,12 +897,33 @@ for (const [index, r] of results.entries()) {
       console.log(detail.text)
   }
 }
+
+const warned = new Map()
+for (const w of warnings) {
+  if (!warned.has(w.name)) warned.set(w.name, [])
+  warned.get(w.name).push(w)
+}
+for (const [name, items] of warned) {
+  console.log(`WARN  ${name}`)
+  for (const item of items) {
+    console.log(
+      item.line
+        ? `    ${item.file}:${item.line}  ${item.text}`
+        : `    ${item.file}  ${item.text}`,
+    )
+  }
+}
+
 if (debt.length) {
   console.log(`\nopen motion debt — ${debt.length} waived violations (see --debt):`)
   for (const item of debt) {
     console.log(`  ${item.file}:${item.line}  ${item.text}`)
   }
 }
+
+console.log("\nправила, которые изменились в этой ревизии guard'а:")
+for (const line of RULE_CHANGES) console.log(`  · ${line}`)
+
 if (failed.length) {
   console.error(
     `\nverify:motion FAILED — ${failed.length}/${results.length} checks failed`,

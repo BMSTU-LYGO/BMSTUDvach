@@ -249,14 +249,15 @@ const showsRings = computed(() => props.mode === 'loading' || props.mode === 'em
   width: 104px;
   height: 104px;
   margin: -52px 0 0 -52px;
-  animation: archive-orbit 38s linear infinite;
+  animation: archive-orbit var(--motion-archive-orbit-slow) var(--ease-linear) infinite;
 }
 
 .archive-empty__ring--middle {
   width: 72px;
   height: 72px;
   margin: -36px 0 0 -36px;
-  animation: archive-orbit 27s linear infinite reverse;
+  animation: archive-orbit var(--motion-archive-orbit-mid) var(--ease-linear) infinite
+    reverse;
 }
 
 .archive-empty__ring--inner {
@@ -264,7 +265,7 @@ const showsRings = computed(() => props.mode === 'loading' || props.mode === 'em
   height: 40px;
   margin: -20px 0 0 -20px;
   border-color: #d4882a;
-  animation: archive-orbit 18s linear infinite;
+  animation: archive-orbit var(--motion-archive-orbit-fast) var(--ease-linear) infinite;
 }
 
 @keyframes archive-orbit {

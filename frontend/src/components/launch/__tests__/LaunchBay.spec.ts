@@ -337,7 +337,9 @@ describe('LaunchBay — the sheet, not a card (P3-T2)', () => {
     expect(ruleBlock(BAY_SOURCE, '.launch-bay__scene')).toContain('grid-column: 1')
     expect(ruleBlock(BAY_SOURCE, '.launch-bay__close')).toContain('grid-column: 2')
     // the title stays crisp: only body and rail fade in behind it
-    expect(BAY_SOURCE).toContain('animation: bay-fade-in 320ms')
+    expect(BAY_SOURCE).toContain('animation: bay-fade-in var(--motion-reveal)')
+    // the fade follows the role of the system, not a duration written by hand
+    expect(BAY_SOURCE).not.toMatch(/bay-fade-in\s+\d/)
     expect(REDUCED_RULES).toContain('animation: none')
   })
 

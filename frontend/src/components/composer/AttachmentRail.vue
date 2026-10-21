@@ -249,6 +249,7 @@ defineExpose({ openPicker, addFiles })
   right: 0;
   top: 22px;
   height: 1px;
+  /* Волокно — линия, а не элемент: растёт её длина, а не сам блок. */
   transform: scaleX(0.18);
   transform-origin: left center;
   pointer-events: none;
@@ -290,7 +291,6 @@ defineExpose({ openPicker, addFiles })
   border: 1px solid color-mix(in oklab, var(--accent) 26%, transparent);
   background: color-mix(in oklab, var(--accent) 6%, var(--paper-raised));
   border-radius: var(--radius-md);
-  transform-origin: left center;
   /* Гнёзда открываются магнитом — та же тяга, что и у волокна. */
   animation: socket-open var(--motion-magnetic) both;
   animation-delay: calc(var(--slot-index, 1) * 45ms);
@@ -313,11 +313,13 @@ defineExpose({ openPicker, addFiles })
 @keyframes socket-open {
   from {
     opacity: 0;
-    transform: scaleX(0.4);
+    /* Гнездо — элемент интерфейса, а не линия: оно не раскрывается
+       масштабом, а приезжает с кромки и проявляется. */
+    transform: translateX(-6px);
   }
   to {
     opacity: 1;
-    transform: scaleX(1);
+    transform: translateX(0);
   }
 }
 

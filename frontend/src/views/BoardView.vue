@@ -348,11 +348,15 @@ function captureRow(event: MouseEvent, threadId: number) {
   pointer-events: none;
 }
 
+/* The board recedes at the tempo of the bay that takes the stage: the same
+   600ms the reveal role carries, but with the curve of an exit — the board
+   leaves quickly and dims out, the bay arrives and settles. The duration
+   comes from the role, so the two halves of the gesture cannot drift apart. */
 .threads-list,
 .catalog-grid {
   transition:
-    opacity 320ms var(--ease-out),
-    transform 320ms var(--ease-out);
+    opacity var(--motion-reveal-duration) var(--ease-exit),
+    transform var(--motion-reveal-duration) var(--ease-exit);
 }
 
 .board-header__actions {
