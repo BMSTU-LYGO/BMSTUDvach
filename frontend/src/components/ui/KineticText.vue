@@ -80,6 +80,25 @@ const pieces = computed<Piece[]>(() => {
 /** Ритм по умолчанию: слова идут плотно (шаг кинетики), строки — чуть свободнее. */
 const stagger = computed(() => props.stagger ?? (props.mode === 'words' ? 0.028 : 0.06))
 
+/**
+ * Теги, чья роль умеет носить имя (`aria-label`): заголовок, ссылка, кнопка.
+ * Для них скрытая копия текста была бы вторым чтением — она не нужна.
+ */
+const NAME_CARRIERS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button'])
+
+/**
+ * Нужна ли скрытая копия текста.
+ *
+ * По правилам ARIA имя автора запрещено для «безымянных» ролей: у `<p>`
+ * (paragraph) и `<span>` (generic) браузер обязан игнорировать `aria-label`.
+ * Если при этом доли текста ещё и скрыты от скринридера, строка не читается
+ * вообще — она молча пропадает из accessibility-дерева.
+ *
+ * Поэтому для таких тегов текст отдаётся отдельной скрытой копией, а доли
+ * остаются `aria-hidden`: читается ровно один раз, и уже точно.
+ */
+const needsHiddenCopy = computed(() => !NAME_CARRIERS.has(props.as.toLowerCase()))
+
 let ctx: gsap.Context | null = null
 let observer: IntersectionObserver | null = null
 let frameId = 0
@@ -172,6 +191,9 @@ onUnmounted(() => {
     :aria-label="text"
     data-testid="kinetic-text"
   >
+    <!-- Скрытая копия текста: её читает скринридер, глаз не видит. Нужна
+         только тем тегам, чья роль не умеет носить имя (см. needsHiddenCopy). -->
+    <span v-if="needsHiddenCopy" class="kinetic-text__sr">{{ text }}</span>
     <template v-for="piece in pieces" :key="piece.key">
       <span class="kinetic-text__mask" aria-hidden="true" data-testid="kinetic-mask">
         <span
@@ -206,6 +228,21 @@ onUnmounted(() => {
 
 .kinetic-text--words {
   display: inline-block;
+}
+
+/* Скрытая копия текста: скринридер её читает, глаз — нет. Копия не влияет на
+   вёрстку (position: absolute выносит её из потока), поэтому разбивка и
+   маска остаются ровно такими же. */
+.kinetic-text__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Маска: строка или слово выезжает из-под неё, а не проявляется. */

@@ -21,7 +21,13 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
 </script>
 
 <template>
-  <div class="state state-empty" role="status" aria-live="polite" data-testid="empty">
+  <div
+    class="state state-empty"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    data-testid="empty"
+  >
     <div class="state__frame" data-testid="state-empty">
       <span class="state__corner state__corner--tl" aria-hidden="true"></span>
       <span class="state__corner state__corner--tr" aria-hidden="true"></span>
@@ -67,6 +73,9 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
 .state__frame {
   --state-accent: var(--accent);
   --state-soft: color-mix(in oklab, var(--accent) 38%, var(--rule));
+  /* Кромка действия: граница контрола должна читаться (3:1 к бумаге), поэтому
+     она собрана из акцента состояния, а не из приглушённого тона. */
+  --state-border: color-mix(in oklab, var(--state-accent) 65%, var(--rule));
 
   /* Ритм прибора: оборот сканирования, вдох сигнала, пульс состояния. */
   --state-scan-cycle: 2.6s;
@@ -242,7 +251,7 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
   text-transform: uppercase;
   color: var(--state-accent);
   background: transparent;
-  border: 1px solid var(--state-soft);
+  border: 1px solid var(--state-border);
   cursor: pointer;
   transition:
     background var(--motion-hover),

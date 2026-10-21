@@ -195,7 +195,10 @@ function hover(on: boolean) {
 
 .transmit--error .transmit__charge {
   stroke: var(--danger);
-  animation: break-ring var(--motion-hover) ease-in-out;
+  /* Роль наведения несёт и длительность, и кривую: добавлять вторую
+     timing-функцию после неё нельзя — сокращение становится невалидным
+     и кольцо не ломается вовсе. */
+  animation: break-ring var(--motion-hover);
 }
 
 .transmit--submitting {
@@ -231,7 +234,11 @@ function hover(on: boolean) {
 }
 
 .transmit--submitting .transmit__charge {
-  animation: charge-spin var(--motion-cinematic-duration) linear infinite;
+  /* Заряд вращается равномерно: линейная крива обязательна, иначе
+     кольцо дёргается на стыке цикла. Свой ритм — поэтому он назван
+     здесь, а не написан в анимации. */
+  --charge-spin-rhythm: var(--motion-cinematic-duration) linear;
+  animation: charge-spin var(--charge-spin-rhythm) infinite;
   stroke-dashoffset: 0;
 }
 

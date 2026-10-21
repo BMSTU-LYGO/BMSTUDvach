@@ -479,14 +479,17 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 .scan__spinner {
+  /* the instrument works: the ring turns while the scan runs —
+     равномерное вращение требует линейной кривой, иначе кольцо
+     дёргается на стыке цикла */
+  --scan-spin-rhythm: var(--motion-cinematic-duration) linear;
   width: 13px;
   height: 13px;
   border-radius: 50%;
   border: 1.5px solid var(--rule);
   border-top-color: var(--accent);
   flex-shrink: 0;
-  /* the instrument works: the ring turns while the scan runs */
-  animation: scan-spin var(--motion-cinematic-duration) linear infinite;
+  animation: scan-spin var(--scan-spin-rhythm) infinite;
 }
 
 @keyframes scan-spin {

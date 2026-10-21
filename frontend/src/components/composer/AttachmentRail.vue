@@ -225,7 +225,8 @@ defineExpose({ openPicker, addFiles })
   inset: -12px -8px -6px;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 220ms var(--ease-out-quart);
+  /* Свет магнита проявляется тихо: роль наведения (150ms). */
+  transition: opacity var(--motion-hover);
   background: radial-gradient(
     190px 74px at var(--intake-x, 50%) var(--intake-y, 50%),
     color-mix(in oklab, var(--accent) 16%, transparent),
@@ -256,7 +257,8 @@ defineExpose({ openPicker, addFiles })
     color-mix(in oklab, var(--accent) 55%, transparent),
     color-mix(in oklab, var(--accent) 6%, transparent)
   );
-  animation: fiber-stretch 320ms var(--ease-out-quart) forwards;
+  /* Волокно тянется от магнита: роль магнитной тяги (480ms, emphasized). */
+  animation: fiber-stretch var(--motion-magnetic) forwards;
 }
 
 @keyframes fiber-stretch {
@@ -289,7 +291,8 @@ defineExpose({ openPicker, addFiles })
   background: color-mix(in oklab, var(--accent) 6%, var(--paper-raised));
   border-radius: var(--radius-md);
   transform-origin: left center;
-  animation: socket-open 300ms var(--ease-out-quart) both;
+  /* Гнёзда открываются магнитом — та же тяга, что и у волокна. */
+  animation: socket-open var(--motion-magnetic) both;
   animation-delay: calc(var(--slot-index, 1) * 45ms);
 }
 
@@ -332,11 +335,15 @@ defineExpose({ openPicker, addFiles })
 }
 
 .cargo-rail__magnet-dot {
+  /* Период дыхания — характер самой точки, а не «случайная» цифра:
+     набрать воздух и отпустить раз в 1.6 с. Роль движения здесь не
+     подходит: бесконечный цикл не «появляется» и не «реагирует». */
+  --magnet-breathe-rhythm: 1.6s var(--ease-out-quart);
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: var(--accent);
-  animation: magnet-breathe 1.6s var(--ease-out-quart) infinite;
+  animation: magnet-breathe var(--magnet-breathe-rhythm) infinite;
 }
 
 @keyframes magnet-breathe {

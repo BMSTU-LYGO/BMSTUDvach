@@ -86,7 +86,17 @@ function size() {
       aria-label="Убрать вложение"
       @click="emit('remove')"
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
     </button>
   </div>
 </template>
@@ -103,8 +113,10 @@ function size() {
   border-radius: var(--radius-md);
   max-width: 220px;
   /* P3-T1a: on drop/paste the capsule flies into the strip from the
-     magnetised edge, then settles — CSS-only, no JS timeline. */
-  animation: capsule-arrive 280ms var(--ease-out-quart) both;
+     magnetised edge, then settles — CSS-only, no JS timeline.
+     Тяга магнита: роль `--motion-magnetic` (480ms, emphasized) — та же
+     кривая, что была у капсулы, но с весом: магнит тянет, а не бросает. */
+  animation: capsule-arrive var(--motion-magnetic) both;
 }
 
 @keyframes capsule-arrive {
@@ -197,7 +209,11 @@ function size() {
   color: var(--ink-tertiary);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 160ms, color 160ms;
+  /* Кнопка проявляется тихо: роль наведения (150ms) вместо двух
+     написанных вручную длительностей. */
+  transition:
+    opacity var(--motion-hover),
+    color var(--motion-hover);
 }
 
 .capsule:hover .capsule__remove,

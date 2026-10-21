@@ -18,7 +18,10 @@ defineProps<{
     aria-valuemax="100"
     data-testid="thread-progress"
   >
-    <div class="thread-progress__fill" :style="{ transform: `scaleX(${progress})` }"></div>
+    <div
+      class="thread-progress__fill"
+      :style="{ transform: `scaleX(${progress})` }"
+    ></div>
   </div>
 </template>
 
@@ -36,8 +39,10 @@ defineProps<{
 
 .thread-progress__fill {
   height: 100%;
-  background: var(--accent, #2F4F4E);
+  background: var(--accent, #2f4f4e);
   transform-origin: left center;
-  will-change: transform;
+  /* Постоянного `will-change` здесь нет: полоска обновляется каждый кадр
+     прокрутки, но она высотой 2px — слой композитора ей не нужен, а
+     вечно поднятый слой держит память браузера. */
 }
 </style>

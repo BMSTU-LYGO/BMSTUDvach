@@ -257,10 +257,11 @@ const showMessage = computed(() => {
   color: var(--danger);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* Кнопка отзывается тихо: роль наведения (150ms) на кромку, тон и подложку. */
   transition:
-    border-color 160ms ease,
-    color 160ms ease,
-    background 160ms ease;
+    border-color var(--motion-hover),
+    color var(--motion-hover),
+    background var(--motion-hover);
 }
 
 .notice__retry:hover {
@@ -277,7 +278,9 @@ const showMessage = computed(() => {
 
 @media (prefers-reduced-motion: no-preference) {
   .notice {
-    animation: notice-in 180ms ease-out both;
+    /* Уведомление — это текст, который нужно успеть прочесть, поэтому
+       оно выходит по роли появления (600ms), а не «мелькает». */
+    animation: notice-in var(--motion-reveal) both;
   }
 }
 

@@ -71,6 +71,7 @@ const hint = computed(() => VARIANTS[props.variant].hint)
     :class="['state', 'state-notfound', `state-${props.variant}`]"
     role="status"
     aria-live="polite"
+    aria-atomic="true"
     data-testid="not-found"
     :data-variant="props.variant"
   >
@@ -178,6 +179,9 @@ const hint = computed(() => VARIANTS[props.variant].hint)
 .state__frame {
   --state-accent: var(--accent);
   --state-soft: color-mix(in oklab, var(--accent) 38%, var(--rule));
+  /* Кромка действия: граница контрола должна читаться (3:1 к бумаге), поэтому
+     она собрана из акцента состояния, а не из приглушённого тона. */
+  --state-border: color-mix(in oklab, var(--state-accent) 65%, var(--rule));
 
   position: relative;
   display: grid;
@@ -363,7 +367,7 @@ const hint = computed(() => VARIANTS[props.variant].hint)
   text-transform: uppercase;
   color: var(--state-accent);
   background: transparent;
-  border: 1px solid var(--state-soft);
+  border: 1px solid var(--state-border);
   cursor: pointer;
   transition:
     background var(--motion-hover),

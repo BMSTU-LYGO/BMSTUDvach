@@ -2,10 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { gsap, prefersReducedMotion } from '@/composables/useGsap'
 
-withDefaults(
-  defineProps<{ text: string; tag?: string; glitchDuration?: number }>(),
-  { tag: 'span', glitchDuration: 2 },
-)
+withDefaults(defineProps<{ text: string; tag?: string; glitchDuration?: number }>(), {
+  tag: 'span',
+  glitchDuration: 2,
+})
 
 const textRef = ref<HTMLElement | null>(null)
 const isGlitching = ref(false)
@@ -28,9 +28,12 @@ onMounted(() => {
   function triggerGlitch() {
     if (prefersReducedMotion()) return
     isGlitching.value = true
-    setTimeout(() => {
-      isGlitching.value = false
-    }, 110 + Math.random() * 120)
+    setTimeout(
+      () => {
+        isGlitching.value = false
+      },
+      110 + Math.random() * 120,
+    )
   }
 
   // Random glitch every 3-8 seconds
@@ -61,6 +64,9 @@ onMounted(() => {
 
 <style scoped>
 .glitch-text {
+  /* Сбой живёт 0.18 с — это его собственный ритм (и линейная кривая,
+     чтобы дёрганье не растягивалось), а не роль движения системы. */
+  --glitch-rhythm: 0.18s linear;
   position: relative;
   display: inline-block;
   font-family: var(--font-display);
@@ -93,44 +99,92 @@ onMounted(() => {
 
 /* Glitch animation */
 .glitch-text.glitching::before {
-  animation: glitch-before 0.18s linear;
+  animation: glitch-before var(--glitch-rhythm);
   opacity: 0.3;
 }
 
 .glitch-text.glitching::after {
-  animation: glitch-after 0.18s linear;
+  animation: glitch-after var(--glitch-rhythm);
   opacity: 0.3;
 }
 
 .glitch-text.glitching {
-  animation: glitch-main 0.18s linear;
+  animation: glitch-main var(--glitch-rhythm);
 }
 
 @keyframes glitch-main {
-  0% { transform: translate(0); }
-  20% { transform: translate(-1px, 1px); }
-  40% { transform: translate(1px, -1px); }
-  60% { transform: translate(-1px, 0); }
-  80% { transform: translate(1px, 0); }
-  100% { transform: translate(0); }
+  0% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-1px, 1px);
+  }
+  40% {
+    transform: translate(1px, -1px);
+  }
+  60% {
+    transform: translate(-1px, 0);
+  }
+  80% {
+    transform: translate(1px, 0);
+  }
+  100% {
+    transform: translate(0);
+  }
 }
 
 @keyframes glitch-before {
-  0% { clip-path: inset(0 0 85% 0); transform: translate(0); }
-  20% { clip-path: inset(15% 0 60% 0); transform: translate(-3px, 1px); }
-  40% { clip-path: inset(40% 0 30% 0); transform: translate(3px, -1px); }
-  60% { clip-path: inset(60% 0 10% 0); transform: translate(-2px, 2px); }
-  80% { clip-path: inset(80% 0 0% 0); transform: translate(2px, -2px); }
-  100% { clip-path: inset(0 0 85% 0); transform: translate(0); }
+  0% {
+    clip-path: inset(0 0 85% 0);
+    transform: translate(0);
+  }
+  20% {
+    clip-path: inset(15% 0 60% 0);
+    transform: translate(-3px, 1px);
+  }
+  40% {
+    clip-path: inset(40% 0 30% 0);
+    transform: translate(3px, -1px);
+  }
+  60% {
+    clip-path: inset(60% 0 10% 0);
+    transform: translate(-2px, 2px);
+  }
+  80% {
+    clip-path: inset(80% 0 0% 0);
+    transform: translate(2px, -2px);
+  }
+  100% {
+    clip-path: inset(0 0 85% 0);
+    transform: translate(0);
+  }
 }
 
 @keyframes glitch-after {
-  0% { clip-path: inset(85% 0 0 0); transform: translate(0); }
-  20% { clip-path: inset(60% 0 15% 0); transform: translate(3px, -1px); }
-  40% { clip-path: inset(30% 0 40% 0); transform: translate(-3px, 1px); }
-  60% { clip-path: inset(10% 0 60% 0); transform: translate(2px, -2px); }
-  80% { clip-path: inset(0% 0 80% 0); transform: translate(-2px, 2px); }
-  100% { clip-path: inset(85% 0 0 0); transform: translate(0); }
+  0% {
+    clip-path: inset(85% 0 0 0);
+    transform: translate(0);
+  }
+  20% {
+    clip-path: inset(60% 0 15% 0);
+    transform: translate(3px, -1px);
+  }
+  40% {
+    clip-path: inset(30% 0 40% 0);
+    transform: translate(-3px, 1px);
+  }
+  60% {
+    clip-path: inset(10% 0 60% 0);
+    transform: translate(2px, -2px);
+  }
+  80% {
+    clip-path: inset(0% 0 80% 0);
+    transform: translate(-2px, 2px);
+  }
+  100% {
+    clip-path: inset(85% 0 0 0);
+    transform: translate(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

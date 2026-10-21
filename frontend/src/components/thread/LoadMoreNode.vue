@@ -75,11 +75,14 @@ void props
 }
 
 .load-more__dot {
+  /* Точка дышит раз в секунду — это её собственный ритм, а не роль
+     движения: бесконечный цикл не «появляется» и не «реагирует». */
+  --load-more-pulse-rhythm: 1s var(--ease-out);
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: load-more-pulse 1s var(--ease-out) infinite;
+  animation: load-more-pulse var(--load-more-pulse-rhythm) infinite;
 }
 
 @keyframes load-more-pulse {

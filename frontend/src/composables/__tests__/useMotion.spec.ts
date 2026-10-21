@@ -299,6 +299,50 @@ describe('usePointerLight', () => {
     wrapper.unmount()
   })
 
+  it('не пишет координаты на тач-устройстве: там нет курсора', () => {
+    setTouchDevice(true)
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 100 }))
+    flushFrames()
+
+    expect(el.style.getPropertyValue('--mx')).toBe('')
+    expect(el.style.getPropertyValue('--my')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('гаснет, когда «меньше движения» включается прямо во время сессии', async () => {
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    expect(el.style.getPropertyValue('--mx')).toBe('50%')
+
+    mediaQuery('(prefers-reduced-motion: reduce)').set(true)
+    await nextTick()
+
+    // Свет выключился вместе с подпиской — в DOM не осталось и следов.
+    expect(el.style.getPropertyValue('--mx')).toBe('')
+    expect(el.style.getPropertyValue('--my')).toBe('')
+    expect(el.style.getPropertyValue('--m-light-radius')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('зажигается снова, когда движение возвращается', async () => {
+    const wrapper = mount(LightProbe)
+    const el = wrapper.element as HTMLElement
+
+    mediaQuery('(prefers-reduced-motion: reduce)').set(true)
+    await nextTick()
+    expect(el.style.getPropertyValue('--mx')).toBe('')
+
+    mediaQuery('(prefers-reduced-motion: reduce)').set(false)
+    await nextTick()
+
+    expect(el.style.getPropertyValue('--mx')).toBe('50%')
+    wrapper.unmount()
+  })
+
   it('снимает слушатель после размонтирования', () => {
     const wrapper = mount(LightProbe)
     const el = wrapper.element as HTMLElement
@@ -394,6 +438,100 @@ describe('useMagnetic', () => {
     flushFrames(40)
 
     expect(el.style.getPropertyValue('--mag-x')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('выключен на тач-устройстве: под пальцем тяги нет', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    setTouchDevice(true)
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+
+    expect(el.style.getPropertyValue('--mag-x')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('выключен, пока элемент в фокусе с клавиатуры', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+
+    expect(parseFloat(el.style.getPropertyValue('--mag-x'))).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('выключен, пока пользователь печатает', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    // Печать — клавиатура ведёт: мышь не должна двигать то, что читают.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+
+    expect(parseFloat(el.style.getPropertyValue('--mag-x'))).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('возвращается в работу, когда мышь говорит первой', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    window.dispatchEvent(new MouseEvent('pointerdown', { clientX: 150, clientY: 50 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+
+    expect(parseFloat(el.style.getPropertyValue('--mag-x'))).toBeGreaterThan(0)
+    wrapper.unmount()
+  })
+
+  it('не вывозит элемент за край окна: горизонтальной прокрутки не будет', () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    // Элемент прижат к правому краю окна (1024px в jsdom).
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...RECT,
+      left: 824,
+      right: 1024,
+      width: 200,
+      height: 100,
+      x: 824,
+      y: 0,
+    } as DOMRect)
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 1100, clientY: 50 }))
+    flushFrames(40)
+
+    // Тяга вправо была бы, но край окна её не пускает.
+    expect(parseFloat(el.style.getPropertyValue('--mag-x'))).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('гаснет, когда «меньше движения» включается прямо во время сессии', async () => {
+    installMatchMedia({ '(pointer: fine)': true })
+    const wrapper = mount(MagneticProbe)
+    const el = wrapper.element as HTMLElement
+
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 50 }))
+    flushFrames(40)
+    expect(parseFloat(el.style.getPropertyValue('--mag-x'))).toBeGreaterThan(0)
+
+    mediaQuery('(prefers-reduced-motion: reduce)').set(true)
+    await nextTick()
+
+    expect(el.style.getPropertyValue('--mag-x')).toBe('')
+    expect(el.style.getPropertyValue('--mag-y')).toBe('')
     wrapper.unmount()
   })
 

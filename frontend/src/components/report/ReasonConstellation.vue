@@ -293,7 +293,8 @@ defineExpose({ nodeRect, originRect, recede, restore, focusNode })
 .constellation__wires line {
   stroke: var(--rule);
   stroke-width: 1;
-  transition: stroke 220ms var(--ease-out-quart);
+  /* Провод загорается тихо: роль наведения (150ms). */
+  transition: stroke var(--motion-hover);
 }
 
 .constellation__wires .constellation__wire--live {
@@ -323,9 +324,11 @@ defineExpose({ nodeRect, originRect, recede, restore, focusNode })
   display: grid;
   place-items: center;
   background: var(--paper);
+  /* Кромка загорается и кольцо приподнимается на пиксель — расти ему
+     нельзя: увеличенный узел был бы плиткой, а не бумажным кольцом. */
   transition:
-    border-color 200ms var(--ease-out-quart),
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    border-color var(--motion-hover),
+    transform var(--motion-hover);
 }
 
 .node__glyph {
@@ -340,15 +343,17 @@ defineExpose({ nodeRect, originRect, recede, restore, focusNode })
   font-size: 0.62rem;
   white-space: nowrap;
   opacity: 0.75;
+  /* Подпись отзывается тихо: роль наведения (150ms) на тон и прозрачность. */
   transition:
-    opacity 160ms,
-    color 160ms;
+    opacity var(--motion-hover),
+    color var(--motion-hover);
 }
 
 .node:hover .node__ring,
 .node:focus-visible .node__ring {
   border-color: var(--accent);
-  transform: scale(1.1);
+  /* Бумага приподнимается на миллиметр — не растёт, а отзывается. */
+  transform: translateY(-1px);
 }
 
 .node:hover .node__label,

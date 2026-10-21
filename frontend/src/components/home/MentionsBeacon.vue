@@ -149,23 +149,6 @@ function submit(): void {
 
 <style scoped>
 .beacon {
-  --paper-raised: #EAE4D4;
-  --paper-sunken: #F7F3E8;
-  --ink: #1C1A14;
-  --ink-secondary: #5B5547;
-  --ink-tertiary: #8A8273;
-  --rule: #D4CEB8;
-  --accent: #2F4F4E;
-  --danger: #9C2A1F;
-  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --duration-fast: 150ms;
-  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-
   display: flex;
   flex-direction: column;
   border: 1px solid var(--rule);
@@ -188,7 +171,7 @@ function submit(): void {
   font-weight: 400;
   cursor: pointer;
   text-align: left;
-  transition: background var(--duration-fast) var(--ease-out);
+  transition: background var(--motion-hover);
 }
 
 .beacon__toggle:hover {
@@ -260,7 +243,7 @@ function submit(): void {
   color: inherit;
   font-family: var(--font-body);
   font-size: 0.875rem;
-  transition: background var(--duration-fast) var(--ease-out);
+  transition: background var(--motion-hover);
 }
 
 .beacon__link:hover {
@@ -300,7 +283,7 @@ function submit(): void {
   font-family: var(--font-mono);
   font-size: 0.875rem;
   outline: none;
-  transition: border-color var(--duration-fast) var(--ease-out);
+  transition: border-color var(--motion-hover);
 }
 
 .beacon__input::placeholder {
@@ -332,8 +315,8 @@ function submit(): void {
   font-weight: 500;
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+    background var(--motion-hover),
+    border-color var(--motion-hover);
 }
 
 .beacon__action:hover,

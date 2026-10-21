@@ -116,15 +116,21 @@ watch(() => [props.source, props.target, props.label], measure)
 </script>
 
 <template>
-  <div
-    class="context-fiber"
-    :class="`context-fiber--${linkState}`"
-    aria-hidden="true"
-  >
+  <div class="context-fiber" :class="`context-fiber--${linkState}`" aria-hidden="true">
     <svg v-if="path" class="context-fiber__svg">
       <path class="context-fiber__line" :d="path.d" />
-      <circle class="context-fiber__node context-fiber__node--source" :cx="path.from.x" :cy="path.from.y" r="3.5" />
-      <circle class="context-fiber__node context-fiber__node--dock" :cx="path.to.x" :cy="path.to.y" r="2.5" />
+      <circle
+        class="context-fiber__node context-fiber__node--source"
+        :cx="path.from.x"
+        :cy="path.from.y"
+        r="3.5"
+      />
+      <circle
+        class="context-fiber__node context-fiber__node--dock"
+        :cx="path.to.x"
+        :cy="path.to.y"
+        r="2.5"
+      />
     </svg>
 
     <button
@@ -137,7 +143,10 @@ watch(() => [props.source, props.target, props.label], measure)
       tabindex="-1"
       @click="scrollToSource"
     >
-      <span class="context-fiber__edge-arrow" :class="`context-fiber__edge-arrow--${edge}`"></span>
+      <span
+        class="context-fiber__edge-arrow"
+        :class="`context-fiber__edge-arrow--${edge}`"
+      ></span>
       <span class="context-fiber__edge-label">{{ label }}</span>
     </button>
   </div>
@@ -159,6 +168,9 @@ watch(() => [props.source, props.target, props.label], measure)
 }
 
 .context-fiber__line {
+  /* Поток течёт равномерно: у линии свой ритм (1.4 с) и своя кривая —
+     линейная, потому что линия не должна дёргаться на стыке цикла. */
+  --fiber-flow-rhythm: 1.4s linear;
   fill: none;
   stroke: var(--link-accent, var(--accent));
   stroke-width: 1.2;
@@ -166,7 +178,7 @@ watch(() => [props.source, props.target, props.label], measure)
      the dock's leading edge burns with the same accent */
   opacity: calc(0.6 + 0.4 * var(--link-state, 1));
   stroke-dasharray: 5 6;
-  animation: fiber-flow 1.4s linear infinite;
+  animation: fiber-flow var(--fiber-flow-rhythm) infinite;
 }
 
 .context-fiber__node {
@@ -185,7 +197,8 @@ watch(() => [props.source, props.target, props.label], measure)
   gap: 6px;
   padding: 6px 10px;
   background: var(--bg-raised);
-  border: 1px solid color-mix(in oklab, var(--link-accent, var(--accent)) 45%, transparent);
+  border: 1px solid
+    color-mix(in oklab, var(--link-accent, var(--accent)) 45%, transparent);
   border-radius: 999px;
   color: var(--link-accent, var(--accent));
   font-family: var(--font-display);

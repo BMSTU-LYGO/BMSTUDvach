@@ -30,17 +30,52 @@ const cells = computed<Cell[]>(() => {
   const t = telemetry.value
   if (!t) {
     return [
-      { key: 'boards', label: 'Разделы', value: '—', title: 'Активные разделы: загрузка' },
+      {
+        key: 'boards',
+        label: 'Разделы',
+        value: '—',
+        title: 'Активные разделы: загрузка',
+      },
       { key: 'threads', label: 'Треды', value: '—', title: 'Видимые треды: загрузка' },
-      { key: 'posts', label: 'Сообщения', value: '—', title: 'Видимые сообщения: загрузка' },
-      { key: 'day', label: '24 часа', value: '—', title: 'За последние 24 часа: загрузка' },
-      { key: 'active', label: 'Актив', value: '—', title: 'Самый активный раздел: загрузка' },
+      {
+        key: 'posts',
+        label: 'Сообщения',
+        value: '—',
+        title: 'Видимые сообщения: загрузка',
+      },
+      {
+        key: 'day',
+        label: '24 часа',
+        value: '—',
+        title: 'За последние 24 часа: загрузка',
+      },
+      {
+        key: 'active',
+        label: 'Актив',
+        value: '—',
+        title: 'Самый активный раздел: загрузка',
+      },
     ]
   }
   return [
-    { key: 'boards', label: 'Разделы', value: pad(t.boards, 2), title: `Активные разделы: ${t.boards}` },
-    { key: 'threads', label: 'Треды', value: pad(t.threads, 3), title: `Видимые треды: ${t.threads}` },
-    { key: 'posts', label: 'Сообщения', value: pad(t.posts, 3), title: `Видимые сообщения: ${t.posts}` },
+    {
+      key: 'boards',
+      label: 'Разделы',
+      value: pad(t.boards, 2),
+      title: `Активные разделы: ${t.boards}`,
+    },
+    {
+      key: 'threads',
+      label: 'Треды',
+      value: pad(t.threads, 3),
+      title: `Видимые треды: ${t.threads}`,
+    },
+    {
+      key: 'posts',
+      label: 'Сообщения',
+      value: pad(t.posts, 3),
+      title: `Видимые сообщения: ${t.posts}`,
+    },
     {
       key: 'day',
       label: '24 часа',
@@ -85,24 +120,6 @@ const cells = computed<Cell[]>(() => {
 
 <style scoped>
 .telemetry-rail {
-  --paper-raised: #EAE4D4;
-  --paper-sunken: #F7F3E8;
-  --ink: #1C1A14;
-  --ink-secondary: #5B5547;
-  --ink-tertiary: #8A8273;
-  --rule: #D4CEB8;
-  --accent: #2F4F4E;
-  --font-display: 'Cormorant Garamond', 'Georgia', serif;
-  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --duration-fast: 150ms;
-  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -129,7 +146,7 @@ const cells = computed<Cell[]>(() => {
   white-space: nowrap;
   padding: var(--space-1) var(--space-2);
   border-radius: 0;
-  transition: background var(--duration-fast) var(--ease-out);
+  transition: background var(--motion-hover);
 }
 
 .telemetry-rail__cell:hover {

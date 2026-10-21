@@ -162,6 +162,59 @@ describe('KineticText', () => {
     expect((pieces[0].element as HTMLElement).style.transform).toBe('')
   })
 
+  it('never hides the content: no piece is transparent or invisible', () => {
+    const wrapper = mount(KineticText, {
+      props: { text: 'Каждое слово', mode: 'words' },
+    })
+
+    const root = wrapper.find('[data-testid="kinetic-text"]').element as HTMLElement
+    expect(root.style.opacity).not.toBe('0')
+    expect(root.style.visibility).not.toBe('hidden')
+
+    for (const piece of wrapper.findAll('[data-testid="kinetic-piece"]')) {
+      const el = piece.element as HTMLElement
+      expect(el.style.opacity).not.toBe('0')
+      expect(el.style.visibility).not.toBe('hidden')
+    }
+  })
+
+  it('leaves no hidden styles behind when motion is reduced', () => {
+    state.reduced = true
+
+    const wrapper = mount(KineticText, { props: { text: 'Тишина' } })
+
+    const root = wrapper.find('[data-testid="kinetic-text"]')
+    expect(root.attributes('style')).toBeUndefined()
+    for (const piece of wrapper.findAll('[data-testid="kinetic-piece"]')) {
+      expect(piece.attributes('style')).toBeUndefined()
+    }
+  })
+
+  it('gives the screen reader the text once for tags whose role has no name', () => {
+    // У `<p>` и `<span>` имя автора запрещено правилами ARIA: `aria-label`
+    // браузер игнорирует, а доли скрыты — текст без скрытой копии пропал бы
+    // из accessibility-дерева совсем.
+    const wrapper = mount(KineticText, { props: { text: 'Строка', as: 'p' } })
+
+    const copy = wrapper.find('.kinetic-text__sr')
+    expect(copy.exists()).toBe(true)
+    expect(copy.text()).toBe('Строка')
+    expect(copy.attributes('aria-hidden')).toBeUndefined()
+
+    // Копия одна — значит, текст читается один раз.
+    expect(wrapper.findAll('.kinetic-text__sr')).toHaveLength(1)
+    for (const piece of wrapper.findAll('[data-testid="kinetic-piece"]')) {
+      expect(piece.attributes('aria-hidden')).toBe('true')
+    }
+  })
+
+  it('does not duplicate the text where the tag itself carries the name', () => {
+    const wrapper = mount(KineticText, { props: { text: 'Заголовок', as: 'h2' } })
+
+    expect(wrapper.find('.kinetic-text__sr').exists()).toBe(false)
+    expect(wrapper.find('h2').attributes('aria-label')).toBe('Заголовок')
+  })
+
   it('masks the pieces in document order when the text appears', () => {
     const wrapper = mount(KineticText, {
       props: { text: 'Одно\nДва\nТри' },

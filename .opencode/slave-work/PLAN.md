@@ -224,7 +224,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       `motion.css` и `material.css` подключены в `main.ts`; проверка, что `--motion-*` роли объявлены.
       Все проверки — по КОДУ (комментарии вырезать), с внятными английскими именами, в стиле `verify-3d.mjs`.
       | Файлы: `src/scripts/verify-motion.mjs` (new), `package.json` | deps: M-T1, M-T5, M-T6, M-T7 | size: M
-- [ ] M-T14. Финальная дедупликация — по всему `frontend/src` (`.vue` + `.css`): убрать оставшиеся
+- [x] M-T14. Финальная дедупликация — по всему `frontend/src` (`.vue` + `.css`): убрать оставшиеся
       `transition: all`, «сырые» `cubic-bezier`/`ms`, дублирующиеся keyframes с одинаковым именем, дубли
       hover-правил, локальные копии токенов. Каждую замену — на семантический токен из `motion.css`.
       Проверяемо: `npm run verify:motion` зелёный, `npm run verify:3d` не сломана, тесты зелёные.
@@ -240,7 +240,7 @@ hover/fade/scale так, чтобы страницы стали легче, а �
       `setInterval`/`requestAnimationFrame` без остановки; замер: зафиксируй в отчёте, сколько слушателей
       и rAF-циклов добавляет новая система на страницу.
       | Файлы: `src/composables/useMotion.ts`, `src/composables/useGsap.ts`, `src/assets/motion.css`, `src/assets/material.css` | deps: M-T2, M-T5 | size: M
-- [ ] M-T16. A11y-аудит motion — `src/components/__tests__/States.spec.ts`,
+- [x] M-T16. A11y-аудит motion — `src/components/__tests__/States.spec.ts`,
       `src/composables/__tests__/useMotion.spec.ts`, `src/components/ui/__tests__/KineticText.spec.ts`
       + точечные правки найденного. Проверить: (а) при `prefers-reduced-motion: reduce` в DOM нет
       `opacity: 0` для контента (текст виден всегда); (б) фокус виден и не теряется; (в) `aria-live`
@@ -267,5 +267,6 @@ hover/fade/scale так, чтобы страницы стали легче, а �
 - 2026-10-21 00:58 батч 4 запущен: M-T13 (motion guard), M-T15 (перф-дисциплина) — файлы не пересекаются
 - 2026-10-21 09:46 батч 4 DONE + верификация зелёная (verify:3d 116/116, verify:motion 35 проверок + реестр долгов, lint 0, build OK, test 68 файлов/1041 тест) → коммит ниже
 - 2026-10-21 09:46 батч 5 запущен: M-T14 (финальная дедупликация), M-T16 (a11y-аудит motion) — файлы не пересекаются
+- 2026-10-21 10:40 батч 5 DONE + верификация зелёная (verify:3d 116/116, verify:motion 35 проверок, lint 0, build OK, test 69 файлов/1072 теста) → коммит ниже. Осталось 18 нарушений в «реестре долга» guard'а (защищённые файлы) — их закрывает M-T18
 
 ## Проблемы / заблокировано

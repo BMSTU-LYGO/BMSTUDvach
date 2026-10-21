@@ -74,7 +74,17 @@ function reset() {
       data-testid="identity-reset"
       @click="reset"
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
     </button>
     <p id="identity-capsule-hint" class="identity-capsule__hint">
       #секрет → стабильный трипкод
@@ -136,7 +146,10 @@ function reset() {
   color: var(--ink-tertiary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 160ms, background 160ms;
+  /* Сброс отзывается тихо: роль наведения (150ms) на цвет и подложку. */
+  transition:
+    color var(--motion-hover),
+    background var(--motion-hover);
 }
 
 .identity-capsule__reset:hover {

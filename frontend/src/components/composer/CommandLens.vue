@@ -98,7 +98,8 @@ defineExpose({ onKeydown, commit })
       <div class="lens__head" aria-hidden="true">
         <span class="lens__kicker">команды</span>
         <span class="lens__query">
-          <span class="lens__query-prefix">/</span>{{ filter }}<span class="lens__caret"></span>
+          <span class="lens__query-prefix">/</span>{{ filter
+          }}<span class="lens__caret"></span>
         </span>
         <span class="lens__count">{{ filtered.length }}/{{ commands.length }}</span>
       </div>
@@ -156,7 +157,6 @@ defineExpose({ onKeydown, commit })
   overflow: hidden;
 }
 
-
 .lens__head {
   display: flex;
   align-items: center;
@@ -197,12 +197,15 @@ defineExpose({ onKeydown, commit })
 }
 
 .lens__caret {
+  /* Каретка мигает раз в 1.1 с — это её собственный ритм, а не роль
+     движения: у цикла нет «появления» и «наведения». */
+  --lens-caret-rhythm: 1.1s steps(2, start);
   display: inline-block;
   width: 6px;
   height: 11px;
   background: var(--accent);
   transform: translateY(1px);
-  animation: lens-caret 1.1s steps(2, start) infinite;
+  animation: lens-caret var(--lens-caret-rhythm) infinite;
 }
 
 @keyframes lens-caret {
@@ -389,9 +392,12 @@ defineExpose({ onKeydown, commit })
 
 .lens-enter-active,
 .lens-leave-active {
+  /* Линза выпадает тихо: одна роль наведения (150ms) на оба свойства —
+     `transition` не складывается, а разные кривые в одной строке читались
+     бы как случайность. */
   transition:
-    opacity 160ms var(--ease-out-quart),
-    transform 160ms var(--ease-out-expo);
+    opacity var(--motion-hover),
+    transform var(--motion-hover);
 }
 
 .lens-enter-from,

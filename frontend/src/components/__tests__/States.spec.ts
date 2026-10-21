@@ -8,9 +8,11 @@ import { mount } from '@vue/test-utils'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
+import NotFoundState from '@/components/NotFoundState.vue'
 import EmptyStateSource from '@/components/EmptyState.vue?raw'
 import ErrorStateSource from '@/components/ErrorState.vue?raw'
 import LoadingStateSource from '@/components/LoadingState.vue?raw'
+import NotFoundStateSource from '@/components/NotFoundState.vue?raw'
 
 /** Палитра читается с диска: vitest CSS не обрабатывает, токены иначе пустые. */
 const MainCssSource = readFileSync(
@@ -49,6 +51,119 @@ const grammar = (source: string): string[] =>
 /** Высота рамки прибора: одинаковая во всех состояниях — контент не прыгает. */
 const frameHeight = (source: string): string =>
   source.match(/\.state__frame\s*\{[^}]*min-height:\s*([^;]+);/)?.[1]?.trim() ?? ''
+
+/* ── Смешение цветов ──────────────────────────────────────────────────────────
+   `color-mix(in oklab, …)` считается так же, как в браузере: без этого
+   проверка контраста проверяла бы не тот цвет, который видит человек. */
+
+const toLinear = (channel: number): number => {
+  const srgb = channel / 255
+  return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
+}
+
+const toSrgb = (value: number): number =>
+  value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
+
+const hexToRgb = (hex: string): number[] => {
+  const value = parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+const rgbToOklab = ([r, g, b]: number[]): number[] => {
+  const R = toLinear(r)
+  const G = toLinear(g)
+  const B = toLinear(b)
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ]
+}
+
+const oklabToRgb = ([L, a, b]: number[]): number[] => {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+  return [
+    toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  ]
+}
+
+/** `color-mix(in oklab, A p%, B)` — тем же смешением, что и в браузере. */
+const mixOklab = (a: string, b: string, weight: number): string => {
+  const A = rgbToOklab(hexToRgb(a))
+  const B = rgbToOklab(hexToRgb(b))
+  const mixed = oklabToRgb([0, 1, 2].map((i) => weight * A[i] + (1 - weight) * B[i]))
+  return `#${mixed
+    .map((channel) =>
+      Math.round(Math.min(255, Math.max(0, channel * 255)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
+}
+
+/** Акцент состояния — как он написан в исходнике, но посчитанный в цвет. */
+const accentOf = (source: string, selector: string): string => {
+  const rule = source.match(
+    new RegExp(
+      `${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*--state-accent:\\s*([^;]+);`,
+    ),
+  )
+  const expression = rule?.[1]?.trim() ?? ''
+  const mix = expression.match(
+    /color-mix\(in oklab,\s*var\((--[\w-]+)\)\s+(\d+)%,\s*var\((--[\w-]+)\)\)/,
+  )
+  if (mix) {
+    const [, first, weight, second] = mix
+    return mixOklab(token(first.slice(2)), token(second.slice(2)), Number(weight) / 100)
+  }
+  const variable = expression.match(/var\((--[\w-]+)\)/)
+  return variable ? token(variable[1].slice(2)) : ''
+}
+
+/** Кромка действия — тот же `color-mix`, но от акцента состояния. */
+const borderOf = (source: string, selector: string): string => {
+  const rule = source.match(
+    /--state-border:\s*color-mix\(in oklab,\s*var\((--[\w-]+)\)\s+(\d+)%,\s*var\((--[\w-]+)\)\)/,
+  )
+  if (!rule) return ''
+  const [, first, weight, second] = rule
+  const base =
+    first === '--state-accent' ? accentOf(source, selector) : token(first.slice(2))
+  return mixOklab(base, token(second.slice(2)), Number(weight) / 100)
+}
+
+/** Все состояния прибора: подпись, акцент и кромка действия. */
+const STATES: { name: string; source: string; selector: string }[] = [
+  {
+    name: 'loading',
+    source: LoadingStateSource,
+    selector: '.state-loading .state__frame',
+  },
+  { name: 'error', source: ErrorStateSource, selector: '.state-error .state__frame' },
+  { name: 'empty', source: EmptyStateSource, selector: '.state-empty .state__frame' },
+  {
+    name: 'not-found/lost',
+    source: NotFoundStateSource,
+    selector: '.state-lost .state__frame',
+  },
+  {
+    name: 'not-found/quiet',
+    source: NotFoundStateSource,
+    selector: '.state-quiet .state__frame',
+  },
+  {
+    name: 'not-found/sealed',
+    source: NotFoundStateSource,
+    selector: '.state-sealed .state__frame',
+  },
+]
 
 describe('LoadingState', () => {
   it('renders default label', () => {
@@ -368,5 +483,129 @@ describe('Единый язык состояний', () => {
         /\.state__message\s*\{[^}]*color:\s*var\(--text-muted\)/,
       )
     }
+  })
+})
+
+describe('Доступность состояний', () => {
+  it('подпись состояния читаема: контраст не ниже 4.5:1', () => {
+    const paper = token('paper-raised')
+
+    for (const state of STATES) {
+      const accent = accentOf(state.source, state.selector)
+      expect(accent, state.name).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(contrast(accent, paper), `${state.name} ${accent}`).toBeGreaterThanOrEqual(
+        4.5,
+      )
+    }
+  })
+
+  it('граница действия читаема: контрол виден, а не растворяется в бумаге', () => {
+    const paper = token('paper-raised')
+
+    for (const state of STATES) {
+      const border = borderOf(state.source, state.selector)
+      expect(border, state.name).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(contrast(border, paper), `${state.name} ${border}`).toBeGreaterThanOrEqual(
+        3,
+      )
+    }
+  })
+
+  it('фокус действия виден: кольцо нарисовано, а не подавлено', () => {
+    for (const source of [
+      LoadingStateSource,
+      ErrorStateSource,
+      EmptyStateSource,
+      NotFoundStateSource,
+    ]) {
+      expect(source).toMatch(/\.state__button:focus-visible\s*\{[^}]*outline:/)
+      expect(source).not.toMatch(
+        /\.state__button:focus-visible\s*\{[^}]*outline:\s*none/,
+      )
+    }
+  })
+
+  it('объявляет состояние целиком, а не по кускам', () => {
+    for (const wrapper of [
+      mount(LoadingState),
+      mount(EmptyState),
+      mount(NotFoundState),
+    ]) {
+      const root = wrapper.find('[role="status"]')
+      expect(root.attributes('aria-live')).toBe('polite')
+      expect(root.attributes('aria-atomic')).toBe('true')
+    }
+  })
+
+  it('помечает занятостью только загрузку', () => {
+    expect(
+      mount(LoadingState).find('[data-testid="loading"]').attributes('aria-busy'),
+    ).toBe('true')
+    expect(
+      mount(ErrorState).find('[data-testid="error"]').attributes('aria-busy'),
+    ).toBeUndefined()
+    expect(
+      mount(EmptyState).find('[data-testid="empty"]').attributes('aria-busy'),
+    ).toBeUndefined()
+    expect(
+      mount(NotFoundState).find('[data-testid="not-found"]').attributes('aria-busy'),
+    ).toBeUndefined()
+  })
+
+  it('не объявляет движение прибора: то, что едет, скрыто от скринридера', () => {
+    const loading = mount(LoadingState)
+
+    expect(loading.find('.state__track').attributes('aria-hidden')).toBe('true')
+    expect(loading.find('.state__live').attributes('aria-hidden')).toBe('true')
+    for (const corner of loading.findAll('.state__corner')) {
+      expect(corner.attributes('aria-hidden')).toBe('true')
+    }
+
+    const notFound = mount(NotFoundState)
+    expect(notFound.find('.state__graphic').attributes('aria-hidden')).toBe('true')
+  })
+
+  it('не прячет контент: в DOM нет прозрачных и невидимых элементов', () => {
+    for (const wrapper of [
+      mount(LoadingState),
+      mount(ErrorState),
+      mount(EmptyState),
+      mount(NotFoundState),
+    ]) {
+      for (const node of wrapper.element.querySelectorAll('*')) {
+        const style = (node as HTMLElement).style
+        expect(style.opacity).not.toBe('0')
+        expect(style.visibility).not.toBe('hidden')
+      }
+    }
+  })
+
+  it('действие ошибки доступно с клавиатуры', async () => {
+    const onRetry = vi.fn()
+    const wrapper = mount(ErrorState, { props: { onRetry } })
+    const button = wrapper.find('button')
+
+    // Настоящая кнопка браузера: Enter и Space активируют её сами, а
+    // tabindex не выбрасывает её из порядка обхода.
+    expect(button.element.tagName).toBe('BUTTON')
+    expect(button.attributes('type')).toBe('button')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(button.attributes('tabindex')).toBeUndefined()
+
+    await button.trigger('click')
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('действие «назад» доступно с клавиатуры', async () => {
+    const onAction = vi.fn()
+    const wrapper = mount(NotFoundState, { props: { onAction } })
+    const button = wrapper.find('button')
+
+    expect(button.element.tagName).toBe('BUTTON')
+    expect(button.attributes('type')).toBe('button')
+    expect(button.attributes('disabled')).toBeUndefined()
+
+    await button.trigger('click')
+    expect(onAction).toHaveBeenCalledTimes(1)
   })
 })

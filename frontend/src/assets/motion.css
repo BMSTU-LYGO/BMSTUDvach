@@ -97,50 +97,57 @@
    поэтому одинаково читается на любой поверхности (бумага, акцент, плашка).
    Тень здесь — единственный способ выразить материал, поэтому она
    анимируется, но только на мелких поверхностях (плашка, кнопка). */
-.motion-press {
-  transition:
-    transform var(--motion-press),
-    box-shadow var(--motion-press);
-}
-
 .motion-press:active {
-  transform: translateY(var(--material-press-delta, 1px));
   box-shadow: inset 0 1px 2px rgba(28, 26, 20, 0.16);
 }
 
-/* Крупная поверхность: остаётся только сдвиг (compositor-свойство).
-   Тень меняется мгновенно — пересчитывать тень всей панели каждый кадр
-   слишком дорого. */
-.motion-press--flat {
-  transition: transform var(--motion-press);
-}
-
+/* Крупная поверхность: тень убирается совсем, сдвиг даёт сам `--motion-press`. */
 .motion-press--flat:active {
   box-shadow: none;
-}
-
-/* Тихая реакция — только цвет и кромка. Для длинных списков и вторичных ссылок,
-   где любое движение шумит сильнее самой информации. */
-.motion-quiet {
-  transition:
-    color var(--motion-hover),
-    border-color var(--motion-hover);
-}
-
-/* Наложение ролей: transition — одно свойство, поэтому при совмещении тихой
-   реакции и нажатия каждая группа переходов сохраняет свою длительность. */
-.motion-press.motion-quiet {
-  transition:
-    transform var(--motion-press),
-    box-shadow var(--motion-press),
-    color var(--motion-hover),
-    border-color var(--motion-hover);
 }
 
 /* Появление — контент выходит на страницу. Стартовое состояние задаётся ТОЛЬКО
    внутри no-preference: при reduced-motion текст виден сразу, и в DOM не остаётся
    opacity: 0 — иначе контент исчезает у тех, кто отключил движение. */
 @media (prefers-reduced-motion: no-preference) {
+  .motion-press {
+    transition:
+      transform var(--motion-press),
+      box-shadow var(--motion-press);
+  }
+
+  /* Крупная поверхность: остаётся только сдвиг (compositor-свойство).
+     Тень меняется мгновенно — пересчитывать тень всей панели каждый кадр
+     слишком дорого. */
+  .motion-press--flat {
+    transition: transform var(--motion-press);
+  }
+
+  /* Тихая реакция — только цвет и кромка. Для длинных списков и вторичных
+     ссылок, где любое движение шумит сильнее самой информации. */
+  .motion-quiet {
+    transition:
+      color var(--motion-hover),
+      border-color var(--motion-hover);
+  }
+
+  /* Наложение ролей: transition — одно свойство, поэтому при совмещении тихой
+     реакции и нажатия каждая группа переходов сохраняет свою длительность. */
+  .motion-press.motion-quiet {
+    transition:
+      transform var(--motion-press),
+      box-shadow var(--motion-press),
+      color var(--motion-hover),
+      border-color var(--motion-hover);
+  }
+
+  /* Палец вдавливает лист: сдвиг на пиксель, а не «уезжающая» кнопка.
+     Сдвиг — это движение, поэтому он живёт только здесь: при выключенном
+     движении лист не едет, а состояние (вмятина) остаётся. */
+  .motion-press:active {
+    transform: translateY(var(--material-press-delta, 1px));
+  }
+
   @keyframes motion-reveal-in {
     from {
       opacity: 0;
@@ -157,5 +164,29 @@
        анимации элемент возвращается к обычным стилям (они = финальный кадр).
        Если анимация по какой-то причине не проиграется, контент всё равно виден. */
     animation: motion-reveal-in var(--motion-reveal) backwards;
+  }
+}
+
+/* === Движение выключено ===
+   Явная ветка для каждой реакции: без неё любой `transition` или `animation`,
+   добавленный позже, включился бы сам собой — и анимация поехала бы у того,
+   кто просил её не показывать.
+
+   Что остаётся: состояние. Вмятина нажатия и цвет тихой реакции — мгновенно,
+   без перехода; появление — сразу финальным кадром, без `opacity: 0` в DOM. */
+@media (prefers-reduced-motion: reduce) {
+  .motion-press,
+  .motion-press--flat,
+  .motion-quiet,
+  .motion-press.motion-quiet {
+    transition: none;
+  }
+
+  .motion-press:active {
+    transform: none;
+  }
+
+  .motion-reveal {
+    animation: none;
   }
 }

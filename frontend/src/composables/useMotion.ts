@@ -25,6 +25,15 @@
  * - каждая подписка снимается симметрично: ушедший элемент не оставляет
  *   за собой ни слушателей, ни запланированных кадров.
  *
+ * Доступность (правила модуля, а не пожелания):
+ * - реакции выключаются не только при загрузке, но и когда системная настройка
+ *   «меньше движения» меняется прямо во время сессии: подписки снимаются,
+ *   следы в DOM исчезают;
+ * - тяга не работает, пока клавиатура ведёт: элемент в фокусе или человек
+ *   печатает — мышь не двигает то, на что он смотрит;
+ * - смещение не вывозит элемент за край окна: горизонтальная прокрутка на
+ *   320px ломает вёрстку.
+ *
  * Контракт с CSS (см. `src/assets/material.css`):
  * - `usePointerLight` пишет `--mx` / `--my` — координаты курсора в процентах
  *   от левого верхнего угла элемента (50% / 50% — центр);
@@ -96,29 +105,47 @@ function round2(value: number): number {
  * а `watch` следит за сменой узла — иначе примитив молча не работал бы на
  * динамически создаваемых элементах. Отписка обязана быть симметричной:
  * иначе «мёртвые» слушатели копятся на каждом переходе роутера.
+ *
+ * `isEnabled` — ответ на вопрос «можно ли двигать сейчас». Пока он
+ * отрицательный, примитив не подписывается вовсе: в DOM не остаётся ни
+ * слушателей, ни следов. Когда ответ меняется (пользователь включил «меньше
+ * движения» или выключил его прямо во время сессии), обвязка пересобирается
+ * сама — по возвращённой функции `sync`.
  */
 function useElementBinding(
   el: Ref<HTMLElement | null>,
   onBind: (node: HTMLElement) => void,
   onUnbind: (node: HTMLElement) => void,
-): void {
+  isEnabled: () => boolean = () => true,
+): () => void {
   let bound: HTMLElement | null = null
-
-  const attach = (node: HTMLElement | null) => {
-    if (bound === node) return
-    if (bound) {
-      onUnbind(bound)
-      bound = null
-    }
-    if (!node) return
-    bound = node
-    onBind(node)
-  }
 
   const detach = () => {
     if (!bound) return
     onUnbind(bound)
     bound = null
+  }
+
+  const attach = (node: HTMLElement | null) => {
+    if (bound === node) return
+    detach()
+    if (!node) return
+    // Пока движение запрещено, элемент не трогаем совсем: ни подписок,
+    // ни стилей в DOM — иначе у пользователя, отключившего движение,
+    // осталась бы разметка реакции, которую он не заказывал.
+    if (!isEnabled()) return
+    bound = node
+    onBind(node)
+  }
+
+  /** Пересобрать привязку: элемент сменился или движение включили/выключили. */
+  const sync = () => {
+    const node = el.value
+    if (bound && (!node || !isEnabled())) {
+      detach()
+      return
+    }
+    if (!bound && node) attach(node)
   }
 
   if (getCurrentInstance()) {
@@ -137,6 +164,26 @@ function useElementBinding(
       detach()
     })
   }
+
+  return sync
+}
+
+/**
+ * Граница окна: элемент не выезжает за неё.
+ *
+ * Зачем: смещение в несколько пикселей у края окна создаёт горизонтальную
+ * прокрутку — а на 320px (или при зуме 200%) это уже ломает вёрстку.
+ *
+ * Вертикаль не ограничиваем: страница всё равно прокручивается, и лишняя
+ * граница снизу только мешала бы тяге работать у нижней кромки экрана.
+ */
+function limitToViewport(offset: number, left: number, right: number): number {
+  if (!inBrowser()) return offset
+  const roomAfter = window.innerWidth - right
+  const roomBefore = left
+  if (offset > 0) return Math.min(offset, Math.max(0, roomAfter))
+  if (offset < 0) return Math.max(offset, -Math.max(0, roomBefore))
+  return offset
 }
 
 export interface PointerLightOptions {
@@ -163,6 +210,11 @@ export function usePointerLight(
   options: PointerLightOptions = {},
 ): void {
   const { radius = DEFAULT_LIGHT_RADIUS, disabled = false } = options
+
+  // Реакция живёт ровно тогда, когда движение разрешено: и системная
+  // настройка «меньше движения», и качество 3D могут измениться прямо во
+  // время сессии — тогда свет должен погаснуть сам, без перезагрузки.
+  const allowed = useMotionPreference()
 
   let node: HTMLElement | null = null
   let frame: number | null = null
@@ -215,7 +267,7 @@ export function usePointerLight(
     if (frame === null) frame = requestAnimationFrame(measure)
   }
 
-  useElementBinding(
+  const sync = useElementBinding(
     el,
     (bound) => {
       // Выключенный примитив не должен оставлять следов в DOM: иначе у
@@ -249,7 +301,12 @@ export function usePointerLight(
       }
       node = null
     },
+    () => !disabled && allowed.value,
   )
+
+  // Настройка «меньше движения» может включиться в любой момент: тогда свет
+  // гаснет, а его следы в DOM исчезают вместе с подпиской.
+  watch(allowed, () => sync())
 }
 
 export interface MagneticOptions {
@@ -285,6 +342,10 @@ export function useMagnetic(
     disabled = false,
   } = options
 
+  // Как и свет, тяга живёт ровно тогда, когда движение разрешено: включили
+  // «меньше движения» посреди сессии — тяга должна умереть сразу.
+  const allowed = useMotionPreference()
+
   let node: HTMLElement | null = null
   let frame: number | null = null
   let clientX = 0
@@ -297,6 +358,15 @@ export function useMagnetic(
   let writtenY = 0
   let released = false
   let active = false
+  /**
+   * Клавиатура занята элементом: тяги нет.
+   *
+   * Пока человек читает или печатает, мышь не должна двигать то, на что он
+   * смотрит: тяга отпускается мгновенно, а не «по инерции» долетает.
+   */
+  let keyboardMode = false
+  /** Элемент в фокусе с клавиатуры — тем более: тянуть его нельзя. */
+  let focused = false
 
   /** Кадр тяги: замер, цель, сглаживание, запись. */
   const step = () => {
@@ -305,6 +375,10 @@ export function useMagnetic(
 
     if (released) {
       // Указатель ушёл из окна (cancel/blur) — тяги больше нет.
+      targetX = 0
+      targetY = 0
+    } else if (keyboardMode || focused) {
+      // Клавиатура ведёт: тяга выключена, элемент стоит на месте.
       targetX = 0
       targetY = 0
     } else {
@@ -334,6 +408,9 @@ export function useMagnetic(
           targetX = clamp(dx / halfWidth, -1, 1) * strength * falloff
           targetY = clamp(dy / halfHeight, -1, 1) * strength * falloff
         }
+        // Элемент не выезжает за край окна: иначе появилась бы горизонтальная
+        // прокрутка, а на 320px (или при зуме 200%) это ломает вёрстку.
+        targetX = limitToViewport(targetX, rect.left - currentX, rect.right - currentX)
       }
     }
 
@@ -382,7 +459,41 @@ export function useMagnetic(
     schedule()
   }
 
-  useElementBinding(
+  /**
+   * Клавиатура перехватывает внимание: тяга гаснет.
+   *
+   * Модификаторы ничего не печатают — по ним режим не переключается, иначе
+   * Shift+клик по ссылке выключил бы тягу на ровно одну секунду.
+   */
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (
+      event.key === 'Shift' ||
+      event.key === 'Control' ||
+      event.key === 'Alt' ||
+      event.key === 'Meta'
+    ) {
+      return
+    }
+    keyboardMode = true
+    onRelease()
+  }
+
+  /** Мышь заговорила — тяга возвращается. */
+  const onPointerDown = () => {
+    keyboardMode = false
+  }
+
+  /** Фокус с клавиатуры: элемент не должен уезжать из-под пальца. */
+  const onFocusIn = () => {
+    focused = true
+    onRelease()
+  }
+
+  const onFocusOut = () => {
+    focused = false
+  }
+
+  const sync = useElementBinding(
     el,
     (bound) => {
       if (disabled) return
@@ -399,18 +510,26 @@ export function useMagnetic(
       bound.style.setProperty('--mag-x', '0px')
       bound.style.setProperty('--mag-y', '0px')
       bound.style.translate = 'var(--mag-x) var(--mag-y)'
+      bound.addEventListener('focusin', onFocusIn)
+      bound.addEventListener('focusout', onFocusOut)
       window.addEventListener('pointermove', onPointerMove, { passive: true })
       window.addEventListener('pointercancel', onRelease, { passive: true })
       window.addEventListener('blur', onRelease)
+      window.addEventListener('keydown', onKeyDown, { passive: true })
+      window.addEventListener('pointerdown', onPointerDown, { passive: true })
     },
     (bound) => {
       if (frame !== null) {
         cancelAnimationFrame(frame)
         frame = null
       }
+      bound.removeEventListener('focusin', onFocusIn)
+      bound.removeEventListener('focusout', onFocusOut)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointercancel', onRelease)
       window.removeEventListener('blur', onRelease)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('pointerdown', onPointerDown)
       if (active) {
         liveMagnetics.delete(bound)
         active = false
@@ -421,7 +540,12 @@ export function useMagnetic(
       bound.style.removeProperty('will-change')
       node = null
     },
+    () => !disabled && allowed.value,
   )
+
+  // Настройка «меньше движения» включилась посреди сессии — тяга умирает,
+  // элемент возвращается на место, следы в DOM исчезают.
+  watch(allowed, () => sync())
 }
 
 /**

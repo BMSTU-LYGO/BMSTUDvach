@@ -68,7 +68,8 @@ const gaugeStyle = computed(() => ({
   width: 100%;
   height: 2px;
   border-radius: 1px;
-  transition: background 200ms ease;
+  /* линия сигнала меняет тон тихо: роль наведения (150ms). */
+  transition: background var(--motion-hover);
   opacity: 0.5;
 }
 
@@ -93,8 +94,10 @@ const gaugeStyle = computed(() => ({
 }
 
 .signal-meter--over .signal-meter__line {
+  /* Разрыв мигает раз в 300 мс — ритм самого обрыва, а не роль движения. */
+  --broken-line-rhythm: 300ms steps(2);
   background: linear-gradient(90deg, var(--danger) 0%, var(--danger) 100%);
-  animation: broken-line 300ms steps(2) infinite;
+  animation: broken-line var(--broken-line-rhythm) infinite;
 }
 
 @keyframes broken-line {

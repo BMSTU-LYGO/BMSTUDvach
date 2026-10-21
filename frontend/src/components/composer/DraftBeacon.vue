@@ -80,8 +80,11 @@ const glyph = computed(() => {
 }
 
 .beacon--writing .beacon__dot {
+  /* маяк мигает раз в секунду — это его собственный ритм, а не роль
+     движения: бесконечный цикл не «появляется» и не «реагирует». */
+  --beacon-blink-rhythm: 1s ease-in-out;
   color: var(--ink-secondary);
-  animation: beacon-blink 1s ease-in-out infinite;
+  animation: beacon-blink var(--beacon-blink-rhythm) infinite;
 }
 
 .beacon--saved .beacon__dot {

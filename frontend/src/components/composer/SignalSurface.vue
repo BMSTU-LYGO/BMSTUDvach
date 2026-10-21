@@ -120,7 +120,8 @@ defineExpose({
   padding-top: 0.35rem;
   user-select: none;
   flex-shrink: 0;
-  transition: color 200ms;
+  /* Боковая подпись меняет тон тихо: роль наведения (150ms). */
+  transition: color var(--motion-hover);
 }
 
 .signal-surface--reply .signal-surface__gutter {
