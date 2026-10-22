@@ -246,6 +246,40 @@ describe('ErrorState', () => {
     expect(wrapper.text()).toContain('Сеть недоступна')
   })
 
+  it('не показывает человеку сырую ошибку браузера', () => {
+    const wrapper = mount(ErrorState, {
+      props: { message: 'TypeError: Failed to fetch' },
+    })
+
+    // Техническая строка в UI не остаётся: она не говорит, что делать.
+    expect(wrapper.text()).not.toContain('Failed to fetch')
+    expect(wrapper.find('.state__message').text()).toContain('Нет связи с сервером')
+    // Обрыв связи отличается от отказа сервера — другим прибором.
+    expect(wrapper.find('.state__label').text()).toBe('NO LINK')
+    expect(wrapper.find('[data-testid="error"]').attributes('data-variant')).toBe(
+      'offline',
+    )
+  })
+
+  it('отказ сервера говорит своей формулировкой', () => {
+    const wrapper = mount(ErrorState, {
+      props: { message: 'HTTP 503 Service Unavailable' },
+    })
+
+    expect(wrapper.text()).not.toContain('503')
+    expect(wrapper.find('.state__label').text()).toBe('ERROR')
+    expect(wrapper.find('[data-testid="error"]').attributes('data-variant')).toBe(
+      'server',
+    )
+  })
+
+  it('обрывы связи не красят прибор в красный', () => {
+    // «Красной стены» нет: обрыв связи — чернильный прибор, а не авария.
+    expect(ErrorStateSource).toMatch(
+      /\.state-error\[data-variant='offline'\] \.state__frame\s*\{[^}]*--state-accent:\s*var\(--ink-secondary\)/,
+    )
+  })
+
   it('shows retry button when onRetry provided', () => {
     const wrapper = mount(ErrorState, { props: { onRetry: () => {} } })
     expect(wrapper.find('button').exists()).toBe(true)

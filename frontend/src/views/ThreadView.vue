@@ -26,7 +26,6 @@ import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useForumStore } from '@/stores/forum'
 import { playMorph } from '@/composables/usePageMorph'
-import { usePostReveal } from '@/composables/usePostReveal'
 import { useThreadSeen } from '@/composables/useThreadSeen'
 import { useSound } from '@/composables/useSound'
 import { collectBacklinks } from '@/composables/usePostLinks'
@@ -117,8 +116,19 @@ const previewPos = ref({ x: 0, y: 0 })
 const previewVisible = ref(false)
 const progress = ref(0)
 
-const postsCount = computed(() => store.thread.thread?.posts.length ?? 0)
-usePostReveal(postsRef, postsCount)
+/**
+ * Появление постов (Q-A-002).
+ *
+ * Раньше показ читался через `usePostReveal`: примитив проверял контейнер
+ * ДО `await nextTick()`, а контейнер появлялся вместе с данными — guard
+ * срабатывал, и reveal не проигрывался ни разу. Плюс он двигал и
+ * вращал строки, а «длинный список» в системе появляется прозрачностью.
+ *
+ * Теперь появление живёт здесь: та же роль появления, но только
+ * прозрачность и никакого сдвига. Стартовое состояние — только под
+ * `no-preference`, поэтому финальный кадр в DOM есть всегда: текст
+ * виден даже если анимация не запустилась.
+ */
 
 // FINDPOST-01: in-thread search + the j/k post cursor.
 const threadPosts = computed<Post[]>(() => store.thread.thread?.posts ?? [])
@@ -497,60 +507,62 @@ function onScroll() {
           </button>
         </div>
 
-        <div
-          v-if="searchOpen"
-          class="thread-search"
-          role="search"
-          data-testid="thread-search"
-        >
-          <input
-            ref="searchInputRef"
-            v-model="searchQuery"
-            class="thread-search__input"
-            type="search"
-            placeholder="Поиск в треде"
-            aria-label="Поиск в треде"
-            data-testid="thread-search-input"
-            @keydown.escape.prevent="closeThreadSearch"
-            @keydown.enter.exact.prevent="searchNext"
-            @keydown.shift.enter.prevent="searchPrev"
-          />
-          <span
-            class="thread-search__count"
-            aria-live="polite"
-            data-testid="thread-search-count"
-            >{{ searchLabel }}</span
+        <Transition name="thread-search">
+          <div
+            v-if="searchOpen"
+            class="thread-search"
+            role="search"
+            data-testid="thread-search"
           >
-          <button
-            type="button"
-            class="thread-search__nav react-lift react-lift--quiet react-press"
-            aria-label="Предыдущее совпадение"
-            :disabled="searchMatches.length === 0"
-            data-testid="thread-search-prev"
-            @click="searchPrev"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            class="thread-search__nav"
-            aria-label="Следующее совпадение"
-            :disabled="searchMatches.length === 0"
-            data-testid="thread-search-next"
-            @click="searchNext"
-          >
-            ›
-          </button>
-          <button
-            type="button"
-            class="thread-search__close react-lift react-lift--quiet react-press"
-            aria-label="Закрыть поиск"
-            data-testid="thread-search-close"
-            @click="closeThreadSearch"
-          >
-            ×
-          </button>
-        </div>
+            <input
+              ref="searchInputRef"
+              v-model="searchQuery"
+              class="thread-search__input"
+              type="search"
+              placeholder="Поиск в треде"
+              aria-label="Поиск в треде"
+              data-testid="thread-search-input"
+              @keydown.escape.prevent="closeThreadSearch"
+              @keydown.enter.exact.prevent="searchNext"
+              @keydown.shift.enter.prevent="searchPrev"
+            />
+            <span
+              class="thread-search__count"
+              aria-live="polite"
+              data-testid="thread-search-count"
+              >{{ searchLabel }}</span
+            >
+            <button
+              type="button"
+              class="thread-search__nav react-lift react-lift--quiet react-press"
+              aria-label="Предыдущее совпадение"
+              :disabled="searchMatches.length === 0"
+              data-testid="thread-search-prev"
+              @click="searchPrev"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              class="thread-search__nav"
+              aria-label="Следующее совпадение"
+              :disabled="searchMatches.length === 0"
+              data-testid="thread-search-next"
+              @click="searchNext"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              class="thread-search__close react-lift react-lift--quiet react-press"
+              aria-label="Закрыть поиск"
+              data-testid="thread-search-close"
+              @click="closeThreadSearch"
+            >
+              ×
+            </button>
+          </div>
+        </Transition>
 
         <p v-if="store.thread.thread.is_locked" class="thread-locked">● Тред закрыт</p>
 
@@ -569,6 +581,7 @@ function onScroll() {
                 'post-item--probe': activeReportPostId === post.id,
                 'post-item--search-active': post.id === searchActivePostId,
               }"
+              :style="{ '--reveal-index': Math.min(index, 6) }"
               tabindex="-1"
               data-testid="post"
             >
@@ -723,6 +736,13 @@ function onScroll() {
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом (Arial 13.33px) — гарнитура
+   приложения должна побеждать. Правило с низкой специфичностью: у кнопок,
+   которые задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 .thread-page {
   display: flex;
   flex-direction: column;
@@ -738,9 +758,16 @@ function onScroll() {
      reader, so the sheet never has to be laid over the posts. It takes only
      what the screen can spare (clamp), the reading column keeps the rest —
      and the reader itself widens by the same gutter (`content--reader` in
-     DefaultLayout), so the measure of the reading never pays for the dock. */
-  --dock-col: clamp(440px, 34vw, 500px);
+     DefaultLayout), so the measure of the reading never pays for the dock.
+
+     Q-D-06: the gutter was 440–500 px wide and held a sheet that occupies
+     a fifth of it — a column of dead paper next to a reading column pushed
+     against the window edge. The dock now takes what the composer needs
+     (340–400 px), and the reader below is one centred page of its own. */
+  --dock-col: clamp(420px, 31vw, 460px);
   --dock-gap: var(--space-6);
+  /* The reader is a page: it is centred and never touches the window edge. */
+  --reader-width: 1168px;
 }
 
 .thread-page--link-live {
@@ -854,6 +881,21 @@ function onScroll() {
   border-radius: 0;
 }
 
+/* Q-A-003: панель поиска появлялась жёстким катом и сдвигала посты.
+   Теперь она приходит характером «появления» — тихо, без прыжка. */
+.thread-search-enter-active,
+.thread-search-leave-active {
+  transition:
+    opacity var(--motion-hover),
+    transform var(--motion-hover);
+}
+
+.thread-search-enter-from,
+.thread-search-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .thread-search__input {
   flex: 1;
   min-width: 0;
@@ -947,6 +989,26 @@ function onScroll() {
   transition: background var(--motion-hover);
 }
 
+/* Появление постов (Q-A-002): только прозрачность, строки не едут и не
+   вращаются. Стартовое состояние живёт под `no-preference` — вне него
+   пост сразу в финальном кадре, текст виден всегда. */
+@media (prefers-reduced-motion: no-preference) {
+  .post-item {
+    animation: post-reveal var(--motion-reveal) var(--ease-entrance) backwards;
+    /* посты выходят по одному, а не разом */
+    animation-delay: calc(var(--motion-reveal) * var(--reveal-index, 0) / 8);
+  }
+}
+
+@keyframes post-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* hairline rule between posts — the last one stands alone */
 .post-item:not(:last-child) {
   border-bottom: 1px solid var(--rule, #d4ceb8);
@@ -1009,9 +1071,12 @@ function onScroll() {
   font-weight: 600;
   letter-spacing: 0.04em;
   padding: 2px 6px;
-  border-radius: 2px;
-  background: var(--amber, #d4882a);
-  color: #fffdf7;
+  /* Q-D-33: у бейджа не было токена палитры — он падал на локальный янтарь
+     и вносил в страницу второй акцент. Теперь это тот же акцент системы,
+     а радиус — как у всех поверхностей проекта: ноль. */
+  border-radius: 0;
+  background: var(--accent, #2f4f4e);
+  color: var(--paper, #f2ede0);
 }
 
 .post-id {
@@ -1160,6 +1225,10 @@ function onScroll() {
     display: grid;
     grid-template-columns: var(--dock-col) minmax(0, 1fr);
     column-gap: var(--dock-gap);
+    /* Q-D-06 — the reader is centred and keeps a margin of its own, so the
+       reading column no longer runs into the window edge. */
+    max-width: var(--reader-width);
+    margin-inline: auto;
   }
 
   /* the reading column: the very same stack, now in the second track */
@@ -1265,6 +1334,35 @@ function onScroll() {
   }
 }
 
+/* Q-M-09: на телефоне палец должен попадать в цель. Иконка жалобы и
+   «Ответить» — кнопки без подписи, они растут до 44 px, а мелкие
+   стрелки поиска — тоже. */
+@media (max-width: 767px) {
+  .btn-report {
+    width: 44px;
+    height: 44px;
+  }
+
+  .btn-reply {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+  }
+
+  .watch-toggle {
+    min-height: 44px;
+  }
+
+  .thread-search__nav,
+  .thread-search__close {
+    width: 44px;
+    height: 44px;
+  }
+
+  .thread-search__input {
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .thread-page .watch-toggle,
   .thread-page .thread-search-toggle,
@@ -1272,6 +1370,12 @@ function onScroll() {
   .thread-page .thread-search__close,
   .thread-page .btn-reply,
   .thread-page .btn-report {
+    transition: none;
+  }
+
+  /* панель поиска появляется сразу — без движения, но и без прыжка */
+  .thread-search-enter-active,
+  .thread-search-leave-active {
     transition: none;
   }
 }

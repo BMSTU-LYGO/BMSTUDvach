@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 
-import { useThreeScene, type ThreeBuildResult, type ThreeContext } from '@/composables/useThreeScene'
+import {
+  SCENE_PRIORITY,
+  useThreeScene,
+  type ThreeBuildResult,
+  type ThreeContext,
+} from '@/composables/useThreeScene'
 import { buildNetwork, type NetworkController } from '@/three/network'
 import { onSceneEvent, highlightBoard, sceneState } from '@/three/sceneState'
 import { setTransitionNetwork } from '@/three/transitionDirector'
@@ -12,7 +17,11 @@ import { setTransitionNetwork } from '@/three/transitionDirector'
  */
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
-const { active } = useThreeScene(canvasRef, build)
+// The network is the scene of the route: it is the first one to get a slot
+// of the budget of the contexts.
+const { active, sessionKey } = useThreeScene(canvasRef, build, {
+  priority: SCENE_PRIORITY.scene,
+})
 
 let network: NetworkController | null = null
 let offEvents: (() => void) | null = null
@@ -69,6 +78,12 @@ function build(ctx: ThreeContext): ThreeBuildResult {
         boardSlug: sceneState.boardSlug,
         highlightedBoard: sceneState.highlightedBoard,
       }),
+    // The network owns its scene graph and its camera rig: the renderer
+    // has to draw *these*, not the empty scene the composable made for
+    // itself. Without them the constellation is built, animated — and
+    // never seen.
+    scene: net.scene,
+    camera: net.camera,
     dispose: () => {
       offEvents?.()
       offEvents = null
@@ -95,9 +110,10 @@ onUnmounted(() => {
 <template>
   <div class="network-canvas-wrap">
     <canvas
+      v-if="active"
+      :key="sessionKey"
       ref="canvasRef"
       class="network-canvas"
-      :class="{ hidden: !active }"
       aria-hidden="true"
     ></canvas>
     <div v-if="!active" class="network-fallback" aria-hidden="true"></div>
@@ -105,8 +121,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* The constellation is a background of the viewport, not of the document:
+   a canvas as tall as the page is a buffer of several megapixels that is
+   cleared every frame — for a picture that is not even on the screen. */
 .network-canvas-wrap {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
@@ -116,10 +135,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.network-canvas.hidden {
-  visibility: hidden;
 }
 
 .network-fallback {

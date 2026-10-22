@@ -76,6 +76,7 @@ const quiet = ref(false)
 const constellationRef = ref<InstanceType<typeof ReasonConstellation> | null>(null)
 const surfaceRef = ref<InstanceType<typeof SignalSurface> | null>(null)
 const bodyRef = ref<HTMLElement | null>(null)
+const rootRef = ref<HTMLElement | null>(null)
 const anchorRef = ref<HTMLElement | null>(null)
 const flightRef = ref<HTMLElement | null>(null)
 
@@ -117,6 +118,22 @@ let clearedAfterSuccess = false
 // already loaded): a buffered reason lands straight in stage 2 — no flight,
 // nothing to wait for.
 onMounted(() => {
+  // Q-M-07: проба открывается в потоке, под постом — на телефоне её верх
+  // уходил за первый экран, и человек нажимал «Пожаловаться» и не видел
+  // ничего. Проба приводит себя в зону видимости и отдаёт фокус первой
+  // причине: на узком экране она уже лист снизу, на широком — под постом.
+  void nextTick(() => {
+    rootRef.value?.scrollIntoView({
+      behavior: reducedMotion() ? 'auto' : 'smooth',
+      block: 'nearest',
+    })
+    // фокус отдаём первой причине, только если он ещё не внутри пробы —
+    // иначе мы бы украли его у того, кто уже печатает.
+    const root = rootRef.value
+    const inside = root ? root.contains(document.activeElement) : false
+    if (!inside && stage.value === 1) constellationRef.value?.focusNode('spam')
+  })
+
   if (!hasDraft.value || !draft.value) return
   comment.value = draft.value.body
   if (isReportReason(draft.value.title)) {
@@ -321,6 +338,7 @@ function onKeydown(e: KeyboardEvent) {
 
 <template>
   <div
+    ref="rootRef"
     class="report-probe"
     role="dialog"
     aria-label="Жалоба на пост"
@@ -447,6 +465,13 @@ function onKeydown(e: KeyboardEvent) {
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом — гарнитура приложения
+   должна побеждать. Правило с низкой специфичностью: у кнопок, которые
+   задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 .report-probe {
   position: relative;
   margin-top: var(--space-4);
@@ -676,6 +701,41 @@ function onKeydown(e: KeyboardEvent) {
   /* narrow posts: the beacon stays a single dot, the label lives in its title */
   .probe-head__beacon :deep(.beacon__text) {
     display: none;
+  }
+}
+
+/* Q-M-07: на телефоне проба открывается в потоке, ПОД постом — её верх
+   уходил за первый экран, и нажатие «Пожаловаться» не давало ничего.
+   На узком экране проба становится листом снизу: она всегда в зоне
+   видимости, а её содержимое прокручивается внутри. */
+@media (max-width: 640px) {
+  .report-probe {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-modal, 400);
+    margin-top: 0;
+    max-height: 86vh;
+    overflow-y: auto;
+    border-bottom: none;
+    border-radius: 0;
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Q-M-09: закрытие пробы и «изменить причину» — цели для пальца. */
+@media (max-width: 767px) {
+  .probe-head__close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .probe-anchor__change {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 

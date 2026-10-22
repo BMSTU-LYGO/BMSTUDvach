@@ -29,11 +29,17 @@ usePress(tiltRef)
 .depth-tilt {
   display: grid;
   height: 100%;
+  will-change: auto;
+}
+
+/* Слой композитора живёт только пока лист отзывается на курсор. */
+.depth-tilt:hover,
+.depth-tilt:focus-within {
   will-change: transform;
 }
 
 .depth-card {
-  background: var(--bg-surface);
+  background: var(--paper-raised);
   border: 1px solid var(--material-edge);
   border-radius: 0;
   transform-style: preserve-3d;
@@ -54,7 +60,9 @@ usePress(tiltRef)
 
 .depth-3 {
   --card-shadow: var(--shadow-lg);
-  --card-lifted: 0 12px 48px oklch(0 0 0 / 0.6);
+  /* Тень — тёплая и тихая: чёрная заливка на 60% превращала лист в
+     вырез из тёмного фона, а бумага на столе такой тени не даёт. */
+  --card-lifted: 0 12px 48px rgba(28, 26, 20, 0.14);
 }
 
 /* Подъём листа: кромка ловит свет, тень становится на шаг глубже.

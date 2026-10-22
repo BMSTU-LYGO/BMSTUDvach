@@ -192,10 +192,11 @@ function toggle() {
 
 .rule-sheet__kicker {
   display: block;
-  font-family: var(--font-display);
-  font-size: 0.64rem;
-  letter-spacing: 0.22em;
-  color: var(--ink-tertiary);
+  font-family: var(--font-body);
+  /* Q-M-10 / Q-A-007: подпись — обычным шрифтом приложения, без разрядки
+     (это киберпанк, которого в проекте нет) и не мельче 10 px. */
+  font-size: 0.6875rem;
+  color: var(--ink-secondary);
 }
 
 .rule-sheet__lead {

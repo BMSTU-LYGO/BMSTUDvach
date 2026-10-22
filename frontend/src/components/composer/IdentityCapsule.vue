@@ -52,7 +52,7 @@ function reset() {
 
 <template>
   <div class="identity-capsule" data-testid="identity-capsule">
-    <span class="identity-capsule__kicker" aria-hidden="true">ИМЯ</span>
+      <span class="identity-capsule__kicker" aria-hidden="true">имя</span>
     <input
       class="identity-capsule__input"
       :value="draft"
@@ -93,6 +93,12 @@ function reset() {
 </template>
 
 <style scoped>
+/* Q-A-006: кнопка сброса рисуется браузерным шрифтом — гарнитура
+   приложения должна побеждать. */
+button {
+  font-family: inherit;
+}
+
 .identity-capsule {
   display: flex;
   align-items: center;
@@ -112,8 +118,10 @@ function reset() {
 
 .identity-capsule__kicker {
   font-family: var(--font-body);
-  font-size: 0.6rem;
-  color: var(--ink-tertiary);
+  /* Q-M-10: подпись поля не должна быть мельче 10 px — на телефоне это
+     единственный ориентир в капсуле. */
+  font-size: 0.6875rem;
+  color: var(--ink-secondary);
   flex-shrink: 0;
 }
 
@@ -161,7 +169,7 @@ function reset() {
   margin: 0;
   flex-basis: 100%;
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 

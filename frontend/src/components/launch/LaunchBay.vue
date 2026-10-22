@@ -227,7 +227,7 @@ defineExpose({
         class="launch-bay__scene"
         data-testid="launch-scene-title"
       >
-        <span class="launch-bay__kicker">NEW TRANSMISSION</span>
+        <span class="launch-bay__kicker">новый тред</span>
         <span class="launch-bay__board">/{{ boardSlug }}/</span>
       </span>
       <button
@@ -300,11 +300,11 @@ defineExpose({
       <!-- instrumentation rail — not a form sidebar -->
       <aside class="telemetry" aria-label="Телеметрия треда">
         <div class="telemetry__row">
-          <span class="telemetry__key">BOARD</span>
+          <span class="telemetry__key">раздел</span>
           <span class="telemetry__value">/{{ boardSlug }}/</span>
         </div>
         <div class="telemetry__row">
-          <span class="telemetry__key">TITLE</span>
+          <span class="telemetry__key">заголовок</span>
           <SignalMeter
             class="telemetry__meter"
             :current="title.length"
@@ -312,7 +312,7 @@ defineExpose({
           />
         </div>
         <div class="telemetry__row">
-          <span class="telemetry__key">BODY</span>
+          <span class="telemetry__key">тело</span>
           <SignalMeter
             class="telemetry__meter"
             :current="body.length"
@@ -320,11 +320,11 @@ defineExpose({
           />
         </div>
         <div class="telemetry__row">
-          <span class="telemetry__key">CARGO</span>
+          <span class="telemetry__key">вложения</span>
           <span class="telemetry__value">{{ files.length }}/{{ MAX_FILES }}</span>
         </div>
         <div class="telemetry__row">
-          <span class="telemetry__key">BUFFER</span>
+          <span class="telemetry__key">буфер</span>
           <DraftBeacon :state="status" :saved-at="savedAt" />
         </div>
       </aside>
@@ -349,7 +349,7 @@ defineExpose({
       <!-- the launch control: the one magnetic node of the app. The label and
            the ring travel together, so the pull reads as one gesture. -->
       <div ref="launchRef" class="launch-bay__launch">
-        <span class="launch-bay__transmit-label">LAUNCH</span>
+        <span class="launch-bay__transmit-label">создать</span>
         <TransmitControl
           :disabled="!canSubmit"
           :submitting="submitting"
@@ -364,6 +364,13 @@ defineExpose({
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом — гарнитура приложения
+   должна побеждать. Правило с низкой специфичностью: у кнопок, которые
+   задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    The bay is a SHEET, not a card. Same gesture as the Signal Dock: a
    --paper-raised ground, ink letters and one hairline rule around the
@@ -418,10 +425,11 @@ defineExpose({
   min-width: 0;
 }
 
+/* Q-M-10: подписи прибора — обычным шрифтом приложения, без капитала и
+   разрядки (это киберпанк, которого в проекте нет) и не мельче 10 px. */
 .launch-bay__kicker {
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.22em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   color: var(--accent);
 }
 
@@ -578,9 +586,8 @@ defineExpose({
 }
 
 .telemetry__key {
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  letter-spacing: 0.18em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -631,9 +638,8 @@ defineExpose({
 }
 
 .rail-action__label {
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
 }
 
 /* the refusal node of the footer rail — compact, inline, never a banner */
@@ -657,8 +663,8 @@ defineExpose({
 }
 
 .launch-bay__hint {
-  font-family: var(--font-display);
-  font-size: 0.64rem;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
   border: 1px solid var(--rule);
   border-radius: 4px;
@@ -677,9 +683,8 @@ defineExpose({
 }
 
 .launch-bay__transmit-label {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   color: var(--ink-secondary);
 }
 
@@ -704,6 +709,20 @@ defineExpose({
     max-width: 100%;
     flex-basis: 100%;
     order: -1;
+  }
+}
+
+/* Q-M-14: на 320 px поля заготовки и кнопка закрытия были ниже 44 px,
+   а плейсхолдер тела обрезался. Поля — настоящие цели для пальца. */
+@media (max-width: 767px) {
+  .title-surface__input {
+    min-height: 44px;
+  }
+
+  .launch-bay__close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
   }
 }
 

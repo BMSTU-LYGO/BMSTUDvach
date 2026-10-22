@@ -64,10 +64,10 @@ describe('LaunchBay', () => {
     const title = wrapper.find('[data-testid="launch-title"]')
     expect(title.exists()).toBe(true)
     expect(title.attributes('aria-label')).toBe('Заголовок треда')
-    expect(wrapper.text()).toContain('NEW TRANSMISSION')
+    expect(wrapper.text()).toContain('новый тред')
     expect(wrapper.text()).toContain('/b/')
     // instrumentation rail, not a form sidebar
-    expect(wrapper.text()).toContain('BUFFER')
+    expect(wrapper.text()).toContain('буфер')
   })
 
   it('focuses the title on open', async () => {
@@ -318,7 +318,7 @@ describe('LaunchBay — the sheet, not a card (P3-T2)', () => {
 
     const sceneTitle = wrapper.find('[data-testid="launch-scene-title"]')
     expect(sceneTitle.classes()).toContain('launch-bay__scene')
-    expect(sceneTitle.text()).toContain('NEW TRANSMISSION')
+    expect(sceneTitle.text()).toContain('новый тред')
     expect(sceneTitle.text()).toContain('/b/')
     // header, telemetry and footer survive the re-skin as scene furniture
     expect(wrapper.find('.launch-bay__header').exists()).toBe(true)

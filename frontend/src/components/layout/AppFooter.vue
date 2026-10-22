@@ -22,9 +22,12 @@
   background: var(--paper-raised);
 }
 
+/* Колонка подвала — та же, что у текста страницы: тот же предел ширины
+   (1000px) и те же поля, поэтому подвал не выходит за левое поле текста. */
 .footer-inner {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
+  padding: 0 var(--space-4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -45,12 +48,22 @@
 }
 
 .footer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   color: var(--ink-secondary);
   text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition: color var(--motion-hover);
 }
 
 .footer-link:hover {
   color: var(--accent);
+}
+
+/* Тач: цель ссылки не должна быть мельче пальца. */
+@media (pointer: coarse) {
+  .footer-link {
+    min-height: 44px;
+  }
 }
 </style>

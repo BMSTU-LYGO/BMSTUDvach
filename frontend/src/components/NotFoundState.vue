@@ -234,11 +234,12 @@ const hint = computed(() => VARIANTS[props.variant].hint)
   border-right-width: 1px;
 }
 
-/* === Подпись прибора: моно, капс, разрядка === */
+/* === Подпись прибора: моно, капс, разрядка ===
+   Кегль 11px — на 320px экране 10px читались как «служебная пыль». */
 .state__label {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0.2em;

@@ -115,7 +115,7 @@ defineExpose({
 
 .signal-surface__gutter {
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
   padding-top: 0.35rem;
   user-select: none;
@@ -163,5 +163,22 @@ defineExpose({
   position: absolute;
   top: 0;
   right: 0;
+}
+
+/* Q-M-09: на телефоне поле набора — тоже цель: палец должен попадать
+   в строку, а не в её верхнюю кромку. */
+@media (max-width: 767px) {
+  .signal-surface__input {
+    min-height: 44px;
+  }
+}
+
+/* Q-M-13: на узком экране подпись канала («TX», «R:#12») съедала
+   строку набора — плейсхолдер обрезался. На 320–400 px подпись уходит:
+   контекст ответа и так виден в стеке дока. */
+@media (max-width: 400px) {
+  .signal-surface__gutter {
+    display: none;
+  }
 }
 </style>

@@ -48,7 +48,7 @@ function formatDate(value: string): string {
 <template>
   <div
     v-if="visible"
-    class="thread-item react-lift"
+    class="thread-item react-lift--quiet"
     :class="{ 'thread-item--hidden': hidden }"
   >
     <RouterLink
@@ -102,15 +102,24 @@ function formatDate(value: string): string {
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом — гарнитура приложения
+   должна побеждать. */
+button {
+  font-family: inherit;
+}
+
 .thread-item {
   position: relative;
   border-bottom: 1px solid var(--rule);
-  /* Лист лежит на столе и приподнимается под курсором: тень растёт, кромка
-     ловит свет. Никакого сдвига и никакого масштаба. */
+  /* Лист лежит на столе и приподнимается под курсором: кромка ловит
+     свет. Никакого сдвига и никакого масштаба.
+
+     Q-A-005: строка списка — крупная поверхность (78 000 px²), а тень
+     здесь перерисовывалась каждый кадр. Материальный слой знает это:
+     тихая реакция (`react-lift--quiet`) анимирует только кромку. */
   transition:
     opacity var(--motion-hover),
-    border-color var(--motion-hover),
-    box-shadow var(--motion-hover);
+    border-color var(--motion-hover);
 }
 
 .thread-item--hidden {

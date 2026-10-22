@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 defineEmits<{ scan: [] }>()
 import { useForumStore } from '@/stores/forum'
@@ -62,6 +62,16 @@ onMounted(() => {
 function closeMobile() {
   mobileOpen.value = false
 }
+
+/**
+ * Разделы в навигации.
+ *
+ * Список приходит с сервера, поэтому он может быть пустым — и раньше шапка
+ * тогда теряла половину ссылок и меняла высоту. Стор даёт состав меню по
+ * данным, а ширина строки зарезервирована (см. `.nav`): пустой список
+ * оставляет пустое место, а не перестраивает всю шапку.
+ */
+const sections = computed(() => store.boards.boards)
 </script>
 
 <template>
@@ -72,10 +82,13 @@ function closeMobile() {
         <span class="brand-dot"></span>
       </RouterLink>
 
-      <div class="header-right">
-        <nav class="nav" :class="{ open: mobileOpen }" aria-label="Разделы">
+      <!-- Панель шапки. На широком экране её содержимое встаёт в ячейки
+           сетки (имя — слева, эффекты — справа, разделы — строкой под ними);
+           на узком — раскрывается списком под шапкой. -->
+      <div id="header-panel" class="panel" :class="{ open: mobileOpen }">
+        <nav class="nav" aria-label="Разделы">
           <RouterLink
-            v-for="board in store.boards.boards"
+            v-for="board in sections"
             :key="board.slug"
             :to="`/boards/${board.slug}`"
             class="nav-link motion-quiet react-ink"
@@ -109,15 +122,6 @@ function closeMobile() {
 
         <div class="fx-toggles">
           <button
-            class="fx-toggle fx-toggle--scan react-press"
-            aria-label="Поиск по сети (Cmd/Ctrl+K)"
-            title="Поиск по сети — Cmd/Ctrl+K"
-            @click="$emit('scan')"
-          >
-            <NetworkIcon name="report" :size="14" />
-            <span class="scan-label">Поиск</span>
-          </button>
-          <button
             class="fx-toggle react-press"
             :class="{ active: quality3D !== 'off' }"
             :aria-label="QUALITY_HINTS[quality3D]"
@@ -143,13 +147,25 @@ function closeMobile() {
             :title="soundEnabled ? 'Звук включён' : 'Звук выключен'"
             @click="toggleSound"
           >
-            <NetworkIcon :name="soundEnabled ? 'sound' : 'mute'" :size="14" />
+            <NetworkIcon :name="soundEnabled ? 'sound' : 'mute'" :size="16" />
           </button>
         </div>
+      </div>
 
+      <div class="header-controls">
+        <button
+          class="fx-toggle fx-toggle--scan react-press"
+          aria-label="Поиск по сети (Cmd/Ctrl+K)"
+          title="Поиск по сети — Cmd/Ctrl+K"
+          @click="$emit('scan')"
+        >
+          <NetworkIcon name="report" :size="16" />
+          <span class="scan-label">Поиск</span>
+        </button>
         <button
           class="mobile-toggle"
           :aria-expanded="mobileOpen"
+          aria-controls="header-panel"
           aria-label="Навигация"
           @click="mobileOpen = !mobileOpen"
         >
@@ -173,21 +189,37 @@ function closeMobile() {
   border-bottom: 1px solid var(--rule);
 }
 
+/* Шапка стоит на той же колонке, что и текст страницы: тот же предел
+   ширины (1000px) и те же поля. Глаз находит одну вертикаль, а не три. */
 .header-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-template-areas:
+    'brand .      controls fx'
+    'nav   nav    nav     nav';
   align-items: center;
-  gap: var(--space-6);
-  max-width: 1200px;
+  column-gap: var(--space-2);
+  row-gap: var(--space-2);
+  max-width: 1000px;
   margin: 0 auto;
   padding: var(--space-3) var(--space-4);
 }
 
+/* На широком экране панель — не коробка, а содержимое сетки: её дети
+   (список разделов и ряд эффектов) встают в свои ячейки. На узком экране
+   панель становится выпадающим списком под шапкой. */
+.panel {
+  display: contents;
+}
+
 .brand {
+  grid-area: brand;
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   text-decoration: none;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .brand-text {
@@ -196,6 +228,9 @@ function closeMobile() {
   font-weight: 600;
   color: var(--ink);
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-dot {
@@ -203,17 +238,20 @@ function closeMobile() {
   height: 5px;
   border-radius: 50%;
   background: var(--accent);
+  flex-shrink: 0;
 }
 
-.header-right {
+.header-controls {
+  grid-area: controls;
+  justify-self: end;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  flex: 1;
-  min-width: 0;
+  gap: var(--space-2);
 }
 
 .fx-toggles {
+  grid-area: fx;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -232,9 +270,10 @@ function closeMobile() {
   border: 1px solid var(--rule);
   border-radius: 0;
   padding: var(--space-1) var(--space-2);
-  min-height: 28px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition:
     color var(--motion-hover),
@@ -261,7 +300,7 @@ function closeMobile() {
 .fx-toggle--sound {
   position: relative;
   justify-content: center;
-  min-width: 28px;
+  min-width: 32px;
 }
 
 .fx-toggle--sound::after {
@@ -285,21 +324,25 @@ function closeMobile() {
   background: var(--paper-sunken);
 }
 
+/* Ряд разделов — тир под именем. Строка зарезервирована по высоте, поэтому
+   пустой список (сервер недоступен) не перестраивает шапку. */
 .nav {
+  grid-area: nav;
   display: flex;
   align-items: center;
   gap: var(--space-1);
   flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
+  min-height: 32px;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--rule);
 }
 
 /* Пункты навигации: тихая реакция — чернильная линия проявляется от левого
    края, а не заливка и не сдвиг. Тайминги даёт `motion-quiet`. */
 .nav-link {
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-2);
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--ink-secondary);
   text-decoration: none;
@@ -316,8 +359,8 @@ function closeMobile() {
 
 /* Линия идёт по ширине подписи, а не по всей кнопке. */
 .nav-link::after {
-  left: var(--space-3);
-  right: var(--space-3);
+  left: var(--space-2);
+  right: var(--space-2);
 }
 
 /* Активный пункт держит линию на постоянной — это и есть его состояние. */
@@ -335,6 +378,8 @@ function closeMobile() {
   border: none;
   padding: var(--space-2);
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .hamburger {
@@ -342,6 +387,7 @@ function closeMobile() {
   flex-direction: column;
   gap: 4px;
   width: 20px;
+  margin: 0 auto;
 }
 
 .hamburger span {
@@ -365,12 +411,37 @@ function closeMobile() {
 }
 
 @media (max-width: 767px) {
-  .mobile-toggle {
-    display: block;
+  /* Узкий экран: один ряд — имя, поиск и меню; разделы и эффекты
+     раскрываются списком под шапкой. */
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    position: relative;
+    padding: var(--space-2) var(--space-4);
   }
 
-  .fx-toggles {
-    margin-left: auto;
+  .panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--rule);
+    box-shadow: var(--shadow-md);
+  }
+
+  .panel.open {
+    display: flex;
+  }
+
+  .mobile-toggle {
+    display: block;
   }
 
   .fx-toggle .q-suffix {
@@ -378,25 +449,54 @@ function closeMobile() {
   }
 
   .nav {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--paper-raised);
-    border-bottom: 1px solid var(--rule);
-    padding: var(--space-3);
     flex-direction: column;
-    gap: var(--space-1);
+    align-items: stretch;
+    gap: 0;
+    min-height: 0;
+    padding-top: 0;
+    border-top: none;
   }
 
-  .nav.open {
-    display: flex;
-  }
-
+  /* Палец попадает в строку: у пункта меню своя высота, а не только
+     отступы вокруг текста. */
   .nav-link {
-    width: 100%;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
     padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .fx-toggles {
+    justify-self: stretch;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--rule);
+  }
+}
+
+/* Тач: палец не различает мелкие кнопки, поэтому на тач-экране
+   минимальная цель — 44px. */
+@media (pointer: coarse) {
+  .fx-toggle {
+    min-height: 44px;
+  }
+
+  .fx-toggle--sound {
+    min-width: 44px;
+  }
+
+  .brand {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  .brand-text {
+    font-size: 1.25rem;
+  }
+
+  .fx-toggle--scan .scan-label {
+    display: none;
   }
 }
 </style>

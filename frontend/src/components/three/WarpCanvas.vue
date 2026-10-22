@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 
 import { prefersReducedMotion } from '@/composables/useGsap'
 import {
+  SCENE_PRIORITY,
   useThreeScene,
   type ThreeBuildResult,
   type ThreeContext,
 } from '@/composables/useThreeScene'
 import {
   makeWarpMaterial,
+  onWarpRequest,
   registerWarpPlayer,
   warpKindIndex,
 } from '@/three/warps'
@@ -18,12 +20,28 @@ import {
  * the REAL3D plan): signal travel, depth tunnel, archive fracture.
  * Lives off the shared playWarp() bus; registers itself only while
  * 3D quality is active.
+ *
+ * The overlay holds **no** context while it has nothing to draw: it takes
+ * a slot of the budget of the contexts when a transition starts and gives
+ * it back when the transition is over. A flourish that keeps a slot for
+ * the whole life of the page is a slot the page cannot use.
  */
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
-useThreeScene(canvasRef, build)
 
 const DURATION = 0.65
+
+/** Whether the overlay wants a canvas on the page right now. */
+const wanted = ref(false)
+
+const { active, running, sessionKey, start, stop } = useThreeScene(
+  canvasRef,
+  build,
+  {
+    priority: SCENE_PRIORITY.overlay,
+    autoStart: false,
+  },
+)
 
 function build(ctx: ThreeContext): ThreeBuildResult {
   const { three, scene, camera } = ctx
@@ -59,6 +77,9 @@ function build(ctx: ThreeContext): ThreeBuildResult {
       if (progress >= 1) {
         playing = false
         mesh.visible = false
+        // The transition is over: the overlay gives the slot of the budget
+        // back. The next transition wakes it up again.
+        release()
       }
     },
     dispose: () => {
@@ -68,10 +89,54 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     },
   }
 }
+
+/**
+ * Give the slot of the budget back — after the frame that ended the
+ * transition, so the renderer is not disposed under its own feet.
+ */
+let releaseTimer: ReturnType<typeof setTimeout> | null = null
+function release() {
+  if (releaseTimer !== null) return
+  releaseTimer = setTimeout(() => {
+    releaseTimer = null
+    wanted.value = false
+    stop()
+  }, 0)
+}
+
+/**
+ * A transition starts: the overlay wakes up and takes a slot of the budget.
+ * If the budget is full, the session does not start — the request waits in
+ * `warps.ts` until the overlay is on screen again.
+ */
+const offRequest = onWarpRequest(() => {
+  if (prefersReducedMotion()) return
+  if (running.value) return
+  if (releaseTimer !== null) {
+    clearTimeout(releaseTimer)
+    releaseTimer = null
+  }
+  wanted.value = true
+  void start()
+})
+
+onUnmounted(() => {
+  offRequest()
+  if (releaseTimer !== null) {
+    clearTimeout(releaseTimer)
+    releaseTimer = null
+  }
+})
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="warp-canvas" aria-hidden="true"></canvas>
+  <canvas
+    v-if="wanted && active"
+    :key="sessionKey"
+    ref="canvasRef"
+    class="warp-canvas"
+    aria-hidden="true"
+  ></canvas>
 </template>
 
 <style scoped>

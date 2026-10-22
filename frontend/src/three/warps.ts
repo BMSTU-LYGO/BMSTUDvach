@@ -34,13 +34,55 @@ export function warpKindFor(from: string, to: string): WarpKind {
 type WarpPlayer = (kind: WarpKind) => void
 
 let player: WarpPlayer | null = null
+/**
+ * The kind of the last warp that was asked for while there was no player.
+ *
+ * The overlay is a flourish over the page: it gives its slot of the budget
+ * of the contexts away to the scene of the route and takes it back later.
+ * A transition that starts in that moment must not be lost — the request
+ * waits here until the overlay is on screen again.
+ */
+let pendingKind: WarpKind | null = null
+
+/** The listeners that hear about a transition before it is played. */
+const requestListeners = new Set<(kind: WarpKind) => void>()
+
+/**
+ * Subscribe to the request of a transition.
+ *
+ * The overlay uses it to wake up: it holds no context while it has nothing
+ * to draw, so it has to hear about the transition before the player exists.
+ */
+export function onWarpRequest(fn: (kind: WarpKind) => void): () => void {
+  requestListeners.add(fn)
+  return () => {
+    requestListeners.delete(fn)
+  }
+}
 
 export function registerWarpPlayer(fn: WarpPlayer | null) {
   player = fn
+  if (!fn || pendingKind === null) return
+  // The overlay is back: the transition that was waiting for it plays now.
+  const kind = pendingKind
+  pendingKind = null
+  fn(kind)
 }
 
 export function playWarp(kind: WarpKind) {
-  player?.(kind)
+  for (const listener of Array.from(requestListeners)) {
+    try {
+      listener(kind)
+    } catch (err) {
+      // One broken listener must not kill the transition.
+      console.error('warp request listener failed:', err)
+    }
+  }
+  if (player) {
+    player(kind)
+    return
+  }
+  pendingKind = kind
 }
 
 const vert = /* glsl */ `

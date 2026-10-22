@@ -141,6 +141,13 @@ defineExpose({ onKeydown, commit })
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом (Arial 13.33px) — гарнитура
+   приложения должна побеждать. Правило с низкой специфичностью: у строк,
+   которые задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 .lens {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -153,7 +160,10 @@ defineExpose({ onKeydown, commit })
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
-  max-height: 300px;
+  /* Q-M-08: список команд резался пополам — пятая строка была наполовину
+     за экраном, и это читалось как сломанный рендер. Теперь высота линзы
+     считается целыми строками, а список помещается в экран целиком. */
+  max-height: min(70vh, 420px);
   overflow: hidden;
 }
 
@@ -165,7 +175,8 @@ defineExpose({ onKeydown, commit })
   border-bottom: 1px solid var(--border-subtle);
   background: var(--paper-sunken);
   font-family: var(--font-body);
-  font-size: 0.6rem;
+  /* Q-M-10: подпись прибора не должна быть мельче 10 px. */
+  font-size: 0.6875rem;
 }
 
 .lens__kicker {
@@ -229,6 +240,11 @@ defineExpose({ onKeydown, commit })
   gap: 1px;
   padding: var(--space-1);
   overflow-y: auto;
+  /* Q-M-08: список прокручивается сам, но строки не режутся — каждая
+     команда занимает целую строку, край списка подсказывает, что он
+     длиннее экрана. */
+  scroll-snap-type: y proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .lens__item {
@@ -245,6 +261,7 @@ defineExpose({ onKeydown, commit })
   cursor: pointer;
   text-align: left;
   width: 100%;
+  scroll-snap-align: start;
   transition: background var(--duration-fast) var(--ease-out-quart);
 }
 
@@ -340,7 +357,7 @@ defineExpose({ onKeydown, commit })
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border-subtle);
   font-family: var(--font-body);
-  font-size: 0.6rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -352,7 +369,7 @@ defineExpose({ onKeydown, commit })
 
 .lens__foot-keys kbd {
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   line-height: 1.4;
   color: var(--ink-secondary);
   background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
@@ -365,7 +382,7 @@ defineExpose({ onKeydown, commit })
 
 @media (max-width: 640px) {
   .lens {
-    max-height: 260px;
+    max-height: min(60vh, 380px);
   }
 
   .lens__hint {
@@ -374,19 +391,8 @@ defineExpose({ onKeydown, commit })
 
   .lens__item {
     grid-template-columns: minmax(0, 1fr) auto;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lens__item,
-  .lens__caret {
-    transition: none;
-    animation: none;
-  }
-
-  .lens-enter-active,
-  .lens-leave-active {
-    transition: none;
+    /* Q-M-09: строка команды — цель для пальца, а не строка в 40 px. */
+    min-height: 44px;
   }
 }
 
@@ -404,5 +410,21 @@ defineExpose({ onKeydown, commit })
 .lens-leave-to {
   opacity: 0;
   transform: translateY(6px);
+}
+
+/* Движение выключено — появление линзы мгновенное. Ветка стоит ПОСЛЕ
+   обычных правил перехода: при равной специфичности побеждает тот, кто
+   объявлен последним (Q-T6). */
+@media (prefers-reduced-motion: reduce) {
+  .lens__item,
+  .lens__caret {
+    transition: none;
+    animation: none;
+  }
+
+  .lens-enter-active,
+  .lens-leave-active {
+    transition: none;
+  }
 }
 </style>

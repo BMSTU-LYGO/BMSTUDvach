@@ -210,10 +210,9 @@ onBeforeUnmount(() => {
 
 .drafts__title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -225,10 +224,8 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   cursor: pointer;
   transition:
     color var(--duration-fast) var(--ease-out-quart),
@@ -288,9 +285,8 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
   color: var(--text-muted);
 }
 
@@ -313,10 +309,8 @@ onBeforeUnmount(() => {
   align-items: center;
   min-height: 44px;
   padding: 0 var(--space-2);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px dotted var(--border-accent);

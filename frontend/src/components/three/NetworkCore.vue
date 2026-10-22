@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import type { Mesh, ShaderMaterial } from 'three'
-import { useThreeScene, type ThreeBuildResult, type ThreeContext } from '@/composables/useThreeScene'
+import {
+  SCENE_PRIORITY,
+  useThreeScene,
+  type ThreeBuildResult,
+  type ThreeContext,
+} from '@/composables/useThreeScene'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const containerRef = ref<HTMLDivElement | null>(null)
@@ -30,6 +35,31 @@ interface NetworkCoreController {
   dispose(): void
 }
 
+/* --- the palette of the hero (docs/ART_DIRECTION.md — «ink and amber») --- */
+
+/** The body of the core: warm ink — a dark mass on a warm sheet. */
+const INK = 0x2a2620
+/** The lit side of the body: the same ink, one step towards the paper. */
+const INK_LIT = 0x4b4438
+/** The rim of the core and the bodies on the orbit: amber. */
+const AMBER = 0xd4882a
+/** The cool steel of a body that is not inked. */
+const STEEL = 0x5a6480
+
+/**
+ * A deterministic value of an index — the hero must look the same on every
+ * reload, otherwise the visual regression has nothing to compare.
+ */
+function unitOf(index: number, salt: string): number {
+  let h = 2166136261
+  const key = `${index}:${salt}`
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 1000000) / 1000000
+}
+
 function build(ctx: ThreeContext): ThreeBuildResult {
   const { three, scene, camera } = ctx
   const { quality } = ctx
@@ -43,78 +73,43 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   camera.position.set(0, 0, 12)
 
   const world = new three.Group()
+  /**
+   * The core stands above the middle of the screen.
+   *
+   * The hero of the page is a column of words: the kicker, the counters and
+   * the button. The core used to stand right behind them — the words were
+   * read on top of a milky ball. It stands above them now: the picture and
+   * the text keep to their own half of the screen.
+   */
+  const CORE_LIFT = 2.5
+  world.position.y = CORE_LIFT
   scene.add(world)
 
   const pointer = { x: 0, y: 0 }
   const smoothPointer = { x: 0, y: 0 }
   let elapsed = 0
 
-  const VERTEX_SHADER = /* glsl */ `
+  /**
+   * The shell of a body: the same displacement for the surface and for the
+   * cage around it, so the cage always hugs the surface it belongs to.
+   */
+  const SHELL_VERTEX = /* glsl */ `
     uniform float uTime;
     uniform float uHover;
     varying vec3 vNormal;
-    varying vec3 vPosition;
-    varying float vDisplacement;
-    
-    void main() {
-      vNormal = normalize(normalMatrix * normal);
-      vPosition = position;
-      
-      float displacement = sin(position.x * 3.0 + uTime) * 
-                          cos(position.y * 3.0 + uTime * 0.8) * 
-                          sin(position.z * 3.0 + uTime * 1.2) * 0.15;
-      displacement *= (1.0 + uHover * 0.5);
-      
-      vec3 newPosition = position + normal * displacement;
-      vDisplacement = displacement;
-      
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-    }
-  `
-
-  const FRAGMENT_SHADER = /* glsl */ `
-    uniform vec3 uColor1;
-    uniform vec3 uColor2;
-    uniform float uTime;
-    uniform float uHover;
-    varying vec3 vNormal;
-    varying vec3 vPosition;
-    varying float vDisplacement;
-    
-    void main() {
-      vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-      float diffuse = max(dot(vNormal, lightDir), 0.0);
-      float rim = 1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-      rim = pow(rim, 3.0);
-      
-      vec3 color = mix(uColor1, uColor2, vDisplacement * 2.0 + 0.5);
-      color += rim * 0.4;
-      color *= 0.3 + diffuse * 0.7;
-      
-      float pulse = 0.9 + 0.1 * sin(uTime * 2.0 + vPosition.x * 5.0);
-      color *= pulse;
-      
-      gl_FragColor = vec4(color, 0.95);
-    }
-  `
-
-  const CORE_VERTEX = /* glsl */ `
-    uniform float uTime;
-    varying vec3 vNormal;
-    varying vec3 vPosition;
     varying float vNoise;
-    
+
     float hash(vec3 p) {
       p = fract(p * 0.3183099 + 0.1);
       p *= 17.0;
       return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
     }
-    
+
     float noise(vec3 p) {
       vec3 i = floor(p);
       vec3 f = fract(p);
       f = f * f * (3.0 - 2.0 * f);
-      
+
       return mix(
         mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x),
             mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
@@ -122,75 +117,118 @@ function build(ctx: ThreeContext): ThreeBuildResult {
             mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z
       );
     }
-    
+
     void main() {
-      vNormal = normalize(normalMatrix * normal);
-      vPosition = position;
-      
-      float n = noise(position * 2.0 + uTime * 0.3);
-      n = n * 0.5 + 0.5;
-      vNoise = n;
-      
-      vec3 pos = position + normal * n * 0.2;
+      // The normal of a shell is the direction of its own position — the
+      // surface and the cage around it then share one skin, even though the
+      // cage carries no normals of its own.
+      vec3 n = normalize(position);
+      vNormal = normalize(normalMatrix * n);
+
+      // The surface of the core is a skin of ink, not a stain: the noise
+      // moves the shell a little, it never bleaches it.
+      float noiseValue = noise(position * 2.0 + uTime * 0.18);
+      noiseValue = noiseValue * 0.5 + 0.5;
+      vNoise = noiseValue;
+
+      float lift = noiseValue * 0.12 * (1.0 + uHover * 0.4);
+      vec3 pos = position + n * lift;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
   `
 
-  const CORE_FRAGMENT = /* glsl */ `
+  /**
+   * The body of a shell: ink first, light second.
+   *
+   * The body is a dark mass, the lit side is the same ink one step towards
+   * the paper, and the only light of the object is the thin amber rim of its
+   * edge. On a warm sheet that reads as a silhouette — the thing used to be
+   * a milky stain with no edge at all.
+   */
+  const SHELL_FRAGMENT = /* glsl */ `
+    uniform vec3 uBody;
+    uniform vec3 uLit;
+    uniform vec3 uRim;
     uniform float uTime;
-    uniform vec3 uColor;
     uniform float uHover;
+    uniform float uRimPower;
+    uniform float uRimStrength;
     varying vec3 vNormal;
-    varying vec3 vPosition;
     varying float vNoise;
-    
+
     void main() {
-      vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+      vec3 lightDir = normalize(vec3(0.45, 0.78, 0.62));
       float diffuse = max(dot(vNormal, lightDir), 0.0);
-      
-      float rim = 1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-      rim = pow(rim, 2.5);
-      
-      vec3 color = uColor * (0.4 + diffuse * 0.6);
-      color += rim * vec3(0.83, 0.53, 0.16) * 0.6;
-      
-      float glow = vNoise * 0.3;
-      color += glow;
-      
-      color += uHover * 0.2;
-      
-      gl_FragColor = vec4(color, 0.9);
+
+      // The lit side of the ink: the same mass, one step towards the paper.
+      vec3 color = mix(uBody, uLit, diffuse * diffuse * 0.85);
+
+      // The rim: a thin amber edge — the only light of the object.
+      float rim = pow(1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0), uRimPower);
+      color += uRim * rim * uRimStrength * (0.85 + 0.15 * sin(uTime * 0.9));
+
+      // The grain of the surface: a texture of the ink, never a wash.
+      color *= 0.9 + vNoise * 0.2;
+
+      // The hover warms the body a little — a lamp moves closer.
+      color = mix(color, color + uRim * 0.18, uHover);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
+
+  /** The cage around the core: the same shell, drawn as lines. */
+  const CAGE_FRAGMENT = /* glsl */ `
+    uniform vec3 uRim;
+    uniform float uOpacity;
+    varying vec3 vNormal;
+    varying float vNoise;
+
+    void main() {
+      gl_FragColor = vec4(uRim, uOpacity * (0.55 + vNoise * 0.45));
     }
   `
 
   const coreMat = keep(
     new three.ShaderMaterial({
-      vertexShader: CORE_VERTEX,
-      fragmentShader: CORE_FRAGMENT,
-      transparent: true,
+      vertexShader: SHELL_VERTEX,
+      fragmentShader: SHELL_FRAGMENT,
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new three.Color(0x2F4F4E) },
         uHover: { value: 0 },
+        uBody: { value: new three.Color(INK) },
+        uLit: { value: new three.Color(INK_LIT) },
+        uRim: { value: new three.Color(AMBER) },
+        uRimPower: { value: 3.2 },
+        uRimStrength: { value: 0.95 },
       },
     }),
   )
-  const coreGeo = keep(new three.IcosahedronGeometry(1.8, quality === 'high' ? 4 : 3))
+  const coreGeo = keep(new three.IcosahedronGeometry(1.4, quality === 'high' ? 4 : 3))
   const coreMesh = new three.Mesh(coreGeo, coreMat)
   world.add(coreMesh)
 
+  // The cage around the core: the same shell, so it hugs the surface it
+  // belongs to instead of floating inside it.
   const coreWireMat = keep(
-    new three.LineBasicMaterial({
-      color: 0xd4882a,
+    new three.ShaderMaterial({
+      vertexShader: SHELL_VERTEX,
+      fragmentShader: CAGE_FRAGMENT,
       transparent: true,
-      opacity: 0.3,
+      depthWrite: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uHover: { value: 0 },
+        uRim: { value: new three.Color(AMBER) },
+        uOpacity: { value: 0.34 },
+      },
     }),
   )
   const coreWireGeo = keep(new three.WireframeGeometry(coreGeo))
   const coreWire = new three.LineSegments(coreWireGeo, coreWireMat)
   world.add(coreWire)
 
-  const satelliteCount = quality === 'high' ? 12 : 8
+  const satelliteCount = quality === 'high' ? 10 : 6
   const satellites: {
     mesh: Mesh
     mat: ShaderMaterial
@@ -203,18 +241,26 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   for (let i = 0; i < satelliteCount; i++) {
     const satMat = keep(
       new three.ShaderMaterial({
-        vertexShader: VERTEX_SHADER,
-        fragmentShader: FRAGMENT_SHADER,
-        transparent: true,
+        vertexShader: SHELL_VERTEX,
+        fragmentShader: SHELL_FRAGMENT,
         uniforms: {
           uTime: { value: 0 },
           uHover: { value: 0 },
-          uColor1: { value: new three.Color(0x5a6480) },
-          uColor2: { value: new three.Color(0xd4882a) },
+          // Two bodies: one inked, one of cold steel. Both keep the amber
+          // rim — one accent for the whole hero.
+          uBody: {
+            value: new three.Color(i % 3 === 0 ? STEEL : INK),
+          },
+          uLit: {
+            value: new three.Color(i % 3 === 0 ? 0x8a94b8 : INK_LIT),
+          },
+          uRim: { value: new three.Color(AMBER) },
+          uRimPower: { value: 2.6 },
+          uRimStrength: { value: 0.8 },
         },
       }),
     )
-    const size = 0.3 + Math.random() * 0.4
+    const size = 0.22 + unitOf(i, 'size') * 0.26
     const satGeo = keep(new three.IcosahedronGeometry(size, 2))
     const satMesh = new three.Mesh(satGeo, satMat)
     world.add(satMesh)
@@ -222,57 +268,33 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     satellites.push({
       mesh: satMesh,
       mat: satMat,
-      orbit: 3 + Math.random() * 2,
-      speed: 0.3 + Math.random() * 0.4,
-      phase: Math.random() * Math.PI * 2,
-      tilt: (Math.random() - 0.5) * 0.8,
+      orbit: 3 + unitOf(i, 'orbit') * 2,
+      speed: 0.3 + unitOf(i, 'speed') * 0.4,
+      phase: unitOf(i, 'phase') * Math.PI * 2,
+      tilt: (unitOf(i, 'tilt') - 0.5) * 0.8,
     })
   }
 
-  const textCanvas = document.createElement('canvas')
-  textCanvas.width = 1024
-  textCanvas.height = 256
-  const textCtx = textCanvas.getContext('2d')
-  if (textCtx) {
-    textCtx.fillStyle = 'rgba(0,0,0,0)'
-    textCtx.fillRect(0, 0, 1024, 256)
-    textCtx.font = 'bold 120px "Cormorant Garamond", serif'
-    textCtx.textAlign = 'center'
-    textCtx.textBaseline = 'middle'
-    textCtx.fillStyle = 'rgba(212, 136, 42, 0.9)'
-    textCtx.fillText('BMSTUDvach', 512, 128)
-  }
-  const textTexture = keep(new three.CanvasTexture(textCanvas))
-  const textMat = keep(
-    new three.MeshBasicMaterial({
-      map: textTexture,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    }),
-  )
-  const textGeo = keep(new three.PlaneGeometry(8, 2))
-  const textMesh = new three.Mesh(textGeo, textMat)
-  textMesh.position.set(0, -3.5, 0)
-  world.add(textMesh)
-
-  const particleCount = quality === 'high' ? 500 : 200
+  /**
+   * The dust of the hero: warm motes in the light of the core.
+   *
+   * The motes move in the shader — the frame allocates nothing and touches
+   * no buffer. They are drawn with the ordinary blend: on a warm sheet an
+   * additive glow is a green stain, a warm speck is dust.
+   */
+  const particleCount = quality === 'high' ? 240 : 96
   const particleGeo = keep(new three.BufferGeometry())
   const positions = new Float32Array(particleCount * 3)
-  const velocities = new Float32Array(particleCount * 3)
   const phases = new Float32Array(particleCount)
 
   for (let i = 0; i < particleCount; i++) {
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.acos(2 * Math.random() - 1)
-    const r = 5 + Math.random() * 3
+    const theta = unitOf(i, 'theta') * Math.PI * 2
+    const phi = Math.acos(2 * unitOf(i, 'phi') - 1)
+    const r = 5 + unitOf(i, 'radius') * 3
     positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
     positions[i * 3 + 2] = r * Math.cos(phi)
-    velocities[i * 3] = (Math.random() - 0.5) * 0.02
-    velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.02
-    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02
-    phases[i] = Math.random() * Math.PI * 2
+    phases[i] = unitOf(i, 'phase') * Math.PI * 2
   }
 
   particleGeo.setAttribute('position', new three.BufferAttribute(positions, 3))
@@ -282,30 +304,32 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     uniform float uTime;
     attribute float aPhase;
     varying float vAlpha;
-    
+
     void main() {
       vec3 pos = position;
+      // The drift of a mote in the light: it never leaves its own shell.
       pos.x += sin(uTime * 0.5 + aPhase) * 0.3;
       pos.y += cos(uTime * 0.4 + aPhase) * 0.3;
       pos.z += sin(uTime * 0.3 + aPhase * 2.0) * 0.2;
-      
+
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
       float dist = length(mvPosition.xyz);
-      vAlpha = smoothstep(15.0, 5.0, dist) * 0.6;
-      
-      gl_PointSize = 2.5 * (1.0 + 0.3 * sin(uTime + aPhase));
+      vAlpha = smoothstep(15.0, 5.0, dist) * 0.45;
+
+      gl_PointSize = 2.2 * (1.0 + 0.25 * sin(uTime + aPhase));
       gl_Position = projectionMatrix * mvPosition;
     }
   `
 
   const particleFragmentShader = /* glsl */ `
+    uniform vec3 uColor;
     varying float vAlpha;
-    
+
     void main() {
       float dist = length(gl_PointCoord - vec2(0.5));
       if (dist > 0.5) discard;
       float alpha = smoothstep(0.5, 0.0, dist) * vAlpha;
-      gl_FragColor = vec4(0.83, 0.53, 0.16, alpha);
+      gl_FragColor = vec4(uColor, alpha);
     }
   `
 
@@ -315,9 +339,9 @@ function build(ctx: ThreeContext): ThreeBuildResult {
       fragmentShader: particleFragmentShader,
       transparent: true,
       depthWrite: false,
-      blending: three.AdditiveBlending,
       uniforms: {
         uTime: { value: 0 },
+        uColor: { value: new three.Color(AMBER) },
       },
     }),
   )
@@ -343,6 +367,7 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     coreMesh.rotation.x = Math.sin(elapsed * 0.2) * 0.1
     coreWire.rotation.y = coreMesh.rotation.y
     coreWire.rotation.x = coreMesh.rotation.x
+    coreWireMat.uniforms.uTime.value = elapsed
 
     mouse.set(pointer.x, pointer.y)
     raycaster.setFromCamera(mouse, camera)
@@ -352,6 +377,7 @@ function build(ctx: ThreeContext): ThreeBuildResult {
     const currentHover = coreMat.uniforms.uHover.value as number
     const newHover = currentHover + (hoverTarget - currentHover) * Math.min(1, dt * 5)
     coreMat.uniforms.uHover.value = newHover
+    coreWireMat.uniforms.uHover.value = newHover
 
     for (const sat of satellites) {
       const angle = elapsed * sat.speed + sat.phase
@@ -375,30 +401,7 @@ function build(ctx: ThreeContext): ThreeBuildResult {
       sat.mesh.scale.setScalar(scale)
     }
 
-    textMesh.position.x = Math.sin(elapsed * 0.3) * 0.2
-    textMesh.position.y = -3.5 + Math.cos(elapsed * 0.2) * 0.1
-    textMesh.material.opacity = 0.85 + Math.sin(elapsed * 0.5) * 0.1
-
     particleMat.uniforms.uTime.value = elapsed
-
-    const posAttr = particleGeo.attributes.position as InstanceType<typeof three.BufferAttribute>
-    for (let i = 0; i < particleCount; i++) {
-      positions[i * 3] += velocities[i * 3]
-      positions[i * 3 + 1] += velocities[i * 3 + 1]
-      positions[i * 3 + 2] += velocities[i * 3 + 2]
-
-      const dist = Math.sqrt(
-        positions[i * 3] ** 2 +
-        positions[i * 3 + 1] ** 2 +
-        positions[i * 3 + 2] ** 2
-      )
-      if (dist > 8 || dist < 4) {
-        velocities[i * 3] *= -1
-        velocities[i * 3 + 1] *= -1
-        velocities[i * 3 + 2] *= -1
-      }
-    }
-    posAttr.needsUpdate = true
   }
 
   return {
@@ -415,12 +418,20 @@ function build(ctx: ThreeContext): ThreeBuildResult {
   }
 }
 
-useThreeScene(canvasRef, build)
+const { active, sessionKey } = useThreeScene(canvasRef, build, {
+  priority: SCENE_PRIORITY.hero,
+})
 </script>
 
 <template>
   <div ref="containerRef" class="network-core-container">
-    <canvas ref="canvasRef" class="network-core-canvas" aria-hidden="true"></canvas>
+    <canvas
+      v-if="active"
+      :key="sessionKey"
+      ref="canvasRef"
+      class="network-core-canvas"
+      aria-hidden="true"
+    ></canvas>
   </div>
 </template>
 
@@ -429,7 +440,9 @@ useThreeScene(canvasRef, build)
   position: fixed;
   inset: 0;
   z-index: 0;
-  pointer-events: auto;
+  /* The core is a picture, not a surface: it never takes a click away from
+     the page. The pointer is read from the window anyway. */
+  pointer-events: none;
   overflow: hidden;
 }
 

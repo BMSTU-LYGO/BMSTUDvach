@@ -9,7 +9,15 @@ export default [
   },
   {
     name: 'app/files-to-ignore',
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    // `.qa-artifacts` — сгенерированные отчёты и инструменты браузерного
+    // QA: каталог в `.gitignore`, исходником не является, и линтер не
+    // должен валиться на чужом отчёте из соседней задачи.
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/.qa-artifacts/**',
+    ],
   },
   ...pluginVue.configs['flat/essential'],
   ...vueTsEslintConfig(),

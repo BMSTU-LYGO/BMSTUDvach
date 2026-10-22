@@ -46,7 +46,7 @@ function handleNavigate() {
     @click="handleNavigate"
   >
     <div ref="cardRef" class="card-tilt">
-      <div class="card-inner surface-paper react-lift react-press">
+      <div class="card-inner surface-paper react-lift react-lift--quiet react-press">
         <div class="card-content">
           <div class="card-icon">
             <GenerativeIcon :seed="board.slug" :size="44" />
@@ -90,6 +90,13 @@ function handleNavigate() {
 .card-tilt {
   display: grid;
   height: 100%;
+  will-change: auto;
+}
+
+/* Слой композитора нужен только пока лист отзывается на курсор: шесть
+   постоянных слоёв на главной держали память браузера впустую. */
+.board-card-3d:hover .card-tilt,
+.board-card-3d:focus-visible .card-tilt {
   will-change: transform;
 }
 
@@ -98,17 +105,23 @@ function handleNavigate() {
    то, чем лист отличается от страницы: он чуть темнее фона. */
 .card-inner {
   position: relative;
-  background-color: var(--paper-raised, #eae4d4);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--paper-raised);
   overflow: hidden;
 }
 
+/* Иконка и стрелка стоят на одной линии у верхнего края карточки, а счётчик
+   прижат к низу — тогда ряды сетки совпадают по базовым линиям, сколько бы
+   строк ни занял заголовок. */
 .card-content {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--space-4, 1rem);
-  padding: var(--space-5, 1.25rem);
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
   z-index: 1;
+  flex: 1;
 }
 
 .card-icon {
@@ -117,7 +130,7 @@ function handleNavigate() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--rule, #d4ceb8);
+  border: 1px solid var(--rule);
   border-radius: 0;
   flex-shrink: 0;
 }
@@ -128,50 +141,53 @@ function handleNavigate() {
   gap: 2px;
   min-width: 0;
   flex: 1;
+  align-self: stretch;
 }
 
 .card-slug {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.875rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--ink-tertiary, #8a8273);
+  color: var(--ink-tertiary);
 }
 
 .card-name {
-  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--ink, #1c1a14);
+  color: var(--ink);
 }
 
+/* Описание занимает две строки: одна обрезала полстроки текста и выглядела
+   как недописанная вёрстка. */
 .card-desc {
-  font-family:
-    'Inter',
-    -apple-system,
-    sans-serif;
-  font-size: 0.875rem;
-  color: var(--ink-secondary, #5b5547);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .card-signal {
-  font-family:
-    'Inter',
-    -apple-system,
-    sans-serif;
-  font-size: 0.875rem;
-  color: var(--ink-tertiary, #8a8273);
+  margin-top: auto;
+  padding-top: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--ink-tertiary);
 }
 
 .card-arrow {
-  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-family: var(--font-display);
   font-size: 1.5rem;
-  color: var(--ink-tertiary, #8a8273);
+  color: var(--ink-tertiary);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: 44px;
   transition:
     translate var(--motion-hover),
     color var(--motion-hover);
@@ -181,7 +197,7 @@ function handleNavigate() {
    пикселей — ровно столько, сколько допускает «редакционный» закон. */
 .board-card-3d.hovered .card-arrow {
   translate: 2px 0;
-  color: var(--ink, #1c1a14);
+  color: var(--ink);
 }
 
 /* Фокус живёт на ссылке, а подъём — на листе: связываем состояния явно. */
@@ -199,7 +215,7 @@ function handleNavigate() {
 }
 
 .board-card-3d:focus-visible {
-  outline: 2px solid var(--accent, #2f4f4e);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -211,6 +227,11 @@ function handleNavigate() {
 
   .card-name {
     font-size: 1.25rem;
+  }
+
+  /* Стрелка встаёт в одну линию с иконкой — на телефоне иконка меньше. */
+  .card-arrow {
+    height: 36px;
   }
 }
 

@@ -340,7 +340,7 @@ defineExpose({ nodeRect, originRect, recede, restore, focusNode })
 
 .node__label {
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   white-space: nowrap;
   opacity: 0.75;
   /* Подпись отзывается тихо: роль наведения (150ms) на тон и прозрачность. */

@@ -155,7 +155,9 @@ function size() {
 
 .capsule__fallback {
   font-family: var(--font-body);
-  font-size: 0.6rem;
+  /* Q-M-10: подписи вложения не мельче 10 px — на телефоне это единственное,
+     что читается в плашке. */
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -174,7 +176,7 @@ function size() {
   display: grid;
   place-items: center;
   font-family: var(--font-body);
-  font-size: 0.55rem;
+  font-size: 0.625rem;
   color: var(--ink-secondary);
   flex-shrink: 0;
 }
@@ -195,7 +197,7 @@ function size() {
 }
 
 .capsule__size {
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -256,7 +258,7 @@ function size() {
 }
 
 .capsule__rejected-reason {
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 </style>

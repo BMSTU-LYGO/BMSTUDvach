@@ -41,8 +41,27 @@ const phase = ref<'idle' | 'hover' | 'submitting' | 'error'>('idle')
 const hovering = ref(false)
 const showSuccess = ref(false)
 
-const progress = computed(() => (props.submitting ? 0.62 : props.ready ? 0.9 : 0.22))
-const dashOffset = computed(() => C * (1 - progress.value))
+/**
+ * The charge ring is a STATE, not a decoration:
+ *  - at rest the node is a thin ring — no arc, no stray stroke;
+ *  - armed (ready) the ring is closed: the whole circumference is ink;
+ *  - sending a segment travels around the ring — the progress is visible.
+ * Before this the arc was drawn at a fixed 22 % in every state, and read as
+ * a broken stroke lying over the icon rather than as part of the instrument.
+ */
+const CHARGE_SEGMENT = 0.28
+
+const chargeLength = computed(() => {
+  if (props.submitting) return C * CHARGE_SEGMENT
+  if (props.ready && !props.disabled) return C
+  return 0
+})
+
+/** The dash pattern is a custom property, so the ring can fill up smoothly. */
+const chargeStyle = computed(() => ({
+  '--charge-len': `${chargeLength.value}px`,
+  '--charge-gap': `${C}px`,
+}))
 
 function startError() {
   phase.value = 'error'
@@ -135,8 +154,7 @@ function hover(on: boolean) {
         :r="r"
         fill="none"
         :stroke-width="2.2"
-        :stroke-dasharray="C"
-        :stroke-dashoffset="dashOffset"
+        :style="chargeStyle"
         transform="rotate(-90 24 24)"
       />
     </svg>
@@ -224,8 +242,11 @@ function hover(on: boolean) {
 
 .transmit__charge {
   stroke: var(--accent);
+  /* The dash pattern comes from a custom property: the ring can fill up and
+     empty again instead of jumping between two lengths. */
+  stroke-dasharray: var(--charge-len, 0px) var(--charge-gap, 0px);
   transition:
-    stroke-dashoffset var(--motion-hover),
+    stroke-dasharray var(--motion-hover),
     stroke var(--motion-press);
 }
 
@@ -239,7 +260,6 @@ function hover(on: boolean) {
      здесь, а не написан в анимации. */
   --charge-spin-rhythm: var(--motion-cinematic-duration) linear;
   animation: charge-spin var(--charge-spin-rhythm) infinite;
-  stroke-dashoffset: 0;
 }
 
 .transmit--error .transmit__track {
@@ -271,12 +291,16 @@ function hover(on: boolean) {
   pointer-events: none;
 }
 
+/* The ring starts at the top (the SVG carries rotate(-90)), and the CSS
+   animation wins over that attribute — so the keyframes keep the same
+   base angle. Otherwise the charge would jump a quarter turn at the
+   moment the send starts. */
 @keyframes charge-spin {
   from {
-    transform: rotate(0deg);
+    transform: rotate(-90deg);
   }
   to {
-    transform: rotate(360deg);
+    transform: rotate(270deg);
   }
 }
 
@@ -295,19 +319,19 @@ function hover(on: boolean) {
   0%,
   100% {
     opacity: 1;
-    transform: rotate(0deg);
+    transform: rotate(-90deg);
   }
   25% {
     opacity: 0.3;
-    transform: rotate(-40deg);
+    transform: rotate(-130deg);
   }
   50% {
     opacity: 0.6;
-    transform: rotate(30deg);
+    transform: rotate(-60deg);
   }
   75% {
     opacity: 0.2;
-    transform: rotate(-12deg);
+    transform: rotate(-102deg);
   }
 }
 

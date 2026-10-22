@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/composables/useThreeScene', async () => {
   const { ref } = await import('vue')
   return {
+    SCENE_PRIORITY: { overlay: 10, hero: 20, scene: 30 },
     useThreeScene: (_canvasRef: unknown, build: (ctx: unknown) => unknown) => {
       mocks.build = build
       const active = ref(true)
@@ -170,7 +171,9 @@ describe('ArchiveSpaceCanvas', () => {
 
       expect(view.find('.archive-fallback').exists()).toBe(true)
       expect(view.find('.archive-fallback').attributes('aria-hidden')).toBe('true')
-      expect(view.find('canvas').classes()).toContain('hidden')
+      // The dead canvas leaves the tree with the scene: a canvas without a
+      // context only stretches its 300×150 buffer over the page.
+      expect(view.find('canvas').exists()).toBe(false)
     })
   })
 

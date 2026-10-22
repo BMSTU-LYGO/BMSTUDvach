@@ -367,7 +367,13 @@ export function buildNetwork(
     void main() {
       float fresnel = pow(vFresnel, 2.5);
       float pulse = 0.8 + 0.2 * sin(uTime * 2.0);
-      vec3 color = uColor * (1.0 + fresnel * uGlowIntensity * pulse);
+
+      // The body of a node is ink: the colour of the board is a nuance of
+      // the surface, never a bright object on a warm sheet. The network is a
+      // background of a page that has to read — the node is a quiet shape
+      // with an edge, not a lamp.
+      vec3 body = mix(vec3(0.11, 0.10, 0.08), uColor, 0.38);
+      vec3 color = body * (0.85 + fresnel * 0.55 * uGlowIntensity * pulse);
 
       // Accent sweep: one slow band of light crosses the surface, the way
       // the light travels over a sheet of paper. The band lives on the rim,
@@ -637,6 +643,18 @@ export function buildNetwork(
   world.add(networkGroup)
   let nodes: BoardNode[] = []
   let nodeOwned: { dispose: () => void }[] = []
+  /**
+   * A resource of the current board set.
+   *
+   * The resources of a board set live as long as the set does: a new set
+   * gives the old one back — the geometries, the materials and the textures
+   * of the labels. Without it every reload of the boards would leave its
+   * textures on the GPU for the whole life of the page.
+   */
+  const own = <T extends { dispose: () => void }>(x: T): T => {
+    nodeOwned.push(x)
+    return x
+  }
   /** Board descriptors behind the current nodes (copy — see `setBoards`). */
   let currentBoards: BoardSummary[] = []
   /** Busiest board of the loaded set — the ambient glow reference point. */
@@ -654,12 +672,17 @@ export function buildNetwork(
       c.fillStyle = 'rgba(212, 136, 42, 0.95)'
       c.fillText(txt, 128, 42)
     }
-    const tex = keep(new three.CanvasTexture(cv))
-    const mat = keep(
+    // The label belongs to the board set it names: a new set gives the old
+    // one back — its texture included. A texture of a label nobody sees any
+    // more is a texture the GPU keeps for the whole life of the page.
+    const tex = own(new three.CanvasTexture(cv))
+    const mat = own(
       new three.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
     )
     const sprite = new three.Sprite(mat)
-    sprite.scale.set(3, 0.95, 1)
+    // The label is a note under the node, not a headline: it must not
+    // compete with the text of the page.
+    sprite.scale.set(2.1, 0.66, 1)
     return sprite
   }
 
@@ -668,6 +691,8 @@ export function buildNetwork(
     for (const m of nodeOwned) m.dispose()
     nodeOwned = []
     nodes = []
+    // The label of the board that was pointed at belongs to the old set.
+    disposeHoverLabel()
     // Keep our own copy: callers hand over reactive arrays they keep mutating.
     currentBoards = boards.slice()
 
@@ -729,7 +754,7 @@ export function buildNetwork(
       })
       nodeOwned.push(nodeMat)
 
-      const nodeGeo = keep(variantGeometry(three, variant, 0.55, high ? 2 : 1))
+      const nodeGeo = own(variantGeometry(three, variant, 0.55, high ? 2 : 1))
       const nodeMesh = new three.Mesh(nodeGeo, nodeMat)
       group.add(nodeMesh)
 
@@ -739,7 +764,7 @@ export function buildNetwork(
         transparent: true,
         opacity: 0.9,
       })
-      const innerGeo = keep(new three.SphereGeometry(0.12, 12, 12))
+      const innerGeo = own(new three.SphereGeometry(0.12, 12, 12))
       nodeOwned.push(innerMat, innerGeo)
       group.add(new three.Mesh(innerGeo, innerMat))
 
@@ -753,8 +778,8 @@ export function buildNetwork(
       // The inner geometry is kept as well: `EdgesGeometry` copies the
       // positions, but the source it was built from is a GPU buffer of its
       // own and has to be released with the wrapper.
-      const edgeGeo = keep(
-        new three.EdgesGeometry(keep(variantGeometry(three, variant, 0.6, 0))),
+      const edgeGeo = own(
+        new three.EdgesGeometry(own(variantGeometry(three, variant, 0.6, 0))),
       )
       const edgeMesh = new three.LineSegments(edgeGeo, edgeMat)
       group.add(edgeMesh)
@@ -805,7 +830,7 @@ export function buildNetwork(
         const curve = Math.sin(t * Math.PI) * 0.8
         points.push(new three.Vector3(pos.x * t, pos.y * t + curve, pos.z * t))
       }
-      const connectionGeo = keep(new three.BufferGeometry().setFromPoints(points))
+      const connectionGeo = own(new three.BufferGeometry().setFromPoints(points))
       const connection = new three.Line(connectionGeo, connectionMat)
       connection.userData = { slug, kind: 'edge' }
       networkGroup.add(connection)
@@ -1292,6 +1317,13 @@ export function buildNetwork(
   let cameraKick = 0
   let elapsed = 0
   /**
+   * Whether the camera has already been placed.
+   *
+   * The first frame puts it where the route wants it — after that it drifts
+   * there, so a page that opens on a board shows the board at once.
+   */
+  let cameraPlaced = false
+  /**
    * Auto-orbit phase offset. Seeded so the drift starts exactly at
    * `cameraPresets.home` (0, y, 17) instead of snapping to another point of
    * the circle, and re-anchored whenever a travel parks the camera.
@@ -1401,6 +1433,19 @@ export function buildNetwork(
     // Accessibility: one read per frame gates every new animation below
     // (auto-orbit, hover focus, idle spin, ambient pulse, hover lighting).
     const reducedMotion = prefersReducedMotion()
+
+    // --- the pointer of the reader -----------------------------------------
+    // The pointer starts outside of the screen: there is no pointer until
+    // the reader moves one (and on a touch screen there never is one).
+    // The parallax of the camera follows the pointer only while it is on the
+    // screen — otherwise the camera would fly to the "no pointer" position
+    // and take the whole constellation out of the frame.
+    const pointerOnScreen =
+      pointer.x >= -1 && pointer.x <= 1 && pointer.y >= -1 && pointer.y <= 1
+    const parallaxX = pointerOnScreen ? pointer.x : 0
+    const parallaxY = pointerOnScreen ? pointer.y : 0
+    smoothPointer.x += (parallaxX - smoothPointer.x) * Math.min(1, dt * 2.2)
+    smoothPointer.y += (parallaxY - smoothPointer.y) * Math.min(1, dt * 2.2)
 
     // --- morph clock -------------------------------------------------------
     // While a morph runs the presence lerp is driven by the morph (faster
@@ -1525,8 +1570,6 @@ export function buildNetwork(
     // The pointer ray is the only source of warmth: the node it passes
     // closest to turns a little warmer, like paper held near a lamp. A
     // hovered card outranks it, so the frame never carries two accents.
-    const pointerOnScreen =
-      pointer.x >= -1 && pointer.x <= 1 && pointer.y >= -1 && pointer.y <= 1
     const warmEnabled = pointerOnScreen && hi === null && networkGroup.visible
     if (warmEnabled) {
       // The camera was placed at the end of the last frame: refresh its
@@ -1769,10 +1812,12 @@ export function buildNetwork(
     if (snap.mode === 'board') {
       const node = nodes.find((n) => n.slug === snap.boardSlug)
       if (node) {
-        tx = node.pos.x * 0.55
-        ty = node.pos.y * 0.55 + 1.0
-        tz = node.pos.z + 8.5
-        lookTarget.set(node.pos.x * 0.6, node.pos.y * 0.6, node.pos.z * 0.6)
+        // The camera stands back from the node: the constellation is a
+        // background of the page, not a planet in front of the text.
+        tx = node.pos.x * 0.4
+        ty = node.pos.y * 0.4 + 1.0
+        tz = node.pos.z + 15
+        lookTarget.set(node.pos.x * 0.5, node.pos.y * 0.5, node.pos.z * 0.5)
       }
     }
 
@@ -1857,14 +1902,20 @@ export function buildNetwork(
       camera.position.y += (orbitY - camera.position.y) * Math.min(1, dt * 2)
       camera.lookAt(0, 0, 0)
     } else {
-      camera.position.x += (tx + smoothPointer.x * 0.9 - camera.position.x) * camEase
-      camera.position.y += (ty - smoothPointer.y * 0.55 - camera.position.y) * camEase
-      camera.position.z += (tz - cameraKick * 1.6 - camera.position.z) * camEase
+      if (cameraPlaced) {
+        camera.position.x += (tx + smoothPointer.x * 0.9 - camera.position.x) * camEase
+        camera.position.y += (ty - smoothPointer.y * 0.55 - camera.position.y) * camEase
+        camera.position.z += (tz - cameraKick * 1.6 - camera.position.z) * camEase
+      } else {
+        // The first frame places the camera: it does not fly to the preset
+        // of the route. A page that opens on a board must show the board,
+        // not the constellation on its way there.
+        camera.position.set(tx, ty, tz)
+        cameraPlaced = true
+      }
       camera.lookAt(lookTarget)
     }
 
-    smoothPointer.x += (pointer.x - smoothPointer.x) * Math.min(1, dt * 2.2)
-    smoothPointer.y += (pointer.y - smoothPointer.y) * Math.min(1, dt * 2.2)
   }
 
   setBoards([])

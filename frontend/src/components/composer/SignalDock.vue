@@ -105,6 +105,29 @@ const { draft, hasDraft, hasRestoredFiles, status, savedAt, saveDraft, clearDraf
   useDraft(`signal-${props.threadId}`)
 const identity = useIdentity()
 
+/**
+ * Q-M-13: на узком экране плейсхолдер «передать сообщение…» обрезался —
+ * в строке набора не хватало места. На 320–400 px подпись короче, а сама
+ * строка остаётся читаемой. Один слушатель, снимается при размонтировании.
+ */
+const narrow = ref(false)
+let narrowQuery: MediaQueryList | null = null
+
+function syncNarrow(event: MediaQueryListEvent) {
+  narrow.value = event.matches
+}
+
+onMounted(() => {
+  narrowQuery = window.matchMedia?.('(max-width: 400px)') ?? null
+  narrow.value = narrowQuery?.matches ?? false
+  narrowQuery?.addEventListener('change', syncNarrow)
+})
+
+onUnmounted(() => {
+  narrowQuery?.removeEventListener('change', syncNarrow)
+  narrowQuery = null
+})
+
 // QUOTE-01: clicks on `>>id` in post bodies land in this draft.
 const { watchQuotes } = useQuoteInsert()
 const stopQuotes = watchQuotes(body, props.threadId, () => {
@@ -761,7 +784,7 @@ onUnmounted(stopLinkProximity)
         ref="surfaceRef"
         v-model="body"
         :gutter="replyContext ? `R:#${replyContext.postId}` : 'TX'"
-        :placeholder="expanded ? '' : 'передать сообщение…'"
+        :placeholder="expanded ? '' : narrow ? 'сообщение…' : 'передать сообщение…'"
         :max-length="MAX_BODY"
         :invalid="invalid"
         @keydown="onSurfaceKeydown"
@@ -888,6 +911,13 @@ onUnmounted(stopLinkProximity)
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом — гарнитура приложения
+   должна побеждать. Правило с низкой специфичностью: у кнопок, которые
+   задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 .signal-dock {
   position: relative;
   display: flex;
@@ -1480,6 +1510,21 @@ onUnmounted(stopLinkProximity)
 
   .signal-dock__main {
     gap: var(--space-2);
+  }
+}
+
+/* Q-M-09: на телефоне оба переключателя дока — настоящие цели: 44 px
+   в обе стороны, а не 32×32 «на глаз». */
+@media (max-width: 767px) {
+  .dock-preview-toggle,
+  .dock-lens {
+    width: 44px;
+    height: 44px;
+  }
+
+  .dock-sage__relay {
+    width: 44px;
+    height: 44px;
   }
 }
 

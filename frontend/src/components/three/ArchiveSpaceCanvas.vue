@@ -11,6 +11,7 @@ import {
 
 import { prefersReducedMotion } from '@/composables/useGsap'
 import {
+  SCENE_PRIORITY,
   useThreeScene,
   type ThreeBuildResult,
   type ThreeContext,
@@ -94,7 +95,7 @@ function onArchive3D(event: Event) {
 /* === The state of the page: the space says it in its own voice ========== */
 
 /**
- * The state of the page the space mirrors.
+ * The state of the page: the space says it in its own voice.
  *
  * The view knows whether the vault is being asked, whether the line broke
  * and whether the archive is simply silent. The two live in different
@@ -103,6 +104,16 @@ function onArchive3D(event: Event) {
  */
 const ARCHIVE_PHASE_EVENT = 'bmstudvach:archive-phase'
 const ARCHIVE_PHASE_REQUEST_EVENT = 'bmstudvach:archive-phase-request'
+/**
+ * The reader picked a plate in the space itself.
+ *
+ * The scene bus carries what the *scene* does (focus, open, clear), but
+ * the route is led by the view: a navigation from a scene handler would
+ * answer the route guard that published the event, and the two calls would
+ * push each other in a circle that never ends the navigation. So the pick
+ * travels through the window and the view opens the story.
+ */
+const ARCHIVE_PICK_EVENT = 'bmstudvach:archive-pick'
 
 /** The states the space knows — anything else is left alone. */
 const ARCHIVE_PHASES: ArchiveSpacePhase[] = ['loading', 'ready', 'error', 'empty']
@@ -129,6 +140,14 @@ function onArchivePhase(event: Event) {
  */
 const canvasHolder = { ref: ref<HTMLCanvasElement | null>(null) }
 const status = reactive({ active: true })
+/**
+ * The number of the session — the canvas of the space is bound to it.
+ *
+ * The session lives in a child component (the space may be switched off
+ * without unmounting the view), so the number travels up to the template
+ * of the wrap.
+ */
+const sessionKey = ref(0)
 
 /** The canvas of the space (a function ref keeps the holder in sync). */
 function setCanvas(el: Element | ComponentPublicInstance | null) {
@@ -249,6 +268,10 @@ function onClick(e: MouseEvent) {
   emitSceneEvent({ type: 'archive-open', target: id })
   // The camera flies to the plate before the story comes in.
   space?.travelToFocus()
+  // The view opens the story — the route belongs to it, not to the scene.
+  window.dispatchEvent(
+    new CustomEvent(ARCHIVE_PICK_EVENT, { detail: { id } }),
+  )
 }
 
 function build(ctx: ThreeContext): ThreeBuildResult {
@@ -316,6 +339,12 @@ function build(ctx: ThreeContext): ThreeBuildResult {
         selectedStory: sceneState.selectedStory,
         reducedMotion: prefersReducedMotion(),
       }),
+    // The archive owns its scene graph and its camera rig: the renderer has
+    // to draw *these*, not the empty scene the composable made for itself.
+    // Without them the rings, the plates and the dust are built, animated —
+    // and never seen.
+    scene: archive.scene,
+    camera: archive.camera,
     dispose: () => {
       teardown?.()
       teardown = null
@@ -332,11 +361,24 @@ function build(ctx: ThreeContext): ThreeBuildResult {
 const ArchiveScene = defineComponent({
   name: 'ArchiveSpaceScene',
   setup() {
-    const { active } = useThreeScene(canvasHolder.ref, build)
+    // The archive is the scene of the route: it is the first one to get a
+    // slot of the budget of the contexts.
+    const { active, sessionKey: key } = useThreeScene(canvasHolder.ref, build, {
+      priority: SCENE_PRIORITY.scene,
+    })
     watch(
       active,
       (value) => {
         status.active = value
+      },
+      { immediate: true, flush: 'sync' },
+    )
+    // The number of the session travels up: the canvas of the wrap is
+    // bound to it, so a new session always gets a canvas of its own.
+    watch(
+      key,
+      (value) => {
+        sessionKey.value = value
       },
       { immediate: true, flush: 'sync' },
     )
@@ -376,9 +418,10 @@ onUnmounted(() => {
   >
     <template v-if="enabled">
       <canvas
+        v-if="status.active"
+        :key="sessionKey"
         :ref="setCanvas"
         class="archive-canvas"
-        :class="{ hidden: !status.active }"
         aria-hidden="true"
         @pointerdown="onPointerDown"
         @click="onClick"
@@ -393,7 +436,10 @@ onUnmounted(() => {
 .archive-canvas-wrap {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  /* The space is a background of the page: the rings, the plates and the
+     dust stay under the words of the list — the text is read on top of
+     them, never under them. */
+  z-index: -1;
   overflow: hidden;
   /* The wrap is a background: the DOM list above it keeps its clicks. */
   pointer-events: none;
@@ -405,10 +451,6 @@ onUnmounted(() => {
   display: block;
   /* Only the canvas itself takes the pointer. */
   pointer-events: auto;
-}
-
-.archive-canvas.hidden {
-  visibility: hidden;
 }
 
 .archive-fallback {

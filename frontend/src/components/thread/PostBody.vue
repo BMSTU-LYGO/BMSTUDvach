@@ -60,22 +60,57 @@ interface BodyLine {
   greentext: boolean
   blank: boolean
   eol: string
+  /** The line belongs to a fenced code block. */
+  code: boolean
+  /** The line IS a fence marker (` ``` ` or ` ```lang `). */
+  fence: boolean
+  /** The quote marker at the head of a greentext line — drawn, not dumped. */
+  marker: string
 }
 
 type BodyBlock =
   | { kind: 'quote'; lines: BodyLine[] }
   | { kind: 'paragraph'; lines: BodyLine[] }
+  | { kind: 'code'; lines: BodyLine[] }
   | { kind: 'gap'; eol: string }
+
+/**
+ * The quote marker of a greentext line: a run of `>` that does not open a
+ * post link (`>>42` is a link, not a marker). The marker is only taken from
+ * a line that starts with it — an indented quote keeps its indentation, and
+ * the text stays verbatim in the DOM either way.
+ */
+const QUOTE_MARKER = /^>+/
+
+/** Текст строки блока кода: маркеры и содержимое идут как есть. */
+function lineText(line: BodyLine): string {
+  const token = line.tokens[0]
+  return token && token.type === 'text' ? token.value : ''
+}
 
 const bodyLines = computed<BodyLine[]>(() => {
   const raw = props.body.split('\n')
+  let inCode = false
   return raw.map((text, index) => {
     const trimmed = text.trim()
+    const isFence = trimmed.startsWith('```')
+    // a fence opens or closes a code block; the state machine is the parser
+    if (isFence) inCode = !inCode
+    const code = isFence || inCode
+    const greentext = !code && trimmed.startsWith('>')
+    const run = greentext ? QUOTE_MARKER.exec(text)?.[0] ?? '' : ''
+    // `>>42` opens a post link — that is a link, not a quote marker
+    const marker = run && !/\d/.test(text[run.length] ?? '') ? run : ''
+    // the marker is drawn apart from the text, but it stays part of it
+    const rest = marker ? text.slice(marker.length) : text
     return {
-      tokens: parsePostLinks(text),
-      greentext: trimmed.startsWith('>'),
+      tokens: code ? [{ type: 'text', value: text }] : parsePostLinks(rest),
+      greentext,
       blank: trimmed.length === 0,
       eol: index < raw.length - 1 ? '\n' : '',
+      code,
+      fence: isFence,
+      marker,
     }
   })
 })
@@ -90,11 +125,13 @@ const blocks = computed<BodyBlock[]>(() => {
   const out: BodyBlock[] = []
 
   for (const line of bodyLines.value) {
-    const kind: BodyBlock['kind'] = line.blank
-      ? 'gap'
-      : line.greentext
-        ? 'quote'
-        : 'paragraph'
+    const kind: BodyBlock['kind'] = line.code
+      ? 'code'
+      : line.blank
+        ? 'gap'
+        : line.greentext
+          ? 'quote'
+          : 'paragraph'
     const previous = out[out.length - 1]
 
     if (previous?.kind === kind) {
@@ -225,6 +262,23 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   <div class="post-body">
     <template v-for="(block, blockIndex) in blocks" :key="blockIndex">
       <span v-if="block.kind === 'gap'" class="post-gap">{{ block.eol }}</span>
+      <!-- Код — отдельным блоком: подложка, кромка, моноширинный набор.
+           Маркеры ограждения остаются в DOM (текст поста дословен), но
+           начертанием не видны — их дело быть разметкой, а не текстом. -->
+      <pre
+        v-else-if="block.kind === 'code'"
+        class="post-block post-code"
+        data-testid="post-code"
+      ><code><template v-for="(line, lineIndex) in block.lines" :key="lineIndex"><span
+          v-if="line.fence"
+          class="post-code__fence"
+          aria-hidden="true"
+          >{{ lineText(line) }}</span
+        ><span v-else class="post-code__line">{{ lineText(line) }}</span><span
+          v-if="line.eol"
+          class="post-code__eol"
+          >{{ line.eol }}</span
+        ></template></code></pre>
       <div
         v-else
         class="post-block"
@@ -233,6 +287,12 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
       >
         <template v-for="(line, lineIndex) in block.lines" :key="lineIndex">
           <span class="post-line">
+            <span
+              v-if="line.marker"
+              class="post-quote__marker"
+              aria-hidden="true"
+              >{{ line.marker }}</span
+            >
             <template v-for="(token, tokenIndex) in line.tokens" :key="tokenIndex">
               <span v-if="token.type === 'text'">
                 <template
@@ -279,7 +339,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
       v-for="(attachment, index) in attachments"
       :key="attachment.id"
       type="button"
-      class="post-attachment react-lift react-press"
+      class="post-attachment react-lift--quiet react-press--flat"
       :data-testid="`post-attachment-${index}`"
       :aria-label="`Открыть вложение ${attachment.original_name || index + 1}`"
       @click="openLightbox(index)"
@@ -347,13 +407,52 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
 }
 
 /* Цитата — только чтение: у цитат нет появления и нет реакции,
-   иначе цитируемое перестаёт быть тихим. */
+   иначе цитируемое перестаёт быть тихим. Цитата читается как блок:
+   отступ, кромка акцентом и подложка — «>» в начале строки был служебным
+   знаком, а теперь это тихая типографская метка, а не мусор в тексте. */
 .post-quote {
-  padding-left: var(--space-4);
-  border-left: 4px solid var(--rule, #d4ceb8);
-  background: rgba(247, 243, 232, 0.3);
+  padding: var(--space-2) var(--space-4);
+  border-left: 2px solid var(--accent, #2f4f4e);
+  background: var(--paper-sunken, #f7f3e8);
   color: var(--ink-secondary, #5b5547);
   font-style: italic;
+}
+
+.post-quote__marker {
+  margin-right: 0.35em;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.85em;
+  font-style: normal;
+  color: var(--ink-tertiary, #8a8273);
+  letter-spacing: 0;
+}
+
+/* Код — лист с подложкой и кромкой: моноширинный набор, никакого
+   ограждения в тексте. Длинная строка уезжает вбок, а не ломает
+   соседние абзацы. */
+.post-code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--paper-sunken, #f7f3e8);
+  border: 1px solid var(--rule, #d4ceb8);
+  border-left: 2px solid var(--ink-tertiary, #8a8273);
+  border-radius: 0;
+  color: var(--ink, #1c1a14);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.post-code code {
+  font: inherit;
+}
+
+/* Ограждение — разметка, а не текст поста: в DOM оно остаётся (текст
+   дословен), но глазом не читается. */
+.post-code__fence {
+  display: none;
 }
 
 /* Ссылка на пост: чтение, а не украшение. Чернильный след проступает
@@ -412,7 +511,7 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
 .post-highlight {
   background: var(--paper-sunken, #f7f3e8);
   color: var(--ink, #1c1a14);
-  border-radius: 2px;
+  border-radius: 0;
   padding: 0 1px;
 }
 
@@ -430,11 +529,13 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
 }
 
 /* Вложение — лист бумаги: кромка ловит свет, нажатие вдавливает плитку.
-   Материальный слой (react-lift/react-press) задаёт и подъём, и вмятину. */
+   Плитка крупная (четверть экрана), поэтому тень не пересчитывается
+   каждый кадр: материальный слой берёт тихую реакцию — только кромка. */
 .post-attachment {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  width: 240px;
   min-width: 0;
   max-width: 100%;
   padding: 0;
@@ -444,14 +545,19 @@ function activateLink(id: number, native: boolean, preventDefault: () => void) {
   border: 1px solid var(--rule, #d4ceb8);
   border-radius: 0;
   cursor: zoom-in;
+  font: inherit;
 }
 
+/* Превью показывает картинку целиком: `contain` в рамке 16:9 не режет
+   содержимое (обрезка молча теряла данные — половину скриншота). */
 .post-attachment__img {
   display: block;
-  width: 240px;
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 240px;
-  object-fit: cover;
+  object-fit: contain;
+  background: var(--paper-sunken, #f7f3e8);
 }
 
 .post-attachment__meta {

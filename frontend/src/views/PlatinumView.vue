@@ -111,6 +111,14 @@ const archivePhase = computed<ArchiveSpacePhase>(() => {
  */
 const ARCHIVE_PHASE_EVENT = 'bmstudvach:archive-phase'
 const ARCHIVE_PHASE_REQUEST_EVENT = 'bmstudvach:archive-phase-request'
+/**
+ * The reader picked a plate in the space itself.
+ *
+ * The space and the view live in different component trees, so the pick
+ * travels through the window — the same way the state of the archive and
+ * its register travel.
+ */
+const ARCHIVE_PICK_EVENT = 'bmstudvach:archive-pick'
 
 /** Tell the space which state the page is in. */
 function publishPhase(phase: ArchiveSpacePhase) {
@@ -269,6 +277,35 @@ function openRow(id: number) {
   selectStory(id)
 }
 
+/**
+ * Open a story of the archive.
+ *
+ * The navigation belongs to the view: the rows are links, and the keyboard
+ * and the space are the second and the third way into them. The scene
+ * speaks about the same opening, but it must never lead the router itself —
+ * a `router.push` from a scene handler answers the route guard that
+ * published the event, and the two calls push each other in a circle that
+ * never ends the navigation.
+ */
+function openStory(id: number) {
+  const target = `/platinum/${id}`
+  if (router.currentRoute.value.path === target) return
+  void router.push(target).catch(() => {
+    // A navigation that was superseded or repeated is not an error of the
+    // archive — the reader is already on the way.
+  })
+}
+
+/**
+ * The reader picked a plate in the space: the story opens.
+ */
+function onArchivePick(event: Event) {
+  const detail = (event as CustomEvent<{ id?: unknown }>).detail
+  const id = Number(detail?.id)
+  if (!Number.isFinite(id) || id <= 0) return
+  openStory(id)
+}
+
 /* === The keyboard: the archive is navigable without a mouse =========== */
 
 /** The fragment the live region announced last (it must not repeat itself). */
@@ -351,6 +388,7 @@ function onRowKeydown(event: KeyboardEvent, index: number) {
       // is told, the scene flies to the plate and the route follows.
       openRow(story.id)
       emitSceneEvent({ type: 'archive-open', target: story.id })
+      openStory(story.id)
       break
     }
     default:
@@ -399,17 +437,21 @@ let offScene: (() => void) | null = null
 
 onMounted(() => {
   window.addEventListener(ARCHIVE_PHASE_REQUEST_EVENT, onPhaseRequest)
+  window.addEventListener(ARCHIVE_PICK_EVENT, onArchivePick)
   offScene = onSceneEvent((ev) => {
-    // A fragment was clicked in 3D: the archive opens the story.
+    // A fragment was opened — in the space or with the keyboard. The view
+    // only marks it: the route is led by the link of the row, never by the
+    // scene (a navigation from here would answer the route guard that
+    // published the event and the two would push each other forever).
     if (ev.type !== 'archive-open') return
     selectStory(ev.target)
-    void router.push(`/platinum/${ev.target}`)
   })
   void load()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener(ARCHIVE_PHASE_REQUEST_EVENT, onPhaseRequest)
+  window.removeEventListener(ARCHIVE_PICK_EVENT, onArchivePick)
   offScene?.()
   offScene = null
   // The list is gone — the space returns to its ordinary voice (the story

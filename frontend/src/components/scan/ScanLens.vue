@@ -398,6 +398,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
 </template>
 
 <style scoped>
+/* Q-A-006: браузер рисует кнопки своим шрифтом — гарнитура приложения
+   должна побеждать. Правило с низкой специфичностью: у кнопок, которые
+   задают свой кегль, он остаётся. */
+button {
+  font-family: inherit;
+}
+
 .scan-backdrop {
   position: fixed;
   inset: 0;
@@ -453,7 +460,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
   align-items: baseline;
   gap: 3px;
   font-family: var(--font-body);
-  font-size: 0.6rem;
+  /* Q-M-10: подпись прибора не должна быть мельче 10 px. */
+  font-size: 0.6875rem;
   color: var(--accent);
   flex-shrink: 0;
 }
@@ -606,7 +614,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3) var(--space-1);
   font-family: var(--font-body);
-  font-size: 0.56rem;
+  /* Q-M-10: 8.96 px были минимумом во всём приложении — не читалось. */
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -712,7 +721,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan-row__meta {
   font-family: var(--font-body);
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -763,7 +772,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 .scan__notice-hint {
   font-family: var(--font-body);
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -774,7 +783,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .scan__hint-title {
   margin: 0 0 var(--space-4);
   font-family: var(--font-body);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -808,7 +817,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .scan kbd,
 .scan__hint kbd {
   font-family: var(--font-body);
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   line-height: 1.4;
   color: var(--ink-secondary);
   background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
@@ -827,7 +836,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border-subtle);
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   color: var(--ink-tertiary);
 }
 
@@ -862,6 +871,19 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
   .scan__hint-keys {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Q-M-09: чипы разделов и кнопка закрытия — цели для пальца. */
+@media (max-width: 767px) {
+  .scan__chip {
+    min-height: 44px;
+  }
+
+  .scan__close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
   }
 }
 

@@ -466,7 +466,7 @@ describe('PlatinumView — the archive and the 3D space (P3-T1)', () => {
     expect(sceneState.selectedStory).toBe(2)
   })
 
-  it('opens the story the space asked for', async () => {
+  it('marks the story the space opened — and never leads the router itself', async () => {
     vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
     const { router } = await mountArchive()
     const push = vi.spyOn(router, 'push')
@@ -474,8 +474,26 @@ describe('PlatinumView — the archive and the 3D space (P3-T1)', () => {
     emitSceneEvent({ type: 'archive-open', target: 5 })
     await flushPromises()
 
-    expect(push).toHaveBeenCalledWith('/platinum/5')
+    // Сцена только помечает открытый фрагмент. Навигацией занимается
+    // вью (ссылка строки, клавиатура, выбор пластины): `router.push` из
+    // обработчика сцены отвечает гварду, который и опубликовал событие, —
+    // и два вызова толкают друг друга по кругу до вечной навигации.
     expect(sceneState.selectedStory).toBe(5)
+    expect(push).not.toHaveBeenCalled()
+    push.mockRestore()
+  })
+
+  it('opens the story the reader picked in the space', async () => {
+    vi.mocked(listPlatinumStories).mockImplementation(() => page(PAGE_ONE, 2))
+    const { router } = await mountArchive()
+    const push = vi.spyOn(router, 'push')
+
+    window.dispatchEvent(
+      new CustomEvent('bmstudvach:archive-pick', { detail: { id: 5 } }),
+    )
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/platinum/5')
     push.mockRestore()
   })
 

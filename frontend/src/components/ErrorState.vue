@@ -1,10 +1,47 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 /**
  * «ОБРЫВ СИГНАЛА» — состояние ошибки в общем языке прибора: та же рамка,
  * тот же трек, та же типографика. Отличие — только состояние прибора:
  * линия разорвана, акцент danger, и есть действие «повторить».
+ *
+ * Прибор различает два разных обрыва (Q-D-08):
+ *   — «сервер не ответил» → ERROR, акцент danger, действие «повторить»;
+ *   — «нет связи» → NO LINK, чернильный акцент (без «красной стены»).
+ * Сырая ошибка браузера («Failed to fetch», «TypeError: …») человеку не
+ * показывается: она не говорит, что делать.
  */
-defineProps<{ message?: string; onRetry?: () => void }>()
+const props = withDefaults(
+  defineProps<{ message?: string; onRetry?: () => void }>(),
+  { message: '' },
+)
+
+/** Сырые сетевые ошибки браузера: по ним судят, что связи нет. */
+const OFFLINE_SIGNATURE =
+  /failed to fetch|networkerror|network error|network request failed|load failed|econnrefused|econnreset|socket hang up|err_(?:internet_disconnected|network_changed|connection_|name_not_resolved|address_unreachable)/i
+
+/** Сырые ответы сервера: сервер жив, но отказал. */
+const SERVER_SIGNATURE =
+  /\b(?:http\s?\d{3}|status(?: code)?\s?\d{3}|internal server error|bad gateway|gateway timeout|service unavailable|not implemented|forbidden|unauthorized)\b/i
+
+const offline = computed(() => OFFLINE_SIGNATURE.test(props.message))
+const serverFault = computed(() => SERVER_SIGNATURE.test(props.message))
+
+/** Подпись прибора: обрыв связи и отказ сервера — разные приборы. */
+const caption = computed(() => (offline.value ? 'NO LINK' : 'ERROR'))
+
+/** Человеческая формулировка: что именно сломалось и что делать. */
+const text = computed(() => {
+  const raw = props.message.trim()
+  if (offline.value) {
+    return 'Нет связи с сервером. Проверьте подключение — черновики остались на устройстве.'
+  }
+  if (serverFault.value) {
+    return 'Сервер не ответил как надо. Попробуйте повторить чуть позже.'
+  }
+  return raw || 'Ошибка связи.'
+})
 
 /** Форма сигнала с разрывом: пустая ячейка посередине — обрыв линии. */
 const SIGNAL: { h?: string; gap?: boolean }[] = [
@@ -21,14 +58,20 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
 </script>
 
 <template>
-  <div class="state state-error" role="alert" data-testid="error">
+  <div
+    class="state state-error"
+    role="alert"
+    aria-atomic="true"
+    data-testid="error"
+    :data-variant="offline ? 'offline' : 'server'"
+  >
     <div class="state__frame" data-testid="state-error">
       <span class="state__corner state__corner--tl" aria-hidden="true"></span>
       <span class="state__corner state__corner--tr" aria-hidden="true"></span>
       <span class="state__corner state__corner--bl" aria-hidden="true"></span>
       <span class="state__corner state__corner--br" aria-hidden="true"></span>
 
-      <p class="state__label">ERROR</p>
+      <p class="state__label">{{ caption }}</p>
 
       <div class="state__track" aria-hidden="true">
         <span v-for="(cell, i) in SIGNAL" :key="i" class="state__cell">
@@ -41,7 +84,7 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
         </span>
       </div>
 
-      <p class="state__message">{{ message ?? 'Ошибка связи.' }}</p>
+      <p class="state__message">{{ text }}</p>
 
       <div class="state__action">
         <button v-if="onRetry" type="button" class="state__button" @click="onRetry">
@@ -128,11 +171,12 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
   border-right-width: 1px;
 }
 
-/* === Подпись прибора: моно, капс, разрядка === */
+/* === Подпись прибора: моно, капс, разрядка ===
+   Кегль 11px — на 320px экране 10px читались как «служебная пыль». */
 .state__label {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0.2em;
@@ -310,6 +354,15 @@ const SIGNAL: { h?: string; gap?: boolean }[] = [
 .state-error .state__frame {
   --state-accent: var(--danger);
   --state-soft: color-mix(in oklab, var(--danger) 38%, var(--rule));
+}
+
+/* === Состояние: нет связи — тот же обрыв, но чернильный ===
+   Обрыв связи — не авария: красной стены здесь нет, прибор говорит чернилами.
+   Кромка действия при этом остаётся различимой (3:1 к бумаге). */
+.state-error[data-variant='offline'] .state__frame {
+  --state-accent: var(--ink-secondary);
+  --state-soft: color-mix(in oklab, var(--ink-secondary) 30%, var(--rule));
+  --state-border: color-mix(in oklab, var(--ink-secondary) 85%, var(--rule));
 }
 
 .state-error .state__break {

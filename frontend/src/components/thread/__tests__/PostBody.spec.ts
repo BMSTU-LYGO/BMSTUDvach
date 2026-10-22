@@ -345,6 +345,52 @@ describe('PostBody — reading typography', () => {
   })
 })
 
+describe('PostBody — блок кода (Q-D-24)', () => {
+  it('renders a fenced block as a code block, not as plain text', () => {
+    const wrapper = mountBody('```\ndef integrate(f, a, b):\n  return 0\n```')
+    const code = wrapper.find('[data-testid="post-code"]')
+    expect(code.exists()).toBe(true)
+    expect(code.element.tagName).toBe('PRE')
+    expect(code.text()).toContain('def integrate(f, a, b):')
+    // the fence is markup, not a line of the post
+    expect(code.findAll('.post-code__fence')).toHaveLength(2)
+  })
+
+  it('keeps the body text verbatim with a code block', () => {
+    const body = 'вступление\n```\nкод\n```\nконец'
+    const wrapper = mountBody(body)
+    expect(wrapper.find('.post-body').element.textContent).toBe(body)
+  })
+
+  it('does not turn a link inside code into a link', () => {
+    const wrapper = mountBody('```\n>>42\n```')
+    expect(wrapper.find('[data-testid="post-code"]').exists()).toBe(true)
+    expect(wrapper.find('.post-link').exists()).toBe(false)
+  })
+
+  it('leaves an ordinary paragraph alone', () => {
+    const wrapper = mountBody('просто текст')
+    expect(wrapper.find('[data-testid="post-code"]').exists()).toBe(false)
+  })
+})
+
+describe('PostBody — метка цитаты (Q-D-23)', () => {
+  it('draws the quote marker apart from the text', () => {
+    const wrapper = mountBody('> цитата')
+    const marker = wrapper.find('.post-quote__marker')
+    expect(marker.exists()).toBe(true)
+    expect(marker.text()).toBe('>')
+    // the text of the post is unchanged — the marker only moved into a span
+    expect(wrapper.find('.post-body').element.textContent).toBe('> цитата')
+  })
+
+  it('keeps >>42 a link, not a quote marker', () => {
+    const wrapper = mountBody('>>42')
+    expect(wrapper.find('.post-quote__marker').exists()).toBe(false)
+    expect(wrapper.find('.post-link').attributes('href')).toBe('#post-42')
+  })
+})
+
 describe('PostBody — подсветка поиска (FINDPOST-01)', () => {
   it('оборачивает совпадения в mark, сохраняя текст дословно', () => {
     const wrapper = mountBody('это тред про треды', { highlight: 'тред' })

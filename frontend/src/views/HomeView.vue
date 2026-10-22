@@ -191,30 +191,44 @@ function openRecent(event: MouseEvent, threadId: number) {
   color: var(--ink);
 }
 
+/* Герой — не пустой первый экран, а подпись под картиной: картинка живёт
+   наверху, а слова стоят на своём листе бумаги. Высота героя ограничена,
+   поэтому первый экран не съедается пустотой, а сетка разделов поднимается
+   в кадр. */
 .overlay {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
+  min-height: min(100vh, 720px);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding-bottom: var(--space-10);
   pointer-events: none;
 }
 
+/* Лист подписи: бумага поверх сцены. Раньше слова лежали прямо на
+   картинке — и счётчики, и кнопка терялись на шаре 3D. Теперь у слов своя
+   опора, и «прочитать» их можно при любом положении камеры. */
 .overlay-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  align-items: center;
+  gap: var(--space-6);
+  align-items: flex-start;
+  width: fit-content;
+  max-width: min(520px, 100%);
+  padding: var(--space-6);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--accent);
+  box-shadow: var(--shadow-sm);
   pointer-events: auto;
 }
 
 .overlay-header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  align-items: center;
-  text-align: center;
+  gap: var(--space-4);
+  align-items: flex-start;
 }
 
 .overlay-kicker {
@@ -228,43 +242,45 @@ function openRecent(event: MouseEvent, threadId: number) {
   font: 500 0.875rem var(--font-body);
   color: var(--ink-secondary);
   letter-spacing: 0.02em;
-  text-shadow: 0 2px 20px rgba(242, 237, 224, 0.8);
 }
 
 .overlay-meta {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-6);
   font-family: var(--font-mono);
   font-size: 0.875rem;
   color: var(--ink-tertiary);
-  text-shadow: 0 2px 20px rgba(242, 237, 224, 0.8);
 }
 
 .meta-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  align-items: center;
+  align-items: flex-start;
 }
 
+/* Микро-лейбл: тот же кегль и семейство, что и остальные подписи интерфейса.
+   Без капса и без разрядки — приборный язык, а не киберпанк. */
 .meta-label {
-  font-size: 0.75rem;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-tertiary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-secondary);
 }
 
 .meta-value {
+  font-family: var(--font-mono);
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .meta-divider {
   width: 1px;
   height: 40px;
+  align-self: flex-end;
   background: var(--rule);
 }
 
@@ -277,8 +293,7 @@ function openRecent(event: MouseEvent, threadId: number) {
   gap: var(--space-3);
   min-height: 56px;
   padding: 0 var(--space-8);
-  background: rgba(242, 237, 224, 0.9);
-  backdrop-filter: blur(12px);
+  background: var(--paper-raised);
   border: 2px solid var(--accent);
   border-radius: 0;
   color: var(--ink);
@@ -286,7 +301,6 @@ function openRecent(event: MouseEvent, threadId: number) {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  text-shadow: 0 1px 2px rgba(242, 237, 224, 0.5);
 }
 
 /* Кромка кнопки — печатный акцент, общий «подъём листа» её бы погасил.
@@ -321,14 +335,15 @@ function openRecent(event: MouseEvent, threadId: number) {
   position: relative;
   z-index: 20;
   background: var(--paper);
-  padding: 0 var(--space-6);
 }
 
+/* Секции главной начинаются с той же границы, что и колонка текста:
+   лишний отступ сдвигал их на 24px вправо от сетки. */
 .home-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-10) 0;
+  padding: var(--space-8) 0;
   border-bottom: 1px solid var(--rule);
   scroll-margin-top: var(--space-8);
 }
@@ -341,7 +356,7 @@ function openRecent(event: MouseEvent, threadId: number) {
 
 .label-index {
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink-tertiary);
 }
@@ -358,7 +373,7 @@ function openRecent(event: MouseEvent, threadId: number) {
 .label-meta {
   margin-left: auto;
   font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 400;
   color: var(--ink-tertiary);
   white-space: nowrap;
@@ -391,20 +406,24 @@ function openRecent(event: MouseEvent, threadId: number) {
 }
 
 @media (max-width: 768px) {
-  .content-layer {
-    padding: 0 var(--space-4);
-  }
-
-  .overlay-header {
-    padding: 0 var(--space-4);
-  }
-
   .label-meta {
     display: none;
   }
 
   .boards-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* На телефоне подпись героя занимает всю ширину листа: длинная строка
+     кикера не должна выходить за поля. */
+  .overlay-content {
+    max-width: 100%;
+  }
+
+  /* Экран ниже — герой короче: до разделов должно оставаться место. */
+  .overlay {
+    min-height: min(100vh, 520px);
+    padding-bottom: var(--space-6);
   }
 }
 
